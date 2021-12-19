@@ -52,8 +52,8 @@ ci_reachableT(t:T)
 interprocAssign(u:V,v:V) 
 ci_reachableI(i:I) 
 IHM(i:I,h:H,m:M) 
-ci_fpt(o1:H,f:F,o2:H)
-ci_fptStat(f:F,o:H)
+ci_fpt(o1:H,f:F,o2:H) output
+ci_fptStat(f:F,o:H) output
 ci_typeFilter(v:V,o:H) # type wise, v can point-to o
 
 ci_reachableM(m:M) output

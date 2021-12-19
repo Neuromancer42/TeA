@@ -155,7 +155,7 @@ public class BindUtils {
         String className = methName.substring(atSymbolIndex+1);
         if (scene.containsClass(className)) {
             SootClass klass = scene.getSootClass(className);
-            String subsig = SootUtils.getSootSubsigFor(methName);
+            String subsig = SootUtils.getSootSubsigFor(methName.substring(0,atSymbolIndex));
             SootMethod meth = klass.getMethod(subsig);
             return meth;
         } else {

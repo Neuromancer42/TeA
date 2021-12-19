@@ -1,4 +1,4 @@
-package stamp.analyses;
+package javabind.analyses.taint;
 
 import shord.project.analyses.ProgramDom;
 
