@@ -2,6 +2,7 @@ package javabind.analyses.base;
 
 
 import javabind.program.binddefs.*;
+import shord.project.Config;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
@@ -989,7 +990,7 @@ public class PAGBuilder extends JavaAnalysis
 
 
     void dump (ArrayList<String> l, String fname) {
-        File dFile = new File(System.getProperty("stamp.dir"), "meta/" + fname);
+        File dFile = new File(Config.v().workDirName, "meta/" + fname);
         try {
             PrintWriter pw = new PrintWriter(dFile);
             for (String s : l) pw.println(s);
@@ -1003,7 +1004,7 @@ public class PAGBuilder extends JavaAnalysis
     ArrayList<String> load (String fname) {
         ArrayList<String> l = new ArrayList<String>();
         try {
-            BufferedReader reader = new BufferedReader(new FileReader(new File(System.getProperty("stamp.dir"), "meta/" + fname)));
+            BufferedReader reader = new BufferedReader(new FileReader(new File(Config.v().outDirName, "meta/" + fname)));
             String line = reader.readLine();
             while(line != null){
                 String s = line.trim();

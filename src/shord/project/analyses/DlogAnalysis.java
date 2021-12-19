@@ -295,7 +295,7 @@ public class DlogAnalysis extends JavaAnalysis {
         };
 
 		int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
-		int timeout = Integer.getInteger("stamp.timeout").intValue();
+		int timeout = Integer.getInteger("chord.timeout.millis").intValue();
 		timeout -= elapsedTime;
         //OutDirUtils.
 		executeWithFailOnError(cmdArray, timeout);
