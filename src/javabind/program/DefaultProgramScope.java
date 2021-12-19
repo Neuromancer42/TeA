@@ -1,5 +1,6 @@
 package javabind.program;
 
+import javabind.program.binddefs.BindUtils;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
@@ -37,24 +38,12 @@ public class DefaultProgramScope  extends ProgramScope {
     public boolean ignoreStub() { return true; }
 
     private void identifyMethodsWithAnnotations() {
-        Scene scene = Scene.v();
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(new File(System.getProperty("chord.out.dir"), "annotations.txt")));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String methSig = line.split(" ")[0];
-                int atSymbolIndex = methSig.indexOf('@');
-                String className = methSig.substring(atSymbolIndex+1);
-                if (scene.containsClass(className)) {
-                    SootClass klass = scene.getSootClass(className);
-                    String subsig = SootUtils.getSootSubsigFor(methSig.substring(0, atSymbolIndex));
-                    SootMethod meth = klass.getMethod(subsig);
-                    annotatedMethods.add(meth);
-                }
+        annotatedMethods = new HashSet<>();
+        for (String methName : BindUtils.getAnnotatedMethodNames()) {
+            SootMethod meth = BindUtils.sig2Meth(prog.scene(), methName);
+            if (meth != null) {
+                annotatedMethods.add(meth);
             }
-            reader.close();
-        } catch (IOException e) {
-            throw new Error(e);
         }
     }
 }

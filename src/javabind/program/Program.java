@@ -34,10 +34,10 @@ public class Program {
             StringBuilder options = new StringBuilder();
             options.append("-full-resolver");
             options.append(" -f jimple");
-            String classpath = System.getProperty("chord.proj.dir") + File.separator + System.getProperty("chord.class.path")
-                    + File.pathSeparator + System.getProperty("chord.deps.dir");
+            String classpath = System.getProperty("chord.work.dir") + File.separator + System.getProperty("chord.class.path")
+                    + File.pathSeparator + System.getProperty("chord.deps.path");
             options.append(" -cp " + classpath);
-            String outdir = System.getProperty("chord.proj.dir") + File.separator + System.getProperty("chord.out.dir", "chord_output_soot");
+            String outdir = System.getProperty("chord.proj.dir") + File.separator + "sootOutput";
             options.append(" -d " + outdir + File.separator + "jimple");
 
             if (!Options.v().parse(options.toString().split(" ")))
