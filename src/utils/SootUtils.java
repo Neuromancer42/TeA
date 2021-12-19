@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-import javaprogram.Program;
+import java.program.Program;
 
 /**
  * @author Saswat Anand

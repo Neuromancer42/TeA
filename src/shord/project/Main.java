@@ -1,12 +1,9 @@
 package shord.project;
 
-import javaprogram.Program;
+import java.program.Program;
 
 import chord.util.Timer;
 import chord.util.Utils;
-
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Entry point of Chord after JVM settings are resolved.

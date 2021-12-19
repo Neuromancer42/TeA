@@ -1,4 +1,4 @@
-package javaprogram;
+package java.program;
 
 import soot.SootMethod;
 
