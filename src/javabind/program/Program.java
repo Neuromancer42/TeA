@@ -1,7 +1,7 @@
-package java.program;
+package javabind.program;
 
+import javabind.program.binddefs.BindUtils;
 import soot.*;
-import soot.jimple.*;
 import soot.options.Options;
 import soot.util.ArrayNumberer;
 import soot.util.Chain;
@@ -34,8 +34,11 @@ public class Program {
             StringBuilder options = new StringBuilder();
             options.append("-full-resolver");
             options.append(" -f jimple");
-            options.append(" -cp " + System.getProperty("chord.work.dir") + File.pathSeparator + System.getProperty("chord.class.path"));
-            options.append(" -d " + System.getProperty("chord.out.dir") + File.separator + "jimple");
+            String classpath = System.getProperty("chord.proj.dir") + File.separator + System.getProperty("chord.class.path")
+                    + File.pathSeparator + System.getProperty("chord.deps.dir");
+            options.append(" -cp " + classpath);
+            String outdir = System.getProperty("chord.proj.dir") + File.separator + System.getProperty("chord.out.dir", "chord_output_soot");
+            options.append(" -d " + outdir + File.separator + "jimple");
 
             if (!Options.v().parse(options.toString().split(" ")))
                 throw new CompilationDeathException(
@@ -110,60 +113,39 @@ public class Program {
         Iterator<SootMethod> mIt = getMethods();
         while (mIt.hasNext()) {
             SootMethod m = mIt.next();
-            if (checkIfStub(m)) {
+            if (BindUtils.checkIfStub(m)) {
                 System.out.println("Stub: "+m.getSignature());
                 stubMethods.add(m);
             }
         }
     }
 
-    private boolean checkIfStub(SootMethod method) {
-        if(!method.isConcrete())
-            return false;
-        PatchingChain<Unit> units = method.retrieveActiveBody().getUnits();
-        Unit unit = units.getFirst();
-        while(unit instanceof IdentityStmt)
-            unit = units.getSuccOf(unit);
-
-        //if method is <init>, then next stmt could be a call to super.<init>
-        if(method.getName().equals("<init>")){
-            if(unit instanceof InvokeStmt){
-                if(((InvokeStmt) unit).getInvokeExpr().getMethod().getName().equals("<init>"))
-                    unit = units.getSuccOf(unit);
-            }
-        }
-
-        if(!(unit instanceof AssignStmt))
-            return false;
-        Value rightOp = ((AssignStmt) unit).getRightOp();
-        if(!(rightOp instanceof NewExpr))
-            return false;
-        //System.out.println(method.retrieveActiveBody().toString());
-        if(!((NewExpr) rightOp).getType().toString().equals("java.lang.RuntimeException"))
-            return false;
-        Local e = (Local) ((AssignStmt) unit).getLeftOp();
-
-        //may be there is an assignment (if soot did not optimized it away)
-        Local f = null;
-        unit = units.getSuccOf(unit);
-        if(unit instanceof AssignStmt){
-            f = (Local) ((AssignStmt) unit).getLeftOp();
-            if(!((AssignStmt) unit).getRightOp().equals(e))
-                return false;
-            unit = units.getSuccOf(unit);
-        }
-        //it should be the call to the constructor
-        Stmt s = (Stmt) unit;
-        if(!s.containsInvokeExpr())
-            return false;
-        if(!s.getInvokeExpr().getMethod().getSignature().equals("<java.lang.RuntimeException: void <init>(java.lang.String)>"))
-            return false;
-        unit = units.getSuccOf(unit);
-        if(!(unit instanceof ThrowStmt))
-            return false;
-        Immediate i = (Immediate) ((ThrowStmt) unit).getOp();
-        return i.equals(e) || i.equals(f);
-    }
-
     public Scene scene() { return Scene.v(); }
+
+    public void runSpark() { runSpark(""); }
+
+    public void runSpark(String sparkOptions) {
+        // TODO: make Spark a single (plug-able) pass
+        Scene.v().releaseCallGraph();
+        Scene.v().releasePointsToAnalysis();
+        Scene.v().releaseFastHierarchy();
+        G.v().MethodPAG_methodToPag.clear();
+        G.v().ClassHierarchy_classHierarchyMap.clear();
+
+        Scene.v().setEntryPoints(defaultEntryPoints);
+        //run spark
+        Transform sparkTransform = PackManager.v().getTransform( "cg.spark" );
+        String defaultOptions = sparkTransform.getDefaultOptions();
+        StringBuilder options = new StringBuilder();
+        options.append("enabled:true");
+        options.append(" verbose:true");
+        options.append(" simulate-natives:false");//our models should take care of this
+        if(sparkOptions.trim().length() > 0)
+            options.append(" "+sparkOptions);
+        //options.append(" dump-answer:true");
+        options.append(" "+defaultOptions);
+        System.out.println("spark options: "+options.toString());
+        sparkTransform.setDefaultOptions(options.toString());
+        sparkTransform.apply();
+    }
 }

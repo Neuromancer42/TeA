@@ -1,9 +1,12 @@
 package shord.project;
 
-import java.program.Program;
+import javabind.program.Program;
 
 import chord.util.Timer;
 import chord.util.Utils;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Entry point of Chord after JVM settings are resolved.
@@ -29,14 +32,14 @@ public class Main {
             System.out.println("Chord run initiated at: " + initTime);
         Program program = Program.g();
 
-//        //DEBUG
-//        String harness = new String("oata.PrimTaint");
-//        Set<String> harnesses = new HashSet<>();
-//        harnesses.add(harness);
-//        program.build(harnesses);
-//        program.setMainClass(harness);
-//        System.out.println(program.getMainMethod().toString());
+        // set main class of Java
+        String mainClass = System.getProperty("chord.main.class");
+        Set<String> harnesses = new HashSet<>();
+        harnesses.add(mainClass);
+        program.build(harnesses);
+        program.setMainClass(mainClass);
 
+        // start analysis
         Project project = ClassicProject.g();
         String[] analysisNames = Utils.toArray(Config.v().runAnalyses);
         if (analysisNames.length > 0) {
