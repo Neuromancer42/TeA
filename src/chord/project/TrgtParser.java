@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -6,10 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import shord.project.Messages;
-import shord.project.Config;
-import shord.project.TrgtInfo;
-import shord.project.analyses.ProgramRel;
+import chord.analyses.ProgramRel;
 
 import chord.bddbddb.RelSign;
 import chord.util.Utils;

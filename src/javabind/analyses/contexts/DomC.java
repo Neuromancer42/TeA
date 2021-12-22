@@ -2,7 +2,7 @@ package javabind.analyses.contexts;
 
 import javabind.program.binddefs.Ctxt;
 
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 
 /**
  * Domain of abstract contexts.

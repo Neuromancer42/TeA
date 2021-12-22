@@ -1,6 +1,6 @@
 package javabind.analyses.taint;
 
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 
 public class DomL extends ProgramDom<String>
 {

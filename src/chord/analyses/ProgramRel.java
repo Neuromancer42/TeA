@@ -1,17 +1,12 @@
-package shord.project.analyses;
+package chord.analyses;
 
-import java.util.List;
-import java.io.File;
+import chord.project.ClassicProject;
 
-import shord.project.ClassicProject;
-
-import shord.project.Config;
-import shord.project.Messages;
-import shord.project.ITask;
+import chord.project.Config;
+import chord.project.Messages;
+import chord.project.ITask;
 
 import chord.bddbddb.Rel;
-import chord.bddbddb.RelSign;
-import chord.util.Utils;
 
 
 /**

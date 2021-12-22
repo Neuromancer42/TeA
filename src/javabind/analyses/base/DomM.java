@@ -1,7 +1,7 @@
 package javabind.analyses.base;
 
 import soot.SootMethod;
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 /**
  * Domain of methods
  *

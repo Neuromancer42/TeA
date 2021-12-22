@@ -1,7 +1,6 @@
-package shord.project;
+package chord.project;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -21,16 +20,10 @@ import java.util.jar.JarEntry;
 
 import org.scannotation.AnnotationDB;
 
-import shord.project.analyses.DlogAnalysis;
-import shord.project.analyses.ProgramDom;
-import shord.project.analyses.ProgramRel;
-import shord.project.OutDirUtils;
-import shord.project.Config;
-import shord.project.Messages;
-import shord.project.ITask;
-import shord.project.TrgtInfo;
+import chord.analyses.DlogAnalysis;
+import chord.analyses.ProgramDom;
+import chord.analyses.ProgramRel;
 
-import chord.project.Chord;
 import chord.util.Utils;
 import chord.bddbddb.RelSign;
 

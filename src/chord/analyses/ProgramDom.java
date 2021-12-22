@@ -1,14 +1,13 @@
-package shord.project.analyses;
+package chord.analyses;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.List;
 
-import shord.project.ClassicProject;
-import shord.project.Config;
-import shord.project.ITask;
+import chord.project.ClassicProject;
+import chord.project.Config;
+import chord.project.ITask;
 
 import chord.bddbddb.Dom;
 

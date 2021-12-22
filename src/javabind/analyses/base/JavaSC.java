@@ -1,8 +1,8 @@
 package javabind.analyses.base;
 
 import chord.project.Chord;
-import shord.project.ClassicProject;
-import shord.project.analyses.JavaAnalysis;
+import chord.project.ClassicProject;
+import chord.analyses.JavaAnalysis;
 
 /**
  * Collect special strings in Java programs

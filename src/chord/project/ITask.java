@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 /**
  * Specification of an analysis.

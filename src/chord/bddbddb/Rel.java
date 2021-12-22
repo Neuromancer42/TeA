@@ -14,7 +14,7 @@ import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
 
-import shord.project.Config;
+import chord.project.Config;
 
 import chord.util.tuple.integer.*;
 import chord.util.tuple.object.*;

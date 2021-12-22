@@ -1,6 +1,6 @@
 package javabind.program.binddefs;
 
-import shord.project.Config;
+import chord.project.Config;
 import soot.*;
 import soot.jimple.*;
 import soot.tagkit.Tag;

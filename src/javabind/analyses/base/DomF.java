@@ -1,7 +1,7 @@
 package javabind.analyses.base;
 
 import soot.jimple.spark.pag.SparkField;
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 /**
  * Domain of fields
  * 

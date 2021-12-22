@@ -1,7 +1,4 @@
-package shord.project;
-
-import java.io.File;
-import java.io.IOException;
+package chord.project;
 
 import chord.util.Utils;
 

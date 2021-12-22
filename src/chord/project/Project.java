@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 /**
  * A Chord project comprising a set of tasks and a set of targets

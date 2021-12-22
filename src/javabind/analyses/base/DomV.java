@@ -1,7 +1,7 @@
 package javabind.analyses.base;
 
 import javabind.program.binddefs.VarNode;
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 
 /**
  * Domain of method parameter/argument indices

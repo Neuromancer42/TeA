@@ -1,13 +1,12 @@
 package javabind.analyses.taint;
 
 import chord.project.Chord;
-import fj.P;
 import javabind.analyses.base.DomM;
 import javabind.program.Program;
 import javabind.program.binddefs.BindUtils;
-import shord.project.ClassicProject;
-import shord.project.analyses.JavaAnalysis;
-import shord.project.analyses.ProgramRel;
+import chord.project.ClassicProject;
+import chord.analyses.JavaAnalysis;
+import chord.analyses.ProgramRel;
 import soot.Scene;
 import soot.SootMethod;
 

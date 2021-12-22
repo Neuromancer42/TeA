@@ -1,10 +1,7 @@
-package shord.project.analyses;
+package chord.analyses;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,11 +12,10 @@ import java.util.regex.Pattern;
 import java.util.Set;
 import java.util.HashSet;
 
-import shord.project.Messages;
-import shord.project.Config;
-import shord.project.OutDirUtils;
-import shord.project.Main;
-import shord.project.ProcessExecutor;
+import chord.project.Messages;
+import chord.project.Config;
+import chord.Main;
+import chord.project.ProcessExecutor;
 
 import chord.bddbddb.RelSign;
 import chord.util.Utils;

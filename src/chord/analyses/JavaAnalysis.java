@@ -1,9 +1,7 @@
-package shord.project.analyses;
+package chord.analyses;
 
-import java.util.List;
-
-import shord.project.Messages;
-import shord.project.ITask;
+import chord.project.Messages;
+import chord.project.ITask;
 
 /**
  * Generic implementation of a Java task (a program analysis

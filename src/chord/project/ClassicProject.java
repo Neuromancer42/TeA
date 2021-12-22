@@ -1,10 +1,8 @@
-package shord.project;
+package chord.project;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -14,15 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import shord.project.analyses.DlogAnalysis;
-import shord.project.analyses.ProgramDom;
-import shord.project.analyses.ProgramRel;
-
-import shord.project.Messages;
-import shord.project.Config;
-import shord.project.OutDirUtils;
-import shord.project.ITask;
-import shord.project.TrgtInfo;
+import chord.analyses.DlogAnalysis;
+import chord.analyses.ProgramDom;
+import chord.analyses.ProgramRel;
 
 import chord.bddbddb.RelSign;
 import chord.bddbddb.Dom;

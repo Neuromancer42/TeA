@@ -2,7 +2,7 @@ package javabind.analyses.base;
 
 
 import javabind.program.binddefs.*;
-import shord.project.Config;
+import chord.project.Config;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
@@ -50,9 +50,9 @@ import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.tagkit.Tag;
 import soot.jimple.toolkits.callgraph.ReachableMethods;
-import shord.project.analyses.JavaAnalysis;
-import shord.project.analyses.ProgramRel;
-import shord.project.ClassicProject;
+import chord.analyses.JavaAnalysis;
+import chord.analyses.ProgramRel;
+import chord.project.ClassicProject;
 import javabind.program.Program;
 import utils.SootUtils;
 import chord.project.Chord;

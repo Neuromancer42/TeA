@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 import java.io.File;
 import java.io.BufferedReader;

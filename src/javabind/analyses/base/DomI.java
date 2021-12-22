@@ -2,7 +2,7 @@ package javabind.analyses.base;
 
 import javabind.program.binddefs.BindUtils;
 import soot.Unit;
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 
 /**
  * Domain of method invocation stmts

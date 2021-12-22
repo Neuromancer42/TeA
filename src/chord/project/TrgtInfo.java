@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 import chord.bddbddb.RelSign;
 

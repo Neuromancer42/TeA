@@ -1,6 +1,6 @@
 package javabind.analyses.base;
 
-import shord.project.analyses.ProgramDom;
+import chord.analyses.ProgramDom;
 /**
  * Domain of string constants
  *

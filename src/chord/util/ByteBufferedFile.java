@@ -2,14 +2,8 @@ package chord.util;
 
 import java.io.IOException;
 import java.io.FileInputStream;
-import java.io.FilterInputStream;
-import java.io.BufferedInputStream;
-import java.util.zip.GZIPInputStream;
 
 import java.io.FileOutputStream;
-import java.io.FilterOutputStream;
-import java.io.BufferedOutputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * Implementation of a buffered input or output file stream of bytes.

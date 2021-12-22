@@ -19,10 +19,10 @@ import soot.SootMethod;
 import soot.util.NumberedSet;
 
 import javabind.program.Program;
-import shord.project.ClassicProject;
-import shord.project.analyses.JavaAnalysis;
-import shord.project.analyses.ProgramRel;
-import shord.project.Config;
+import chord.project.ClassicProject;
+import chord.analyses.JavaAnalysis;
+import chord.analyses.ProgramRel;
+import chord.project.Config;
 
 import chord.project.Chord;
 import chord.util.ArraySet;

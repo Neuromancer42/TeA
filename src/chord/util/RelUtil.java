@@ -1,7 +1,7 @@
 package chord.util;
 
-import shord.project.analyses.ProgramRel;
-import shord.project.ClassicProject;
+import chord.analyses.ProgramRel;
+import chord.project.ClassicProject;
 
 /** Use by saying {@code import static chord.util.RelUtil.*;}. */
 public final class RelUtil {

@@ -1,17 +1,15 @@
-package shord.project;
+package chord.project;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
-import shord.project.Messages;
-import chord.project.Chord;
 import chord.bddbddb.RelSign;
 import chord.util.Utils;
 
-import shord.project.analyses.ProgramDom;
-import shord.project.analyses.ProgramRel;
+import chord.analyses.ProgramDom;
+import chord.analyses.ProgramRel;
 
 
 /**

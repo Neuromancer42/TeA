@@ -1,4 +1,4 @@
-package shord.project;
+package chord.project;
 
 /**
  * Utility for logging messages during Chord's execution.
