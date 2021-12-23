@@ -50,6 +50,9 @@ public class Config {
     // 5 => bddbddb: fulltravesolve=yes for solver
     public final int verbose = Integer.getInteger("chord.verbose", 1);
 
+    // Chord timeout settings (2 minutes by default)
+    public final Integer timeoutMillis = Integer.getInteger("chord.timeout.millis", 120000);
+
     // Chord project properties
     public final String javaAnalysisPathName = System.getProperty("chord.java.analysis.path");
     public final String dlogAnalysisPathName = System.getProperty("chord.dlog.analysis.path");
