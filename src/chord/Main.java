@@ -7,9 +7,10 @@ import javabind.program.Program;
 
 import chord.util.Timer;
 import chord.util.Utils;
-import provenance.DlogInstrumenter;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -34,30 +35,24 @@ public class Main {
         String initTime = timer.getInitTimeStr();
         if (Config.v().verbose >= 0)
             System.out.println("Chord run initiated at: " + initTime);
+
+        // set main class of Java
         Program program = Program.g();
+        String mainClass = Config.v().mainClassName;
+        Set<String> harnesses = new HashSet<>();
+        harnesses.add(mainClass);
+        program.build(harnesses);
+        program.setMainClass(mainClass);
 
-        if (System.getProperty("chord.provenance.dlog") != null) {
-            // switch to generate provenance files
-            DlogInstrumenter dlogInstr = new DlogInstrumenter();
-            dlogInstr.run();
-        } else {
-            // set main class of Java
-            String mainClass = System.getProperty("chord.main.class");
-            Set<String> harnesses = new HashSet<>();
-            harnesses.add(mainClass);
-            program.build(harnesses);
-            program.setMainClass(mainClass);
-
-            // start analysis
-            Project project = ClassicProject.g();
-            String[] analysisNames = Utils.toArray(Config.v().runAnalyses);
-            if (analysisNames.length > 0) {
-                project.run(analysisNames);
-            }
-            String[] relNames = Utils.toArray(Config.v().printRels);
-            if (relNames.length > 0) {
-                project.printRels(relNames);
-            }
+        // start analysis
+        String[] analysisNames = Utils.toArray(Config.v().runAnalyses);
+        Project project = ClassicProject.g();
+        if (analysisNames.length > 0) {
+            project.run(analysisNames);
+        }
+        String[] relNames = Utils.toArray(Config.v().printRels);
+        if (relNames.length > 0) {
+            project.printRels(relNames);
         }
         timer.done();
         String doneTime = timer.getDoneTimeStr();

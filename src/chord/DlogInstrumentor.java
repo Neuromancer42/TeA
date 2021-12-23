@@ -1,4 +1,4 @@
-package provenance;
+package chord;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 
+import chord.project.Messages;
 import chord.util.Utils;
 import jwutil.collections.IndexMap;
 import jwutil.io.SystemProperties;
@@ -16,7 +17,6 @@ import chord.project.ClassicProject;
 import chord.project.Config;
 import chord.project.TaskParser;
 import chord.analyses.DlogAnalysis;
-import chord.analyses.JavaAnalysis;
 import chord.analyses.ProgramRel;
 
 /**
@@ -34,14 +34,32 @@ import chord.analyses.ProgramRel;
  * 
  * @author xin
  *
+ * Patch 1: new domains are added in the end of .bddvarorder by default
+ * Patch 2: replace random id with dlog's hashcode
+ * Patch 3: optimize the generation of phantom empty domains/relations
+ * Patch 3: Instrumentor becomes a separated program
+ *
+ * @author Yifan Chen
+ *
  */
 
-public class DlogInstrumenter extends JavaAnalysis {
+public class DlogInstrumentor {
+
 	public final static String DLOG = "chord.provenance.dlog";
 	public final static String PARAM = "chord.provenance.paramR";
 	public final static String RULE_FILTER = "chord.provenance.ruleFilter";
+
+	public static void main(String[] args)  {
+		Config.init();
+		ClassicProject.init();
+		String dlogName = System.getProperty(DLOG);
+		DlogInstrumentor dlogInstr = new DlogInstrumentor(dlogName);
+		dlogInstr.transform();
+	}
+
 	private boolean ruleFilter;
-	private String dlogName;
+	public String dlogName;
+	public String instrumentedDlogName;
 	private Collection inputRelations;
 	private IndexMap allRelations;
 	private List rules;
@@ -54,17 +72,33 @@ public class DlogInstrumenter extends JavaAnalysis {
 	private String headerInclude = "";
 	private String headerBddvarorder = "";
 	private String[] paramTuples;
+	private String dumpDirName;
 
 	private Solver solver;
+	private DlogAnalysis dlogAnalysis = null;
 
 	private PrintWriter dlogOut;
 	private PrintWriter configOut;
 	
-	private int id = (int)(Math.random()*100.00);
+	private int id;
 
-	@Override
-	public void run() {
-		dlogName = System.getProperty(DLOG, "");
+
+	public DlogInstrumentor(String name) {
+		dlogName = name;
+		try {
+			dlogAnalysis = (DlogAnalysis) ClassicProject.g().getTask(dlogName);
+		} catch (ClassCastException e) {
+			Messages.fatal("Error: Task " + dlogName + " is not a Datalog Analysis!");
+		} catch (Exception e) {
+			Messages.fatal(e);
+		}
+		id = dlogName.hashCode() % 100;
+	}
+
+	public void transform() {
+		instrumentedDlogName = instrumentName(dlogName);
+
+		Messages.log("Instrumenting [" + dlogName + "] for provenance.");
 		ruleFilter = Boolean.parseBoolean(System.getProperty(RULE_FILTER, "false"));
 		if(ruleFilter)
 			paramTuples = System.getProperty(PARAM).split(",");
@@ -94,8 +128,9 @@ public class DlogInstrumenter extends JavaAnalysis {
 				rel.save();
 			}
 		}
-		ClassicProject.g().runTask(dlogName);
-		DlogAnalysis dlogAnalysis = taskParser.getNameToDlogTaskMap().get(dlogName);
+
+		dlogAnalysis.run();
+
 		String fileName = dlogAnalysis.getFileName();
 		System.setProperty("verbose", "" + Config.v().verbose);
 		System.setProperty("bdd", "j");
@@ -112,10 +147,12 @@ public class DlogInstrumenter extends JavaAnalysis {
 			allRelations = solver.getRelations();
 			outputRelations.addAll(solver.getRelationsToSave());
 			rules = solver.getRules();
-			this.filterRules();
-			this.generateProvenance();
-			this.generateInstrumentedDlog();
+			filterRules();
+			generateProvenance();
+			generateInstrumentedDlog();
 			closeOutput();
+
+			Messages.log("Instrumented [" + instrumentedDlogName + "] in " + dumpDirName);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -123,10 +160,10 @@ public class DlogInstrumenter extends JavaAnalysis {
 
 	private void initOutput() {
 		try {
-			String dumpDirName = Config.v().outDirName + File.separator + "provenance";
+			dumpDirName = Config.v().outDirName + File.separator + "provenance";
 			Utils.mkdirs(dumpDirName);
-			dlogOut = new PrintWriter(new File(dumpDirName + File.separator + dlogName + MAGIC + ".dlog"));
-			configOut = new PrintWriter(new File(dumpDirName + File.separator + dlogName + MAGIC + ".config"));
+			dlogOut = new PrintWriter(new File(dumpDirName + File.separator + instrumentedDlogName + ".dlog"));
+			configOut = new PrintWriter(new File(dumpDirName + File.separator + instrumentedDlogName + ".config"));
 		} catch (FileNotFoundException e) {
 			throw new RuntimeException(e);
 		}
@@ -156,7 +193,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 				} else if (headerType.equals("bddvarorder")) {
 					headerBddvarorder = line;
 				} else {
-					System.err.println("Unknown header discarded: " + line + "\n");
+					Messages.warn("Unknown header discarded: " + line + "\n");
 				}
 			}
 		}
@@ -211,7 +248,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 				for (Object o2 : tvs) {
 					Variable v = (Variable) o2;
 					if (v.getName().equals("_")) {
-						v = new Variable("v" + MAGIC + rvc++, v.getDomain());
+						v = new Variable(instrumentName("v") + rvc++, v.getDomain());
 					}
 					ntvs.add(v);
 					if (v.getName().matches("^[0-9]+$"))
@@ -227,7 +264,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 			List<Attribute> headAttris = new ArrayList<Attribute>();
 			for (Variable v : headVariables)
 				headAttris.add(new Attribute(v.toString(), v.getDomain(), ""));
-			Relation headRelation1 = solver.createRelation(headRelation.toString() + MAGIC + i+"_"+id, headAttris);
+			Relation headRelation1 = solver.createRelation(instrumentName(headRelation.toString()) + i+"_"+id, headAttris);
 			headRelation1.initialize();
 			instrumentedRelations.add(headRelation1);
 			rList.add(0, headRelation1);
@@ -280,7 +317,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 		} while (changed);
 	}
 
-	private boolean rhsContainInTS(InferenceRule r, Set<String> ts) {
+	private static boolean rhsContainInTS(InferenceRule r, Set<String> ts) {
 		for (Object o : r.getSubgoals()) {
 			RuleTerm rt = (RuleTerm) o;
 			if (ts.contains(rt.getRelation().toString()))
@@ -289,7 +326,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 		return false;
 	}
 
-	private boolean lhsContainInTS(InferenceRule r, Set<String> ts) {
+	private static boolean lhsContainInTS(InferenceRule r, Set<String> ts) {
 		if (ts.contains(r.getHead().getRelation().toString()))
 			return true;
 		return false;
@@ -329,7 +366,7 @@ public class DlogInstrumenter extends JavaAnalysis {
 	}
 
 	private void generateInstrumentedDlog() {
-		dlogOut.println("# name=" + dlogName + MAGIC);
+		dlogOut.println("# name=" + instrumentedDlogName);
 		dlogOut.println(headerInclude);
 		dlogOut.println(generateBddvarorder());
 		dlogOut.println();
@@ -366,11 +403,11 @@ public class DlogInstrumenter extends JavaAnalysis {
 		dlogOut.close();
 	}
 
-	private String relationToString(Relation r) {
+	private static String relationToString(Relation r) {
 		return r.verboseToString().replaceAll("\\[", "(").replaceAll("\\]", ")");
 	}
 
-	private String ruleToString(InferenceRule r) {
+	private static String ruleToString(InferenceRule r) {
 		StringBuffer sb = new StringBuffer();
 		sb.append(r.getHead());
 		List subgoals = r.getSubgoals();
@@ -400,5 +437,13 @@ public class DlogInstrumenter extends JavaAnalysis {
 			}
 		}
 		return bddvarorder;
+	}
+
+	public static String instrumentName(String rawName) {
+		if (rawName.endsWith(MAGIC)) {
+			return rawName;
+		} else {
+			return rawName + MAGIC;
+		}
 	}
 }

@@ -7,8 +7,8 @@
 .include "F.dom"
 .include "I.dom"
 .include "Z.dom"
-.bddvarorder L0xL1_M0_U0xU1_V0_H0xH1_F0_I0_Z0_M1
 
+.bddvarorder L0xL1_M0_U0xU1_V0_H0xH1_F0_I0_Z0_M1
 
 #Input relations
 SrcMeth(l:L0,m:M0) input
@@ -48,28 +48,28 @@ labelPrimStatFld(f:F0,l:L0) output
 snkInvk(i:I0,l:L0) output
 
 #Instrumented relations
-snkInvk_XZ89_0_27(i:I0,l:L0,m:M0,mm:M1) output
-snkPrim_XZ89_1_27(u:U0,l:L0,i:I0,v_XZ89_0:Z0) output
-snkRef_XZ89_2_27(v:V0,l:L0,i:I0,v_XZ89_0:Z0) output
-snkObj_XZ89_3_27(o:H0,l:L0,v:V0) output
-snkObj_XZ89_4_27(o2:H0,l:L0,o1:H1,v_XZ89_0:F0) output
-srcInvk_XZ89_5_27(i:I0,l:L0,m:M0,mm:M1) output
-srcPrim_XZ89_6_27(u:U0,l:L0,i:I0,v_XZ89_0:Z0) output
-srcRef_XZ89_7_27(v:V0,l:L0,i:I0,v_XZ89_0:Z0) output
-srcObj_XZ89_8_27(o:H0,l:L0,v:V0) output
-srcObj_XZ89_9_27(o2:H0,l:L0,o1:H1,v_XZ89_0:F0) output
-labelPrim_XZ89_10_27(u:U0,l:L0) output
-labelPrim_XZ89_11_27(u:U0,l:L0,v:U1) output
-labelPrimFld_XZ89_12_27(o:H0,f:F0,l:L0,v:V0,u:U0) output
-labelPrim_XZ89_13_27(u:U0,l:L0,v:V0,f:F0,o:H0) output
-labelPrim_XZ89_14_27(u:U0,l:L0,v:V0,v_XZ89_0:F0,o:H0) output
-labelPrimStatFld_XZ89_15_27(f:F0,l:L0,u:U0) output
-labelPrim_XZ89_16_27(u:U0,l:L0,f:F0) output
-labelPrim_XZ89_17_27(u2:U0,l:L0,i:I0,m:M0,z:Z0,u1:U1) output
-labelPrim_XZ89_18_27(u1:U0,l:L0,i:I0,m:M0,z:Z0,u2:U1) output
-ci_flow_XZ89_19_27(src:L0,snk:L1,o:H0) output
-ci_flow_XZ89_20_27(src:L0,snk:L1,o:H0,v_XZ89_0:F0) output
-ci_flow_XZ89_21_27(src:L0,snk:L1,u:U0) output
+snkInvk_XZ89_0_59(i:I0,l:L0,m:M0,mm:M1) output
+snkPrim_XZ89_1_59(u:U0,l:L0,i:I0,v_XZ89_0:Z0) output
+snkRef_XZ89_2_59(v:V0,l:L0,i:I0,v_XZ89_0:Z0) output
+snkObj_XZ89_3_59(o:H0,l:L0,v:V0) output
+snkObj_XZ89_4_59(o2:H0,l:L0,o1:H1,v_XZ89_0:F0) output
+srcInvk_XZ89_5_59(i:I0,l:L0,m:M0,mm:M1) output
+srcPrim_XZ89_6_59(u:U0,l:L0,i:I0,v_XZ89_0:Z0) output
+srcRef_XZ89_7_59(v:V0,l:L0,i:I0,v_XZ89_0:Z0) output
+srcObj_XZ89_8_59(o:H0,l:L0,v:V0) output
+srcObj_XZ89_9_59(o2:H0,l:L0,o1:H1,v_XZ89_0:F0) output
+labelPrim_XZ89_10_59(u:U0,l:L0) output
+labelPrim_XZ89_11_59(u:U0,l:L0,v:U1) output
+labelPrimFld_XZ89_12_59(o:H0,f:F0,l:L0,v:V0,u:U0) output
+labelPrim_XZ89_13_59(u:U0,l:L0,v:V0,f:F0,o:H0) output
+labelPrim_XZ89_14_59(u:U0,l:L0,v:V0,v_XZ89_0:F0,o:H0) output
+labelPrimStatFld_XZ89_15_59(f:F0,l:L0,u:U0) output
+labelPrim_XZ89_16_59(u:U0,l:L0,f:F0) output
+labelPrim_XZ89_17_59(u2:U0,l:L0,i:I0,m:M0,z:Z0,u1:U1) output
+labelPrim_XZ89_18_59(u1:U0,l:L0,i:I0,m:M0,z:Z0,u2:U1) output
+ci_flow_XZ89_19_59(src:L0,snk:L1,o:H0) output
+ci_flow_XZ89_20_59(src:L0,snk:L1,o:H0,v_XZ89_0:F0) output
+ci_flow_XZ89_21_59(src:L0,snk:L1,u:U0) output
 
 #Original rules
 snkInvk(i,l) :- ci_reachableM(m), MI(m,i), ci_IM(i,mm), SnkMeth(l,mm).
@@ -96,25 +96,25 @@ ci_flow(src,snk) :- snkObj(o,snk), labelPrimFld(o,_,src).
 ci_flow(src,snk) :- snkPrim(u,snk), labelPrim(u,src).
 
 #Instrumented rules
-snkInvk_XZ89_0_27(i,l,m,mm) :- ci_reachableM(m), MI(m,i), ci_IM(i,mm), SnkMeth(l,mm).
-snkPrim_XZ89_1_27(u,l,i,v_XZ89_0) :- snkInvk(i,l), IinvkPrimArg(i,v_XZ89_0,u).
-snkRef_XZ89_2_27(v,l,i,v_XZ89_0) :- snkInvk(i,l), IinvkArg(i,v_XZ89_0,v).
-snkObj_XZ89_3_27(o,l,v) :- snkRef(v,l), ci_pt(v,o).
-snkObj_XZ89_4_27(o2,l,o1,v_XZ89_0) :- snkObj(o1,l), ci_fpt(o1,v_XZ89_0,o2).
-srcInvk_XZ89_5_27(i,l,m,mm) :- ci_reachableM(m), MI(m,i), ci_IM(i,mm), SrcMeth(l,mm).
-srcPrim_XZ89_6_27(u,l,i,v_XZ89_0) :- srcInvk(i,l), IinvkPrimRet(i,v_XZ89_0,u).
-srcRef_XZ89_7_27(v,l,i,v_XZ89_0) :- srcInvk(i,l), IinvkRet(i,v_XZ89_0,v).
-srcObj_XZ89_8_27(o,l,v) :- srcRef(v,l), ci_pt(v,o).
-srcObj_XZ89_9_27(o2,l,o1,v_XZ89_0) :- srcObj(o1,l), ci_fpt(o1,v_XZ89_0,o2).
-labelPrim_XZ89_10_27(u,l) :- srcPrim(u,l).
-labelPrim_XZ89_11_27(u,l,v) :- AssignPrim(u,v), labelPrim(v,l).
-labelPrimFld_XZ89_12_27(o,f,l,v,u) :- StorePrim(v,f,u), labelPrim(u,l), ci_pt(v,o).
-labelPrim_XZ89_13_27(u,l,v,f,o) :- LoadPrim(u,v,f), ci_pt(v,o), labelPrimFld(o,f,l).
-labelPrim_XZ89_14_27(u,l,v,v_XZ89_0,o) :- LoadPrim(u,v,v_XZ89_0), ci_pt(v,o), srcObj(o,l).
-labelPrimStatFld_XZ89_15_27(f,l,u) :- labelPrim(u,l), StoreStatPrim(f,u).
-labelPrim_XZ89_16_27(u,l,f) :- LoadStatPrim(u,f), labelPrimStatFld(f,l).
-labelPrim_XZ89_17_27(u2,l,i,m,z,u1) :- ci_IM(i,m), IinvkPrimArg(i,z,u1), MmethPrimArg(m,z,u2), labelPrim(u1,l).
-labelPrim_XZ89_18_27(u1,l,i,m,z,u2) :- ci_IM(i,m), IinvkPrimRet(i,z,u1), MmethPrimRet(m,z,u2), labelPrim(u2,l).
-ci_flow_XZ89_19_27(src,snk,o) :- snkObj(o,snk), srcObj(o,src).
-ci_flow_XZ89_20_27(src,snk,o,v_XZ89_0) :- snkObj(o,snk), labelPrimFld(o,v_XZ89_0,src).
-ci_flow_XZ89_21_27(src,snk,u) :- snkPrim(u,snk), labelPrim(u,src).
+snkInvk_XZ89_0_59(i,l,m,mm) :- ci_reachableM(m), MI(m,i), ci_IM(i,mm), SnkMeth(l,mm).
+snkPrim_XZ89_1_59(u,l,i,v_XZ89_0) :- snkInvk(i,l), IinvkPrimArg(i,v_XZ89_0,u).
+snkRef_XZ89_2_59(v,l,i,v_XZ89_0) :- snkInvk(i,l), IinvkArg(i,v_XZ89_0,v).
+snkObj_XZ89_3_59(o,l,v) :- snkRef(v,l), ci_pt(v,o).
+snkObj_XZ89_4_59(o2,l,o1,v_XZ89_0) :- snkObj(o1,l), ci_fpt(o1,v_XZ89_0,o2).
+srcInvk_XZ89_5_59(i,l,m,mm) :- ci_reachableM(m), MI(m,i), ci_IM(i,mm), SrcMeth(l,mm).
+srcPrim_XZ89_6_59(u,l,i,v_XZ89_0) :- srcInvk(i,l), IinvkPrimRet(i,v_XZ89_0,u).
+srcRef_XZ89_7_59(v,l,i,v_XZ89_0) :- srcInvk(i,l), IinvkRet(i,v_XZ89_0,v).
+srcObj_XZ89_8_59(o,l,v) :- srcRef(v,l), ci_pt(v,o).
+srcObj_XZ89_9_59(o2,l,o1,v_XZ89_0) :- srcObj(o1,l), ci_fpt(o1,v_XZ89_0,o2).
+labelPrim_XZ89_10_59(u,l) :- srcPrim(u,l).
+labelPrim_XZ89_11_59(u,l,v) :- AssignPrim(u,v), labelPrim(v,l).
+labelPrimFld_XZ89_12_59(o,f,l,v,u) :- StorePrim(v,f,u), labelPrim(u,l), ci_pt(v,o).
+labelPrim_XZ89_13_59(u,l,v,f,o) :- LoadPrim(u,v,f), ci_pt(v,o), labelPrimFld(o,f,l).
+labelPrim_XZ89_14_59(u,l,v,v_XZ89_0,o) :- LoadPrim(u,v,v_XZ89_0), ci_pt(v,o), srcObj(o,l).
+labelPrimStatFld_XZ89_15_59(f,l,u) :- labelPrim(u,l), StoreStatPrim(f,u).
+labelPrim_XZ89_16_59(u,l,f) :- LoadStatPrim(u,f), labelPrimStatFld(f,l).
+labelPrim_XZ89_17_59(u2,l,i,m,z,u1) :- ci_IM(i,m), IinvkPrimArg(i,z,u1), MmethPrimArg(m,z,u2), labelPrim(u1,l).
+labelPrim_XZ89_18_59(u1,l,i,m,z,u2) :- ci_IM(i,m), IinvkPrimRet(i,z,u1), MmethPrimRet(m,z,u2), labelPrim(u2,l).
+ci_flow_XZ89_19_59(src,snk,o) :- snkObj(o,snk), srcObj(o,src).
+ci_flow_XZ89_20_59(src,snk,o,v_XZ89_0) :- snkObj(o,snk), labelPrimFld(o,v_XZ89_0,src).
+ci_flow_XZ89_21_59(src,snk,u) :- snkPrim(u,snk), labelPrim(u,src).
