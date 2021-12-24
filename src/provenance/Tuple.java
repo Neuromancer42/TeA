@@ -1,12 +1,10 @@
 package provenance;
 
-import java.util.Arrays;
-
-import chord.bddbddb.Dom;
-import chord.bddbddb.Rel.RelView;
-import chord.project.ClassicProject;
 import chord.analyses.ProgramRel;
-import chord.util.tuple.object.Pair;
+import chord.bddbddb.Dom;
+import chord.project.ClassicProject;
+
+import java.util.Arrays;
 
 /**
  * Represents a tuple in the program relation

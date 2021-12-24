@@ -1,7 +1,5 @@
 package provenance;
 
-import provenance.Tuple;
-
 import com.google.common.base.Preconditions;
 
 import java.util.Collection;
