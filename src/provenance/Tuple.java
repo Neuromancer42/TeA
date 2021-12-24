@@ -18,7 +18,6 @@ public class Tuple {
 	private ProgramRel relation;
 	private Dom[] domains;
 	private int[] domIndices;
-	public static ProgramRel relMV = null;
 
 	public Tuple(ProgramRel relation, int[] indices) {
 		this.relation = relation;

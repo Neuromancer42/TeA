@@ -440,10 +440,18 @@ public class DlogInstrumentor {
 	}
 
 	public static String instrumentName(String rawName) {
-		if (rawName.endsWith(MAGIC)) {
+		if (rawName.contains(MAGIC)) {
 			return rawName;
 		} else {
 			return rawName + MAGIC;
+		}
+	}
+
+	public static String uninstrumentName(String instrName) {
+		if (instrName.contains(MAGIC)) {
+			return instrName.replaceFirst(MAGIC, "");
+		} else {
+			return instrName;
 		}
 	}
 }
