@@ -1,6 +1,5 @@
 package provenance;
 
-import chord.DlogInstrumentor;
 import chord.analyses.DlogAnalysis;
 import chord.analyses.JavaAnalysis;
 import chord.analyses.ProgramRel;
@@ -23,12 +22,13 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
     private File confFile;
     private DlogAnalysis dlogAnalysis;
 
-    private static String ConsFileName = "named_cons_all.txt";
-    private static String DictFileName = "rule_dict.txt";
-    private File consFile = null;
-    private File dictFile = null;
-
+    private static String ConsFileName = "cons_all.txt";
+    private static String RuleDictFileName = "rule_dict.txt";
+    private static String TupleDictFileName = "tuple_dict.txt";
     private static String BaseFileName = "base_queries.txt";
+    private File consFile = null;
+    private File ruleDictFile = null;
+    private File tupleDictFile = null;
     private File baseFile = null;
 
     private void setPath(String name) {
@@ -52,18 +52,33 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
             ClassicProject.g().runTask(t);
         }
 
-
-        // 2. print (named) grounded constraints
+        // 2. print constraints and node-name dictionary
+        tupleDictFile = new File(Config.v().outDirName, TupleDictFileName);
+        Map<Tuple, String> tupleIdMap = new HashMap<>(); // TODO make it member
+        try {
+            PrintWriter tdw = new PrintWriter(tupleDictFile);
+            List<Tuple> tuples = getTuples();
+            for (int i = 0; i < tuples.size(); i++) {
+                Tuple t = tuples.get(i);
+                String tupleId = "T" + Integer.toString(i);
+                tdw.println(tupleId + ": " + t.toSummaryString(","));
+                tupleIdMap.put(t, tupleId);
+            }
+            tdw.flush();
+            tdw.close();
+        } catch (FileNotFoundException e) {
+            Messages.fatal(e);
+        }
         consFile = new File(Config.v().outDirName, ConsFileName);
-        dictFile = new File(Config.v().outDirName, DictFileName);
+        ruleDictFile = new File(Config.v().outDirName, RuleDictFileName);
         try {
             PrintWriter pw = new PrintWriter(consFile);
-            PrintWriter dw = new PrintWriter(dictFile);
+            PrintWriter rdw = new PrintWriter(ruleDictFile);
             List<LookUpRule> rules = getRules();
             for (int i = 0; i < rules.size(); i++) {
                 LookUpRule rule = rules.get(i);
                 String name = "R" + Integer.toString(i);
-                dw.println(name + ": " + rule.toString());
+                rdw.println(name + ": " + rule.toString());
                 Iterator<ConstraintItem> iter = rule.getAllConstrIterator();
                 while (iter.hasNext()) {
                     ConstraintItem cons = iter.next();
@@ -75,7 +90,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
                         if (sign) {
                             sb.append("NOT ");
                         }
-                        sb.append(sub.toString());
+                        sb.append(tupleIdMap.get(sub));
                         sb.append(", ");
                     }
                     Tuple head = cons.getHeadTuple();
@@ -83,14 +98,14 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
                     if (!headSign) {
                         sb.append("NOT ");
                     }
-                    sb.append(head.toString());
+                    sb.append(tupleIdMap.get(head));
                     pw.println(sb);
                 }
             }
             pw.flush();
             pw.close();
-            dw.flush();
-            dw.close();
+            rdw.flush();
+            rdw.close();
         } catch (FileNotFoundException e) {
             Messages.fatal(e);
         }
@@ -105,7 +120,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
                 qRel.load();
                 for (int[] indices : qRel.getAryNIntTuples()) {
                     Tuple t = new Tuple(qRel, indices);
-                    pw.println(t);
+                    pw.println(tupleIdMap.get(t));
                 }
             }
             pw.flush();
@@ -136,6 +151,34 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
             Messages.fatal(e);
         }
         return rules;
+    }
+
+    protected List<Tuple> getTuples() {
+        List<Tuple> tuples = new ArrayList<>();
+        for (String relName : getRelationNames()) {
+            ProgramRel rel = (ProgramRel)  ClassicProject.g().getTrgt(relName);
+            rel.load();
+            for (int[] vals : rel.getAryNIntTuples()) {
+                Tuple t = new Tuple(rel, vals);
+                tuples.add(t);
+            }
+        }
+        return tuples;
+    }
+
+    // by default, get all (non-instrumenting) relation tuples
+    protected Set<String> getRelationNames() {
+        // all input relations
+        Set<String> relNames = new HashSet<>();
+        relNames.addAll(dlogAnalysis.getConsumedRels().keySet());
+
+        // all derived and output relations
+        for (String relName : dlogAnalysis.getProducedRels().keySet()) {
+            if  (!DlogInstrumentor.isInstrumented(relName)) {
+                relNames.add(relName);
+            }
+        }
+        return relNames;
     }
 
     // by default, all output relations are added
