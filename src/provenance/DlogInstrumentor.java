@@ -1,4 +1,4 @@
-package chord;
+package provenance;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -440,7 +440,7 @@ public class DlogInstrumentor {
 	}
 
 	public static String instrumentName(String rawName) {
-		if (rawName.contains(MAGIC)) {
+		if (isInstrumented(rawName)) {
 			return rawName;
 		} else {
 			return rawName + MAGIC;
@@ -448,10 +448,14 @@ public class DlogInstrumentor {
 	}
 
 	public static String uninstrumentName(String instrName) {
-		if (instrName.contains(MAGIC)) {
+		if (isInstrumented(instrName)) {
 			return instrName.replaceFirst(MAGIC, "");
 		} else {
 			return instrName;
 		}
+	}
+
+	public static boolean isInstrumented(String name) {
+		return name.contains(MAGIC);
 	}
 }
