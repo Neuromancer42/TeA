@@ -113,14 +113,15 @@ public class Tuple {
 	public String toSummaryString(String sep) {
 		StringBuilder sb = new StringBuilder("");
 		sb.append(relation.getName());
+		sb.append("(");
 		for (int i = 0; i < domIndices.length; i++) {
-			sb.append(sep);
+			if (i != 0) sb.append(sep);
 			sb.append(domains[i].toUniqueString(domIndices[i]));
 		}
 		return sb.toString();
 	}
 
 	public String toVerboseString() {
-		return toString();
+		return toString() + toSummaryString(",");
 	}
 }
