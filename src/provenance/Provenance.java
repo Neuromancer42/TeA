@@ -1,13 +1,8 @@
 package provenance;
 
-import chord.analyses.ProgramRel;
-import chord.project.ClassicProject;
-import chord.project.Config;
-import chord.project.Messages;
 import chord.util.Utils;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.util.*;
 
@@ -15,20 +10,24 @@ public class Provenance {
     // Constraint structures
     private final List<Tuple> tuples;
     private final List<LookUpRule> rules;
-    private final Set<ConstraintItem> activeClauses;
+    private final Set<ConstraintItem> clauses;
     private final Map<LookUpRule, String> ruleIdMap;
     private final Map<Tuple, String> tupleIdMap;
     private final List<Tuple> inputTuples;
     private final List<Tuple> outputTuples;
+    private final List<Tuple> hiddenTuples;
 
     public Provenance(
             List<LookUpRule> rules, List<Tuple> tuples,
             List<Tuple> inputTuples, List<Tuple> outputTuples,
-            Set<ConstraintItem> activeClauses
+            Set<ConstraintItem> clauses
     ) {
         this.tuples = tuples;
         this.inputTuples = inputTuples;
         this.outputTuples = outputTuples;
+        this.hiddenTuples = new ArrayList<>(tuples);
+        this.hiddenTuples.removeAll(inputTuples);
+        this.hiddenTuples.removeAll(outputTuples);
         tupleIdMap = new HashMap<>();
         for (int i = 0; i < tuples.size(); i++) {
             Tuple t = tuples.get(i);
@@ -42,7 +41,7 @@ public class Provenance {
             String ruleId = "R" + Integer.toString(i);
             ruleIdMap.put(rule, ruleId);
         }
-        this.activeClauses = activeClauses;
+        this.clauses = clauses;
     }
 
     public void dump(String dir) {
@@ -81,7 +80,7 @@ public class Provenance {
         // dump pruned provenance
         String prunedFile =  dir + File.separator + "cons_pruned.txt";
         PrintWriter pw = Utils.openOut(prunedFile);
-        for (ConstraintItem cons : activeClauses)
+        for (ConstraintItem cons : clauses)
             pw.println(encodeClause(cons));
         pw.flush();
         pw.close();
@@ -114,5 +113,24 @@ public class Provenance {
         }
         sb.append(tupleIdMap.get(head));
         return sb.toString();
+    }
+
+    public List<Tuple> getTuples() {
+        return tuples;
+    }
+    public List<Tuple> getInputTuples() {
+        return inputTuples;
+    }
+
+    public List<Tuple> getOutputTuples() {
+        return outputTuples;
+    }
+
+    public List<Tuple> getHiddenTuples() {
+        return hiddenTuples;
+    }
+
+    public Set<ConstraintItem> getClauses() {
+        return clauses;
     }
 }
