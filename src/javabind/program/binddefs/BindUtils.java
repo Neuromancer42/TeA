@@ -12,6 +12,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /*
  * @author Saswat Anand
@@ -40,10 +41,10 @@ public class BindUtils {
         if(m.isStatic())
             return true;
         String klassName = m.getDeclaringClass().getName();
-        if(klassName.equals("android.app.AlarmManager"))
-            return true;
-        if(klassName.equals("android.app.Notification"))
-            return true;
+//        if(klassName.equals("android.app.AlarmManager"))
+//            return true;
+//        if(klassName.equals("android.app.Notification"))
+//            return true;
         return false;
     }
 
@@ -96,35 +97,35 @@ public class BindUtils {
         return i.equals(e) || i.equals(f);
     }
 
-    private static Set<String> annotatedMethodNames;
-    private static Set<String> srcMethodNames;
-    private static Set<String> snkMethodNames;
+    private static Set<String> annotatedMethodRegexes;
+    private static Set<String> srcMethodRegexes;
+    private static Set<String> snkMethodRegexes;
 
-    public static Set<String> getAnnotatedMethodNames() {
-        if (annotatedMethodNames == null) {
+    public static Set<String> getAnnotatedMethodRegexes() {
+        if (annotatedMethodRegexes == null) {
             readAnnotations();
         }
-        return annotatedMethodNames;
+        return annotatedMethodRegexes;
     }
 
-    public static Set<String> getSrcMethodNames() {
-        if (srcMethodNames == null) {
+    public static Set<String> getSrcMethodRegexes() {
+        if (srcMethodRegexes == null) {
             readAnnotations();
         }
-        return srcMethodNames;
+        return srcMethodRegexes;
     }
 
-    public static Set<String> getSnkMethodNames() {
-        if (snkMethodNames == null) {
+    public static Set<String> getSnkMethodRegexes() {
+        if (snkMethodRegexes == null) {
             readAnnotations();
         }
-        return snkMethodNames;
+        return snkMethodRegexes;
     }
 
     private static void readAnnotations() {
-        annotatedMethodNames = new HashSet<>();
-        srcMethodNames = new HashSet<>();
-        snkMethodNames = new HashSet<>();
+        annotatedMethodRegexes = new HashSet<>();
+        srcMethodRegexes = new HashSet<>();
+        snkMethodRegexes = new HashSet<>();
         try {
             String annotfile = System.getProperty("chord.taint.annot", "annotations.txt");
             String fullannotpath = Config.v().workDirName + File.separator + annotfile;
@@ -135,11 +136,11 @@ public class BindUtils {
                 char annot = line.charAt(0);
                 if (annot == '$' || annot == '!') {
                     String methName = line.substring(1);
-                    annotatedMethodNames.add(methName);
+                    annotatedMethodRegexes.add(methName);
                     if (annot == '$')
-                        srcMethodNames.add(methName);
+                        srcMethodRegexes.add(methName);
                     else
-                        snkMethodNames.add(methName);
+                        snkMethodRegexes.add(methName);
                 }
             }
             reader.close();
@@ -150,16 +151,34 @@ public class BindUtils {
         }
     }
 
-    public static SootMethod sig2Meth(Scene scene, String methName) {
-        int atSymbolIndex = methName.indexOf('@');
-        String className = methName.substring(atSymbolIndex+1);
+    public static SootMethod sig2Method(Scene scene, String methSig) {
+        int atSymbolIndex = methSig.indexOf('@');
+        String className = methSig.substring(atSymbolIndex+1);
         if (scene.containsClass(className)) {
             SootClass klass = scene.getSootClass(className);
-            String subsig = SootUtils.getSootSubsigFor(methName.substring(0,atSymbolIndex));
+            String subsig = SootUtils.getSootSubsigFor(methSig.substring(0,atSymbolIndex));
             SootMethod meth = klass.getMethod(subsig);
             return meth;
         } else {
             return null;
         }
+    }
+
+    public static Set<SootMethod> regex2Methods(Scene scene, String methRegex) {
+        Set<SootMethod> methods = new HashSet<>();
+        int atSymbolIndex = methRegex.indexOf('@');
+        String classRegex = methRegex.substring(atSymbolIndex+1);
+        Pattern classPattern = Pattern.compile(classRegex);
+        String subRegex = methRegex.substring(0, atSymbolIndex);
+        Pattern sigPattern = Pattern.compile(subRegex);
+        for (SootClass klass : scene.getClasses()) {
+            if (classPattern.matcher(klass.getName()).matches()) {
+                for (SootMethod m : klass.getMethods()) {
+                    if (sigPattern.matcher(m.getSubSignature()).find())
+                        methods.add(m);
+                }
+            }
+        }
+        return methods;
     }
 }
