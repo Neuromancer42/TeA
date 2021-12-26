@@ -65,6 +65,7 @@ public class ProvenanceBuilder {
         List<Tuple> tuples = getTuples(getRelationNames());
         List<Tuple> inputTuples = getTuples(getInputRelationNames());
         List<Tuple> outputTuples = getTuples(getOutputRelationNames());
+        Messages.log("ProvenanceDriver recorded " + rules.size() + " rules and " + tuples.size() + " tuples.");
 
         // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
@@ -168,8 +169,8 @@ public class ProvenanceBuilder {
     }
 
     private class DOBSolver {
-        private Map<Tuple, Integer> tupleDOB;
-        private int maxDOB;
+        private final Map<Tuple, Integer> tupleDOB;
+        private final int maxDOB;
         private int numChanged;
         private final Map<Tuple, Set<ConstraintItem>> tuple2ConsequentClauses;
         private final Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses;
@@ -210,6 +211,7 @@ public class ProvenanceBuilder {
 
         private void solve() {
             while(numChanged > 0) {
+                Messages.log("DOBSovler updated " + numChanged + " tuples' date-of-birth");
                 numChanged = 0;
                 for (Tuple head : tuple2ConsequentClauses.keySet()) {
                     for (ConstraintItem clause : tuple2ConsequentClauses.get(head)) {
