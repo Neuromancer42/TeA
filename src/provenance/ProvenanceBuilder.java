@@ -44,10 +44,10 @@ public class ProvenanceBuilder {
     }
 
     protected void computeProvenance() {
-        computeProvenance(getDefaultOutputRelationNames());
+        computeProvenance(getOutputRelationNames());
     }
 
-    protected void computeProvenance(List<String> outputRelNames) {
+    protected void computeProvenance(Collection<String> observeRelationNames) {
         // generate mappings
         if (!activated) {
             activateDlog();
@@ -58,7 +58,7 @@ public class ProvenanceBuilder {
         List<LookUpRule> rules = getRules();
         List<Tuple> tuples = getTuples(getRelationNames());
         List<Tuple> inputTuples = getTuples(getInputRelationNames());
-        List<Tuple> outputTuples = getTuples(outputRelNames);
+        List<Tuple> outputTuples = getTuples(getOutputRelationNames());
 
         // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
@@ -83,7 +83,8 @@ public class ProvenanceBuilder {
 
         // de-cycle and prune unused tuples
         DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
-        Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(inputTuples, outputTuples);
+        List<Tuple> observeTuples = getTuples(observeRelationNames);
+        Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(observeTuples);
 
         // generate provenance structure
         provenance = new Provenance(rules, tuples, inputTuples, outputTuples, activeClauses);
@@ -160,7 +161,7 @@ public class ProvenanceBuilder {
         return new ArrayList<>(dlogAnalysis.getConsumedRels().keySet());
     }
     // by default, all output relations are added
-    protected List<String> getDefaultOutputRelationNames() {
+    protected List<String> getOutputRelationNames() {
         List<String> outputRelNames = new ArrayList<>();
         String rawDlogName = DlogInstrumentor.uninstrumentName(dlogName);
         DlogAnalysis rawDlogAnalysis;
@@ -343,8 +344,8 @@ public class ProvenanceBuilder {
             return augClauses;
         }
 
-        public Set<ConstraintItem> getActiveClauses(Collection<Tuple> inputTuples, Collection<Tuple> outputTuples) {
-            Set<Tuple> coreachableTuples = getCoreachableTuples(outputTuples);
+        public Set<ConstraintItem> getActiveClauses(Collection<Tuple> observeTuples) {
+            Set<Tuple> coreachableTuples = getCoreachableTuples(observeTuples);
 
             Set<ConstraintItem> activeClauses = new HashSet<>();
             Set<ConstraintItem> fwdClauses;

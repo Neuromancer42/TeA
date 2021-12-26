@@ -42,20 +42,22 @@ public class AnnotationReader extends JavaAnalysis {
 
         DomL domL = (DomL) ClassicProject.g().getTrgt("L");
 
-        for (String srcMethName : BindUtils.getSrcMethodNames()) {
-            SootMethod srcMeth = BindUtils.sig2Meth(scene, srcMethName);
-            if (srcMeth != null && domM.contains(srcMeth)) {
-                String src = "$" + srcMethName;
-                domL.add(src);
-                srcLabels.put(srcMeth, src);
+        for (String srcRegex : BindUtils.getSrcMethodRegexes()) {
+            for (SootMethod srcMeth : BindUtils.regex2Methods(scene, srcRegex)) {
+                if (domM.contains(srcMeth)) {
+                    String src = "$" + srcMeth.getSignature();
+                    domL.add(src);
+                    srcLabels.put(srcMeth, src);
+                }
             }
         }
-        for (String snkMethName : BindUtils.getSnkMethodNames()) {
-            SootMethod snkMeth = BindUtils.sig2Meth(scene, snkMethName);
-            if (snkMeth != null && domM.contains(snkMeth)) {
-                String snk = "!" + snkMethName;
-                domL.add(snk);
-                snkLabels.put(snkMeth, snk);
+        for (String snkRegex : BindUtils.getSnkMethodRegexes()) {
+            for (SootMethod snkMeth : BindUtils.regex2Methods(scene, snkRegex)) {
+                if (domM.contains(snkMeth)) {
+                    String snk = "!" + snkMeth.getSignature();
+                    domL.add(snk);
+                    snkLabels.put(snkMeth, snk);
+                }
             }
         }
 
