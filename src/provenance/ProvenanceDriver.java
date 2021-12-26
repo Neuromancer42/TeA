@@ -21,15 +21,16 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
     private File dlogFile;
     private File confFile;
     private DlogAnalysis dlogAnalysis;
+    private boolean activated = false;
 
     // Constraint structures
     private List<Tuple> tuples;
     private List<LookUpRule> rules;
     private Set<ConstraintItem> activeClauses;
-
-    // output files
     private Map<LookUpRule, String> ruleIdMap;
     private Map<Tuple, String> tupleIdMap;
+
+    // output files
     private static String ConsFileName = "cons_all.txt";
     private static String PrunedFileName = "cons_pruned.txt";
     private static String BaseFileName = "base_queries.txt";
@@ -52,34 +53,19 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         dump();
     }
 
-    public void computeProvenance() {
-        // 0. set names and paths for dlog analysis
-        setPath(getDlogName());
+    public Set<ConstraintItem> getProvenance() {
+        if (activeClauses == null) computeProvenance();
+        return activeClauses;
+    }
 
-        // 1. run instrumented datalog and fetch results
-        genTasks();
-        for (ITask t : tasks) {
-            ClassicProject.g().resetTaskDone(t);
-            ClassicProject.g().runTask(t);
+    private void computeProvenance() {
+        // generate mappings
+        if (!activated) {
+            activateDlog();
+            activated = true;
         }
 
-        // 2. fetch results and generate dicts
-        tuples = getTuples(getRelationNames());
-        tupleIdMap = new HashMap<>();
-        for (int i = 0; i < tuples.size(); i++) {
-            Tuple t = tuples.get(i);
-            String tupleId = "T" + Integer.toString(i);
-            tupleIdMap.put(t, tupleId);
-        }
-        rules = getRules();
-        ruleIdMap = new HashMap<>();
-        for (int i = 0; i < rules.size(); i++) {
-            LookUpRule rule = rules.get(i);
-            String ruleId = "R" + Integer.toString(i);
-            ruleIdMap.put(rule, ruleId);
-        }
-
-        // 3. generate provenance structures
+        // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
         Map<Tuple, Set<ConstraintItem>> tuple2ConsequentClauses = new HashMap<>();
 
@@ -100,14 +86,58 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
             }
         }
 
-        // 4. de-cycle and prune unused tuples
+        // de-cycle and prune unused tuples
         DOBSolver dobSolver = new DOBSolver(tuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
         List<Tuple> outputTuples = getTuples(getOutputRelationNames());
         activeClauses = dobSolver.getActiveClauses(outputTuples);
     }
 
+    private void activateDlog() {
+        // set names and paths for dlog analysis
+        setPath(getDlogName());
+
+        // run instrumented datalog and fetch results
+        genTasks();
+        for (ITask t : tasks) {
+            ClassicProject.g().resetTaskDone(t);
+            ClassicProject.g().runTask(t);
+        }
+
+        // fetch results and generate dicts
+        tuples = getTuples(getRelationNames());
+        tupleIdMap = new HashMap<>();
+        for (int i = 0; i < tuples.size(); i++) {
+            Tuple t = tuples.get(i);
+            String tupleId = "T" + Integer.toString(i);
+            tupleIdMap.put(t, tupleId);
+        }
+        rules = getRules();
+        ruleIdMap = new HashMap<>();
+        for (int i = 0; i < rules.size(); i++) {
+            LookUpRule rule = rules.get(i);
+            String ruleId = "R" + Integer.toString(i);
+            ruleIdMap.put(rule, ruleId);
+        }
+    }
+
+    Map<LookUpRule, String> getRuleIdMap() {
+        if (!activated) {
+            activateDlog();
+            activated = true;
+        }
+        return ruleIdMap;
+    }
+
+    Map<Tuple, String> getTupleIdMap() {
+        if (!activated) {
+            activateDlog();
+            activated = true;
+        }
+        return tupleIdMap;
+    }
+
     private void dump() {
-        // 1. dump tuple dictionary
+        // dump tuple dictionary
         File tupleDictFile = new File(Config.v().outDirName, TupleDictFileName);
         try {
             PrintWriter dw = new PrintWriter(tupleDictFile);
@@ -121,7 +151,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         } catch (FileNotFoundException e) {
             Messages.fatal(e);
         }
-        // 2. dump rule dictionary
+        // dump rule dictionary
         File ruleDictFile = new File(Config.v().outDirName, RuleDictFileName);
         try {
             PrintWriter rdw = new PrintWriter(ruleDictFile);
@@ -135,7 +165,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         } catch (FileNotFoundException e) {
             Messages.fatal(e);
         }
-        // 3. dump all constraints
+        // dump all constraints
         File consFile = new File(Config.v().outDirName, ConsFileName);
         try {
             PrintWriter cw = new PrintWriter(consFile);
@@ -151,7 +181,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         } catch (FileNotFoundException e) {
             Messages.fatal(e);
         }
-        // 4. dump pruned provenance
+        // dump pruned provenance
         File prunedFile = new File(Config.v().outDirName, PrunedFileName);
         try {
             PrintWriter pw = new PrintWriter(prunedFile);
@@ -162,7 +192,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         } catch (FileNotFoundException e) {
             Messages.fatal(e);
         }
-        // 5. dump output facts
+        // dump output facts
         File baseFile = new File(Config.v().outDirName, BaseFileName);
         try {
             PrintWriter pw = new PrintWriter(baseFile);
