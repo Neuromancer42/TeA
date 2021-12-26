@@ -306,7 +306,7 @@ OUT:    for (int i = 0; i < instrRel.length; i++) {
                     getTuple(headTuple, instRel, term)
                     : getTuple(instRel, term));
             }
-            return new ConstraintItem(headTuple, subTuples, true, subTupleSigns);
+            return new ConstraintItem(LookUpRule.this, headTuple, subTuples, true, subTupleSigns);
         }
 
         @Override public ConstraintItem next() {

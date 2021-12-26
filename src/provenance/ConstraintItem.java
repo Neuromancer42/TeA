@@ -19,17 +19,24 @@ public class ConstraintItem {
 	private final  List<Tuple> subTuples;
 	private final Boolean headTupleSign;
 	private final List<Boolean> subTuplesSign;
+	private final LookUpRule rule;
 
-	public ConstraintItem(Tuple headTuple, List<Tuple> subTuples, 
-			Boolean headTupleSign, List<Boolean> subTuplesSign) {
-    Preconditions.checkNotNull(headTuple);
-    Preconditions.checkArgument(subTuples.size() == subTuplesSign.size());
+	public ConstraintItem(
+			LookUpRule rule,
+			Tuple headTuple, List<Tuple> subTuples,
+			Boolean headTupleSign, List<Boolean> subTuplesSign
+	) {
+    	Preconditions.checkNotNull(headTuple);
+    	Preconditions.checkArgument(subTuples.size() == subTuplesSign.size());
 		subTuples.removeAll(nullSingleton);
+		this.rule = rule;
 		this.headTuple = headTuple;
 		this.subTuples = subTuples;
 		this.headTupleSign = headTupleSign;
 		this.subTuplesSign = newArrayList(subTuplesSign);
 	}
+
+	public LookUpRule getRule() { return rule; }
 
 	public Tuple getHeadTuple() {
 		return headTuple;
@@ -67,6 +74,8 @@ public class ConstraintItem {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result
+				+ ((rule == null) ? 0 : rule.hashCode());
+		result = prime * result
 				+ ((headTuple == null) ? 0 : headTuple.hashCode());
 		result = prime * result
 				+ ((subTuples == null) ? 0 : subTuples.hashCode());
@@ -86,6 +95,12 @@ public class ConstraintItem {
 		if (getClass() != obj.getClass())
 			return false;
 		ConstraintItem other = (ConstraintItem) obj;
+		if (rule == null) {
+			if (other.rule != null)
+				return false;
+		} else if (!rule.equals(other.rule))
+			return false;
+
 		if (headTuple == null) {
 			if (other.headTuple != null)
 				return false;
