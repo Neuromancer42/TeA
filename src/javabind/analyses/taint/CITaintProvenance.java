@@ -8,6 +8,7 @@ import java.util.List;
 
 @Chord(name="ci-taint-provenance")
 public class CITaintProvenance extends ProvenanceDriver {
+    @Override
     protected String getDlogName() {
         return "java-ci-taint-dlog";
     }
