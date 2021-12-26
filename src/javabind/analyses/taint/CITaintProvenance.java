@@ -3,8 +3,8 @@ package javabind.analyses.taint;
 import chord.project.Chord;
 import provenance.ProvenanceDriver;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Chord(name="ci-taint-provenance")
 public class CITaintProvenance extends ProvenanceDriver {
@@ -13,8 +13,8 @@ public class CITaintProvenance extends ProvenanceDriver {
     }
 
     @Override
-    protected Set<String> getOutputRelationNames() {
-        Set<String> relNames = new HashSet<>();
+    protected List<String> getOutputRelationNames() {
+        List<String> relNames = new ArrayList<>();
         relNames.add("ci_flow");
         return relNames;
     }
