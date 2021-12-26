@@ -25,7 +25,6 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
     // Constraint structures
     private List<Tuple> tuples;
     private List<LookUpRule> rules;
-    private Set<ConstraintItem> forwardClauses;
     private Set<ConstraintItem> activeClauses;
 
     // output files
@@ -49,6 +48,11 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
     }
 
     public void run() {
+        computeProvenance();
+        dump();
+    }
+
+    public void computeProvenance() {
         // 0. set names and paths for dlog analysis
         setPath(getDlogName());
 
@@ -99,11 +103,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         // 4. de-cycle and prune unused tuples
         DOBSolver dobSolver = new DOBSolver(tuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
         List<Tuple> outputTuples = getTuples(getOutputRelationNames());
-        forwardClauses = dobSolver.getForwardClauses();
         activeClauses = dobSolver.getActiveClauses(outputTuples);
-
-        // 5. dump
-        dump();
     }
 
     private void dump() {
@@ -428,12 +428,12 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
             return coreachableTuples;
         }
 
-        public Set<ConstraintItem> getForwardClauses() {
+        private Set<ConstraintItem> getForwardClauses() {
             if (fwdClauses == null) computeFwdClauses();
             return fwdClauses;
         }
 
-        public Set<ConstraintItem> getAugmentedClauses() {
+        private Set<ConstraintItem> getAugmentedClauses() {
             if (augClauses == null) {
                 augClauses = new HashSet<>(getForwardClauses());
                 List<ConstraintItem> cands = new ArrayList<>();
