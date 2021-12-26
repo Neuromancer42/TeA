@@ -276,7 +276,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
             }
             Queue<Tuple> newAncestors = new LinkedList<>(ancestors);
             Queue<Tuple> newDescendants = new LinkedList<>(descendants);
-            while (!newAncestors.isEmpty() && !newDescendants.isEmpty()) {
+            while (!newAncestors.isEmpty() || !newDescendants.isEmpty()) {
                 if (!newAncestors.isEmpty() && ancestors.size() < descendants.size()) {
                     Tuple newAncestor = newAncestors.poll();
                     for (ConstraintItem cons : tuple2ConsequentClauses.get(newAncestor)) {
