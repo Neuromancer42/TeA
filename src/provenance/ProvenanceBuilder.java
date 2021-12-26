@@ -62,9 +62,17 @@ public class ProvenanceBuilder {
 
         // fetch results and generate dicts
         List<LookUpRule> rules = getRules();
-        List<Tuple> tuples = getTuples(getRelationNames());
-        List<Tuple> inputTuples = getTuples(getInputRelationNames());
-        List<Tuple> outputTuples = getTuples(getOutputRelationNames());
+        Set<Tuple> tuples = new HashSet<>();
+        for (LookUpRule r : rules) {
+            Iterator<ConstraintItem> iter = r.getAllConstrIterator();
+            while (iter.hasNext()) {
+                ConstraintItem cons = iter.next();
+                tuples.add(cons.getHeadTuple());
+                tuples.addAll(cons.getSubTuples());
+            }
+        }
+        List<Tuple> inputTuples = getTuples(getInputRelationNames(), tuples);
+        List<Tuple> outputTuples = getTuples(getOutputRelationNames()); // output must have corresponding rules
         Messages.log("ProvenanceDriver recorded " + rules.size() + " rules and " + tuples.size() + " tuples.");
 
         // generate provenance structures
@@ -127,6 +135,20 @@ public class ProvenanceBuilder {
             Messages.fatal(e);
         }
         return rules;
+    }
+
+    protected List<Tuple> getTuples(Collection<String> relNames, Collection<Tuple> filtered) {
+        List<Tuple> tuples = new ArrayList<>();
+        for (String relName : relNames) {
+            ProgramRel rel = (ProgramRel) ClassicProject.g().getTrgt(relName);
+            rel.load();
+            for (int[] vals : rel.getAryNIntTuples()) {
+                Tuple t = new Tuple(rel, vals);
+                if (filtered.contains(t))
+                    tuples.add(t);
+            }
+        }
+        return tuples;
     }
 
     protected List<Tuple> getTuples(Collection<String> relNames) {
