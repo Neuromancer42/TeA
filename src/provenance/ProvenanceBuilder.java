@@ -14,11 +14,11 @@ import java.util.*;
 
 public class ProvenanceBuilder {
     // BDDBDDB configs
-    protected List<ITask> tasks;
     protected String dlogName;
     protected File dlogFile;
     protected File confFile;
     protected DlogAnalysis dlogAnalysis;
+    protected DlogAnalysis rawDlogAnalysis;
     private boolean activated = false;
 
     // Provenance Structure
@@ -33,6 +33,12 @@ public class ProvenanceBuilder {
             dlogAnalysis = (DlogAnalysis) ClassicProject.g().getTask(dlogName);
         } catch (ClassCastException e) {
             Messages.fatal("Error: Task " + dlogName + " is not a Datalog Analysis!");
+        }
+        try  {
+            String rawDlogName = DlogInstrumentor.uninstrumentName(dlogName);
+            rawDlogAnalysis = (DlogAnalysis) ClassicProject.g().getTask(rawDlogName);
+        } catch (ClassCastException e) {
+            Messages.fatal("Error: Original task of " + dlogName + " is not a Datalog Analysis!");
         }
         dlogFile = new File(dlogAnalysis.getFileName());
         confFile = new File(dlogFile.getParent(), dlogName+".config");
@@ -93,21 +99,15 @@ public class ProvenanceBuilder {
     private void activateDlog() {
         // set names and paths for dlog analysis
         setPath();
+        // run original datalog
+        ClassicProject.g().runTask(rawDlogAnalysis);
         // run instrumented datalog and fetch results
-        genTasks();
-        for (ITask t : tasks) {
-            ClassicProject.g().resetTaskDone(t);
-            ClassicProject.g().runTask(t);
-        }
+        ClassicProject.g().resetTaskDone(rawDlogAnalysis);
+        ClassicProject.g().runTask(dlogAnalysis);
     }
 
     private void dump() {
         provenance.dump(Config.v().outDirName);
-    }
-
-    protected void genTasks() {
-        tasks = new ArrayList<>();
-        tasks.add(dlogAnalysis);
     }
 
     protected List<LookUpRule> getRules() {
@@ -163,14 +163,7 @@ public class ProvenanceBuilder {
     // by default, all output relations are added
     protected List<String> getOutputRelationNames() {
         List<String> outputRelNames = new ArrayList<>();
-        String rawDlogName = DlogInstrumentor.uninstrumentName(dlogName);
-        DlogAnalysis rawDlogAnalysis;
-        try {
-            rawDlogAnalysis = (DlogAnalysis) ClassicProject.g().getTask(rawDlogName);
-            outputRelNames.addAll(rawDlogAnalysis.getProducedRels().keySet());
-        } catch (ClassCastException e) {
-            Messages.fatal("Error: Task " + rawDlogName + " is not a Datalog Analysis!");
-        }
+        outputRelNames.addAll(rawDlogAnalysis.getProducedRels().keySet());
         return outputRelNames;
     }
 
