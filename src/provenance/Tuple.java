@@ -118,6 +118,7 @@ public class Tuple {
 			if (i != 0) sb.append(sep);
 			sb.append(domains[i].toUniqueString(domIndices[i]));
 		}
+		sb.append(")");
 		return sb.toString();
 	}
 
