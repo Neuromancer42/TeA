@@ -130,7 +130,7 @@ public class ProvenanceBuilder {
     protected List<Tuple> getTuples(Collection<String> relNames) {
         List<Tuple> tuples = new ArrayList<>();
         for (String relName : relNames) {
-            ProgramRel rel = (ProgramRel)  ClassicProject.g().getTrgt(relName);
+            ProgramRel rel = (ProgramRel) ClassicProject.g().getTrgt(relName);
             rel.load();
             for (int[] vals : rel.getAryNIntTuples()) {
                 Tuple t = new Tuple(rel, vals);

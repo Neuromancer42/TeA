@@ -8,47 +8,72 @@ import java.util.*;
 
 public class Provenance {
     // Constraint structures
-    private final List<Tuple> tuples;
     private final List<LookUpRule> rules;
-    private final Set<ConstraintItem> clauses;
+    private final List<ConstraintItem> clauses;
     private final Map<LookUpRule, String> ruleIdMap;
     private final Map<Tuple, String> tupleIdMap;
+    private final Map<ConstraintItem, String> clauseIdMap;
     private final List<Tuple> inputTuples;
     private final List<Tuple> outputTuples;
     private final List<Tuple> hiddenTuples;
 
     public Provenance(
-            List<LookUpRule> rules, List<Tuple> tuples,
-            List<Tuple> inputTuples, List<Tuple> outputTuples,
-            Set<ConstraintItem> clauses
+            Collection<LookUpRule> rules, Collection<Tuple> tuples,
+            Collection<Tuple> inputTuples, Collection<Tuple> outputTuples,
+            Collection<ConstraintItem> clauses
     ) {
-        this.tuples = tuples;
-        this.inputTuples = inputTuples;
-        this.outputTuples = outputTuples;
+        this.inputTuples = new ArrayList<>(inputTuples);
+        this.outputTuples = new ArrayList<>(outputTuples);
         this.hiddenTuples = new ArrayList<>(tuples);
         this.hiddenTuples.removeAll(inputTuples);
         this.hiddenTuples.removeAll(outputTuples);
         tupleIdMap = new HashMap<>();
-        for (int i = 0; i < tuples.size(); i++) {
-            Tuple t = tuples.get(i);
-            String tupleId = "T" + Integer.toString(i);
+        for (int i = 0; i < this.inputTuples.size(); i++) {
+            Tuple t = this.inputTuples.get(i);
+            String tupleId = "I" + i;
             tupleIdMap.put(t, tupleId);
         }
-        this.rules = rules;
+        for (int i = 0; i < this.outputTuples.size(); i++) {
+            Tuple t = this.outputTuples.get(i);
+            String tupleId = "O" + i;
+            tupleIdMap.put(t, tupleId);
+        }
+        for (int i = 0; i < this.hiddenTuples.size(); i++) {
+            Tuple t = this.hiddenTuples.get(i);
+            String tupleId = "H" + i;
+            tupleIdMap.put(t, tupleId);
+        }
+        this.rules = new ArrayList<>(rules);
         ruleIdMap = new HashMap<>();
-        for (int i = 0; i < rules.size(); i++) {
-            LookUpRule rule = rules.get(i);
-            String ruleId = "R" + Integer.toString(i);
+        for (int i = 0; i < this.rules.size(); i++) {
+            LookUpRule rule = this.rules.get(i);
+            String ruleId = "R" + i;
             ruleIdMap.put(rule, ruleId);
         }
-        this.clauses = clauses;
+        this.clauses = new ArrayList<>(clauses);
+        clauseIdMap = new HashMap<>();
+        for (int i = 0; i < this.clauses.size(); i++) {
+            ConstraintItem clause = this.clauses.get(i);
+            String clauseId = "D" + i;
+            clauseIdMap.put(clause, clauseId);
+        }
     }
 
     public void dump(String dir) {
         // dump tuple dictionary
         String tupleDictFile = dir + File.separator + "tuple_dict.txt";
         PrintWriter dw = Utils.openOut(tupleDictFile);
-        for (Tuple t : tuples) {
+        for (Tuple t : inputTuples) {
+            String tupleId = tupleIdMap.get(t);
+            dw.println(tupleId + ": " + t.toSummaryString(","));
+            tupleIdMap.put(t, tupleId);
+        }
+        for (Tuple t : hiddenTuples) {
+            String tupleId = tupleIdMap.get(t);
+            dw.println(tupleId + ": " + t.toSummaryString(","));
+            tupleIdMap.put(t, tupleId);
+        }
+        for (Tuple t : outputTuples) {
             String tupleId = tupleIdMap.get(t);
             dw.println(tupleId + ": " + t.toSummaryString(","));
             tupleIdMap.put(t, tupleId);
@@ -95,8 +120,10 @@ public class Provenance {
 
     private String encodeClause(ConstraintItem cons) {
         StringBuilder sb = new StringBuilder();
+        String clauseId = clauseIdMap.get(cons);
+        sb.append(clauseId +  " : ");
         String ruleId = ruleIdMap.get(cons.getRule());
-        sb.append(ruleId + ": ");
+        sb.append(ruleId + " - ");
         for (int j = 0; j < cons.getSubTuples().size(); j++) {
             Tuple sub = cons.getSubTuples().get(j);
             Boolean sign = cons.getSubTuplesSign().get(j);
@@ -104,7 +131,7 @@ public class Provenance {
                 sb.append("NOT ");
             }
             sb.append(tupleIdMap.get(sub));
-            sb.append(", ");
+            sb.append(" , ");
         }
         Tuple head = cons.getHeadTuple();
         Boolean headSign = cons.getHeadTupleSign();
@@ -115,9 +142,6 @@ public class Provenance {
         return sb.toString();
     }
 
-    public List<Tuple> getTuples() {
-        return tuples;
-    }
     public List<Tuple> getInputTuples() {
         return inputTuples;
     }
@@ -130,7 +154,7 @@ public class Provenance {
         return hiddenTuples;
     }
 
-    public Set<ConstraintItem> getClauses() {
+    public List<ConstraintItem> getClauses() {
         return clauses;
     }
 }
