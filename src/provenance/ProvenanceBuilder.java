@@ -293,7 +293,9 @@ public class ProvenanceBuilder {
             Queue<Tuple> newAncestors = new LinkedList<>(ancestors);
             Queue<Tuple> newDescendants = new LinkedList<>(descendants);
             while (!newAncestors.isEmpty() || !newDescendants.isEmpty()) {
-                if (!newAncestors.isEmpty() && ancestors.size() < descendants.size()) {
+                if (newDescendants.isEmpty()
+                        || (!newAncestors.isEmpty() && ancestors.size() < descendants.size())
+                ) {
                     Tuple newAncestor = newAncestors.poll();
                     for (ConstraintItem cons : tuple2ConsequentClauses.get(newAncestor)) {
                         if (augClauses.contains(cons)) {
