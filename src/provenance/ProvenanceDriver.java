@@ -86,6 +86,7 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
         Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(inputTuples, outputTuples);
 
         // generate provenance structure
+        provenance = new Provenance(rules, tuples, inputTuples, outputTuples, activeClauses);
     }
 
     private void activateDlog() {
