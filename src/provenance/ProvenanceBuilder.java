@@ -4,9 +4,9 @@ import chord.analyses.DlogAnalysis;
 import chord.analyses.ProgramRel;
 import chord.project.ClassicProject;
 import chord.project.Config;
-import chord.project.ITask;
 import chord.project.Messages;
 import chord.util.Utils;
+import chord.util.Timer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -54,11 +54,18 @@ public class ProvenanceBuilder {
     }
 
     protected void computeProvenance(Collection<String> observeRelationNames) {
+        Timer timer = new Timer("provenance-builder");
+        if (Config.v().verbose >= 1)
+            System.out.println("ENTER: provenance-builder at " + (new Date()));
+        timer.init();
+
         // generate mappings
+        timer.pause();
         if (!activated) {
             activateDlog();
             activated = true;
         }
+        timer.resume();
 
         // fetch results and generate dicts
         List<LookUpRule> rules = getRules();
@@ -73,7 +80,7 @@ public class ProvenanceBuilder {
         }
         List<Tuple> inputTuples = getTuples(getInputRelationNames(), tuples);
         List<Tuple> outputTuples = getTuples(getOutputRelationNames()); // output must have corresponding rules
-        Messages.log("ProvenanceDriver recorded " + rules.size() + " rules and " + tuples.size() + " tuples.");
+        Messages.log("ProvenanceBuilder recorded " + rules.size() + " rules and " + tuples.size() + " tuples.");
 
         // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
@@ -103,6 +110,13 @@ public class ProvenanceBuilder {
 
         // generate provenance structure
         provenance = new Provenance(rules, tuples, inputTuples, outputTuples, activeClauses);
+
+        timer.done();
+        if (Config.v().verbose >= 1) {
+            System.out.println("LEAVE: provenance-builder");
+            System.out.println("Exclusive time: " + timer.getExclusiveTimeStr());
+            System.out.println("Inclusive time: " + timer.getInclusiveTimeStr());
+        }
     }
 
     private void activateDlog() {
@@ -233,7 +247,7 @@ public class ProvenanceBuilder {
 
         private void solve() {
             while(numChanged > 0) {
-                Messages.log("DOBSovler updated " + numChanged + " tuples' date-of-birth");
+                //Messages.log("DOBSolver updated " + numChanged + " tuples' date-of-birth");
                 numChanged = 0;
                 for (Tuple head : tuple2ConsequentClauses.keySet()) {
                     for (ConstraintItem clause : tuple2ConsequentClauses.get(head)) {
@@ -262,19 +276,18 @@ public class ProvenanceBuilder {
                     }
                 }
             }
-            Messages.log("Forward clauses found " + fwdClauses.size());
         }
 
         // binary search to enlarge the non-circular provenances
         private void augmentFromCandidates(List<ConstraintItem> candidateClauses) {
             int tot = candidateClauses.size();
             if (tot == 0) {
-                Messages.log("No candidates to augment forward clauses.");
+                Messages.warn("No candidates to augment forward clauses.");
             } else if (isAncestorDescendantDisjoint(candidateClauses)) {
                 augClauses.addAll(candidateClauses);
-                Messages.log("Forward clauses augmented " + candidateClauses.size());
+                //Messages.log("Forward clauses augmented by " + candidateClauses.size());
             } else if (tot == 1) {
-                Messages.log("Backward clause found " + candidateClauses.get(0).toString());
+                //Messages.log("Backward clause found: " + candidateClauses.get(0).toString());
             } else {
                 int mid = tot / 2;
                 augmentFromCandidates(candidateClauses.subList(0, mid));
@@ -346,6 +359,7 @@ public class ProvenanceBuilder {
 
         private Set<ConstraintItem> getForwardClauses() {
             if (fwdClauses == null) computeFwdClauses();
+            Messages.log("Forward clauses found " + fwdClauses.size());
             return fwdClauses;
         }
 
@@ -359,11 +373,13 @@ public class ProvenanceBuilder {
                 }
                 Messages.log("Forward clauses augment candidates " + cands.size());
                 augmentFromCandidates(cands);
+                Messages.log("Forward clauses augmented by " + (augClauses.size() - fwdClauses.size()));
             }
             return augClauses;
         }
 
         public Set<ConstraintItem> getActiveClauses(Collection<Tuple> observeTuples) {
+            Messages.log("Computing active clauses for " + observeTuples.size() + " tuples.");
             Set<Tuple> coreachableTuples = getCoreachableTuples(observeTuples);
 
             Set<ConstraintItem> activeClauses = new HashSet<>();
@@ -378,6 +394,7 @@ public class ProvenanceBuilder {
                     activeClauses.add(clause);
                 }
             }
+            Messages.log("Found " + activeClauses.size() + " active clauses.");
             return activeClauses;
         }
     }
