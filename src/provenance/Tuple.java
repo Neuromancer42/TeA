@@ -123,6 +123,6 @@ public class Tuple {
 	}
 
 	public String toVerboseString() {
-		return toString() + toSummaryString(",");
+		return toString() + "\t" + toSummaryString(",");
 	}
 }
