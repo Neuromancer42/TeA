@@ -63,18 +63,6 @@ public class Provenance {
         }
         rdw.flush();
         rdw.close();
-        // dump all constraints
-        String consFile = dir + File.separator + "cons_all.txt";
-        PrintWriter cw = Utils.openOut(consFile);
-        for (LookUpRule rule : rules) {
-            Iterator<ConstraintItem> iter = rule.getAllConstrIterator();
-            while (iter.hasNext()) {
-                ConstraintItem cons = iter.next();
-                cw.println(encodeClause(cons));
-            }
-        }
-        cw.flush();
-        cw.close();
         // dump pruned provenance
         String prunedFile =  dir + File.separator + "cons_pruned.txt";
         PrintWriter pw = Utils.openOut(prunedFile);

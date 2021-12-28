@@ -10,6 +10,7 @@ import chord.util.Timer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.*;
 
 public class ProvenanceBuilder {
@@ -103,13 +104,29 @@ public class ProvenanceBuilder {
             }
         }
 
-        // de-cycle and prune unused tuples
+        // de-cycle and prune unused clauses
         DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
         List<Tuple> observeTuples = getTuples(observeRelationNames);
         Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(observeTuples);
 
+        // filter out unused tuples again
+        Set<Tuple> activeTuples = new HashSet<>();
+        for (ConstraintItem clause : activeClauses) {
+            activeTuples.add(clause.getHeadTuple());
+            activeTuples.addAll(clause.getSubTuples());
+        }
+        List<Tuple> activeInputTuples = new ArrayList<>();
+        for (Tuple t : inputTuples) {
+            if (activeTuples.contains(t))
+                activeInputTuples.add(t);
+        }
+        List<Tuple> activeOutputTuples = new ArrayList<>();
+        for (Tuple t : outputTuples) {
+            if (activeTuples.contains(t))
+                activeOutputTuples.add(t);
+        }
         // generate provenance structure
-        provenance = new Provenance(rules, tuples, inputTuples, outputTuples, activeClauses);
+        provenance = new Provenance(rules, activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
 
         timer.done();
         if (Config.v().verbose >= 1) {
@@ -129,8 +146,28 @@ public class ProvenanceBuilder {
         ClassicProject.g().runTask(dlogAnalysis);
     }
 
-    private void dump() {
-        provenance.dump(Config.v().outDirName);
+    public void dump() {
+        // dump all constraints
+        String consFile = Config.v().outDirName + File.separator + "cons_all.txt";
+        PrintWriter cw = Utils.openOut(consFile);
+        for (LookUpRule rule : getRules()) {
+            cw.println("# " + rule.toString());
+            Iterator<ConstraintItem> iter = rule.getAllConstrIterator();
+            while (iter.hasNext()) {
+                ConstraintItem cons = iter.next();
+                Tuple head = cons.getHeadTuple();
+                cw.print(head.toSummaryString(","));
+                cw.print("=\t");
+                List<Tuple> subs = cons.getSubTuples();
+                for (int i = 0; i < subs.size(); i++) {
+                    if (i != 0) cw.print(",\t");
+                    cw.print(subs.get(i).toSummaryString(","));
+                }
+                cw.println(".");
+            }
+        }
+        cw.flush();
+        cw.close();
     }
 
     protected List<LookUpRule> getRules() {
