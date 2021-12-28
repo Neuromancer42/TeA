@@ -4,3 +4,4 @@ blobfiles/
 target/
 sootOutput/
 examples/
+tests/
