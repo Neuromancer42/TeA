@@ -13,9 +13,9 @@ public abstract class ProvenanceDriver extends JavaAnalysis {
     @Override
     public void run() {
         String dlogName = getDlogName();
-        ProvenanceBuilder pDriver = new ProvenanceBuilder(dlogName);
-        pDriver.computeProvenance(getOutputRelationNames());
-        provenance = pDriver.getProvenance();
+        ProvenanceBuilder pBuilder = new ProvenanceBuilder(dlogName);
+        pBuilder.computeProvenance(getOutputRelationNames());
+        provenance = pBuilder.getProvenance();
         String dumpDirName = Config.v().outDirName + File.separator + "provenance";
         Utils.mkdirs(dumpDirName);
         provenance.dump(dumpDirName);
