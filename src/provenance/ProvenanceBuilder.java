@@ -54,7 +54,7 @@ public class ProvenanceBuilder {
         computeProvenance(getOutputRelationNames());
     }
 
-    protected void computeProvenance(Collection<String> observeRelationNames) {
+    public void computeProvenance(Collection<String> observeRelationNames) {
         Timer timer = new Timer("provenance-builder");
         if (Config.v().verbose >= 1)
             System.out.println("ENTER: provenance-builder at " + (new Date()));
