@@ -6,7 +6,7 @@ import org.apache.commons.math3.distribution.EnumeratedRealDistribution;
 import java.util.*;
 
 public class Categorical01 extends EnumeratedRealDistribution {
-    protected List<Double> supports;
+    protected final double[] supports;
 
     public Categorical01(double[] values, double[] weights) {
         super(values, weights);
@@ -17,8 +17,12 @@ public class Categorical01 extends EnumeratedRealDistribution {
             }
             supportValues.add(v);
         }
-        supports = new ArrayList<>(supportValues);
-        Collections.sort(supports);
+        List<Double> sorted = new ArrayList<>(supportValues);
+        Collections.sort(sorted);
+        supports = new double[sorted.size()];
+        for (int i =  0; i  < sorted.size(); i++) {
+            supports[i] = sorted.get(i);
+        }
     }
 
     public Categorical01(double[] values) {
@@ -30,16 +34,25 @@ public class Categorical01 extends EnumeratedRealDistribution {
             }
             supportValues.add(v);
         }
-        supports = new ArrayList<>(supportValues);
-        Collections.sort(supports);
+        List<Double> sorted = new ArrayList<>(supportValues);
+        Collections.sort(sorted);
+        supports = new double[sorted.size()];
+        for (int i =  0; i  < sorted.size(); i++) {
+            supports[i] = sorted.get(i);
+        }
+    }
+
+    public Categorical01(Categorical01 other) {
+        super(other.getSupports(), other.getProbabilitis());
+        this.supports = other.supports.clone();
     }
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Cat[");
-        for (int i = 0; i < supports.size(); i++) {
+        for (int i = 0; i < supports.length; i++) {
             if (i > 0) sb.append(";");
-            double v = supports.get(i);
+            double v = supports[i];
             sb.append(v);
             sb.append(":");
             sb.append(String.format("%.2f", probability(v)));
@@ -48,5 +61,13 @@ public class Categorical01 extends EnumeratedRealDistribution {
         return sb.toString();
     }
 
-    List<Double> getSupports() { return supports; }
+    double[] getSupports() { return supports.clone(); }
+
+    double[] getProbabilitis() {
+        double[] probs = new double[supports.length];
+        for (int i = 0; i < supports.length; i++) {
+            probs[i] = probability(supports[i]);
+        }
+        return probs;
+    }
 }

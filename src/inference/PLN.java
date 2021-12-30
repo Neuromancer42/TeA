@@ -11,15 +11,14 @@ import java.util.*;
 // Probabilistic Logic Network structure
 // (i.e. probabilistic term logic)
 // TODO: accept DNF format only
-// TODO: split large clauses (to avoid integer overflow)
 public class PLN<NodeT> {
     // each node is an object
     private final IndexMap<NodeT> nodes;
     // each node either correspond to a sum or a product, or is a singleton
-    private final Map<NodeT, Set<NodeT>> sums;
-    private final Map<NodeT, Set<NodeT>> prods;
+    private final Map<Integer, Set<Integer>> sums;
+    private final Map<Integer, Set<Integer>> prods;
     // some nodes corresponds to a distribution, or is determinant
-    private final Map<NodeT, Categorical01> priors;
+    private final Map<Integer, Integer> priors;
     private final IndexMap<Categorical01> distNodes;
 
     public PLN(
@@ -30,12 +29,51 @@ public class PLN<NodeT> {
     ) {
         this.nodes = new IndexMap<>(nodes.size());
         this.nodes.addAll(nodes);
-        this.sums = new HashMap<>(sums);
-        this.prods = new HashMap<>(prods);
-        this.priors = new HashMap<>(priors);
+        this.sums = new HashMap<>(sums.size());
+        for (NodeT head : sums.keySet()) {
+            int headIdx = this.nodes.indexOf(head);
+            if (headIdx < 0) {
+                Messages.error("PLN: skip unmet head " + head);
+                continue;
+            }
+            Set<NodeT> subs = sums.get(head);
+            this.sums.put(headIdx, new HashSet<>(subs.size()));
+            for (NodeT sub : subs) {
+                int subIdx = this.nodes.indexOf(sub);
+                if (subIdx < 0) {
+                    Messages.error("PLN: skip unmet sub " + sub);
+                    continue;
+                }
+                this.sums.get(headIdx).add(subIdx);
+            }
+        }
+        this.prods = new HashMap<>(prods.size());
+        for (NodeT head : prods.keySet()) {
+            int headIdx = this.nodes.indexOf(head);
+            if (headIdx < 0) {
+                Messages.error("PLN: skip unmet head " + head);
+                continue;
+            }
+            Set<NodeT> subs = prods.get(head);
+            this.prods.put(headIdx, new HashSet<>(subs.size()));
+            for (NodeT sub : subs) {
+                int subIdx = this.nodes.indexOf(sub);
+                if (subIdx < 0) {
+                    Messages.error("PLN: skip unmet sub " + sub + " in head " + head);
+                }
+                this.prods.get(headIdx).add(subIdx);
+            }
+        }
 
         this.distNodes = new IndexMap<>();
         this.distNodes.addAll(priors.values());
+
+        this.priors = new HashMap<>(priors.size());
+        for (NodeT node : priors.keySet()) {
+            int nodeIdx = this.nodes.indexOf(node);
+            int distIdx = this.distNodes.indexOf(priors.get(node));
+            this.priors.put(nodeIdx, distIdx);
+        }
     }
 
     public void dump(String dir) {
@@ -43,32 +81,25 @@ public class PLN<NodeT> {
         PrintWriter bw = Utils.openOut(netFileName);
         for (int i = 0; i < nodes.size(); i++) {
             bw.print(i + "\t");
-            NodeT node = nodes.get(i);
-            int distId = distNodes.indexOf(priors.get(node));
+            Integer distId = priors.get(i);
             bw.print(distId + "\t");
-            Set<NodeT> sumNodes = sums.get(node);
+            Set<Integer> sumNodes = sums.get(i);
             int sumNum = sumNodes == null ? 0 : sumNodes.size();
-            Set<NodeT> prodNodes = prods.get(node);
+            Set<Integer> prodNodes = prods.get(i);
             int prodNum = prodNodes == null ? 0 : prodNodes.size();
             if (sumNum > 0 && prodNum > 0)
                 Messages.fatal("PLN: sums and products are not disjoint");
             if (sumNum > 0) {
                 bw.print(sumNum);
                 bw.print("\t+");
-                for (NodeT sumNode : sumNodes) {
-                    int sumId = nodes.indexOf(sumNode);
-                    if (sumId < 0)
-                        Messages.error("PLN: unmet node " + sumNode);
+                for (Integer sumId : sumNodes) {
                     bw.print("\t" + sumId);
                 }
                 bw.println();
             } else if (prodNum > 0) {
                 bw.print(prodNum);
                 bw.print("\t*");
-                for (NodeT prodNode : prodNodes) {
-                    int prodId = nodes.indexOf(prodNode);
-                    if (prodId < 0)
-                        Messages.error("PLN: unmet node " + prodNode);
+                for (Integer prodId : prodNodes) {
                     bw.print("\t" + prodId);
                 }
                 bw.println();
@@ -112,9 +143,9 @@ public class PLN<NodeT> {
 
             String shape = "";
             String style = "";
-            Set<NodeT> sumNodes = sums.get(node);
+            Set<Integer> sumNodes = sums.get(i);
             int sumNum = sumNodes == null ? 0 : sumNodes.size();
-            Set<NodeT> prodNodes = prods.get(node);
+            Set<Integer> prodNodes = prods.get(i);
             int prodNum = prodNodes == null ? 0 : prodNodes.size();
             if (sumNum > 0 && prodNum > 0)
                 Messages.fatal("PLN: sums and products are not disjoint");
@@ -143,28 +174,28 @@ public class PLN<NodeT> {
             dw.println("];");
         }
 
-        for (NodeT to : sums.keySet())
-            for (NodeT from : sums.get(to)) {
+        for (Integer headId : sums.keySet())
+            for (Integer subId : sums.get(headId)) {
                 dw.print("\t");
-                dw.print("n"+nodes.indexOf(from));
+                dw.print("n"+subId);
                 dw.print(" -> ");
-                dw.print("n"+nodes.indexOf(to));
+                dw.print("n"+headId);
                 dw.println(" [style=dotted];");
             }
-        for (NodeT to : prods.keySet())
-            for (NodeT from : prods.get(to)) {
+        for (Integer headId  : prods.keySet())
+            for (Integer subId : prods.get(headId)) {
                 dw.print("\t");
-                dw.print("n"+nodes.indexOf(from));
+                dw.print("n"+subId);
                 dw.print(" -> ");
-                dw.print("n"+nodes.indexOf(to));
+                dw.print("n"+headId);
                 dw.println(";");
             }
-        for (NodeT node : priors.keySet()) {
-            Categorical01 dist = priors.get(node);
+        for (Integer nodeId : priors.keySet()) {
+            int distId = priors.get(nodeId);
             dw.print("\t");
-            dw.print("p"+distNodes.indexOf(dist));
+            dw.print("p"+distId);
             dw.print(" -> ");
-            dw.print("n"+nodes.indexOf(node));
+            dw.print("n"+nodeId);
             dw.println(" [style=bold];");
         }
         dw.println("}");
@@ -173,10 +204,40 @@ public class PLN<NodeT> {
     }
 
     public void dumpFactorGraph(String dir) {
+        // unsigned int has 32 bits
+        // 16 bits for probability representation
+        // 1 bits for head
+        int defaultClauseLimit = 15;
+        dumpFactorGraph(dir, defaultClauseLimit);
+    }
+
+    // TODO: separate conditionally on probabilistic / determinant nodes
+    public void dumpFactorGraph(String dir, int clauseLimit) {
+        assert (clauseLimit > 1);
         String fgFileName = dir + File.separator + "pln.fg";
         PrintWriter fw = Utils.openOut(fgFileName);
         int numFacts = nodes.size() + distNodes.size();
+        int phonyId = numFacts;
+        int numPhony = 0;
+        // count number of phony nodes
+        // each phony reduces subnums by (clauseLimit-1)
+        for (Integer headId : sums.keySet()) {
+            int subNum = sums.get(headId).size();
+            while (subNum > clauseLimit) {
+                numPhony++;
+                subNum -= clauseLimit - 1;
+            }
+        }
+        for (Integer headId : prods.keySet()) {
+            int subNum = prods.get(headId).size();
+            while (subNum > clauseLimit) {
+                numPhony++;
+                subNum -= clauseLimit - 1;
+            }
+        }
+        numFacts += numPhony;
         fw.println(numFacts);
+        fw.flush();
         // each nodes and each distnode has a factor block
         for (int i = 0; i < distNodes.size(); i++) {
             fw.println();
@@ -184,30 +245,28 @@ public class PLN<NodeT> {
 //            fw.println("# DistNode " + i + " " + distNode.toString());
             fw.println(1); // variable numbers
             fw.println(i); // variable IDs
-            List<Double> supports = distNode.getSupports();
-            int cardinality = supports.size();
+            double[] supports = distNode.getSupports();
+            int cardinality = supports.length;
             fw.println(cardinality); // cardinalities
             fw.println(cardinality); // number of non-zero entries
             for (int j = 0; j < cardinality; j++) {
                 fw.print(j);
                 fw.print(" ");
-                fw.println(distNode.probability(supports.get(j)));
+                fw.println(distNode.probability(supports[j]));
             }
+            fw.flush();
         }
 
         int offset = distNodes.size();
 
         for (int i = 0; i < nodes.size(); i++) {
-            fw.println();
-            NodeT node = nodes.get(i);
-            List<Double> deterministic = new ArrayList<Double>(1);
-            deterministic.add(1.0);
-            Categorical01 priorDist = priors.get(node);
-            List<Double> probs = priorDist == null ? deterministic : priorDist.getSupports();
+            double[] deterministic = {1.0};
+            Integer distId = priors.get(i);
+            double[] probs = distId == null ? deterministic : distNodes.get(distId).getSupports();
 
-            Set<NodeT> sum = sums.get(node);
+            Set<Integer> sum = sums.get(i);
             int sumNum = sum == null ? 0 : sum.size();
-            Set<NodeT> prod = prods.get(node);
+            Set<Integer> prod = prods.get(i);
             int prodNum = prod == null ? 0 : prod.size();
             if (sumNum > 0 && prodNum > 0)
                 Messages.fatal("PLN: sums and products are not disjoint");
@@ -216,22 +275,55 @@ public class PLN<NodeT> {
             List<Integer> cards = new ArrayList<>();
             List<String> entries = new ArrayList<>();
 
-            vars.add(offset + nodes.indexOf(node));
+            vars.add(offset + i);
             cards.add(2);
 
-            int probCnt = probs.size();
+            int probCnt = probs.length;
             if (probCnt > 1) {
-                vars.add(distNodes.indexOf(priorDist));
+                vars.add(distId);
                 cards.add(probCnt);
             }
+            // generate indexes, note: use long in representation to avoid int overflow
             if (sumNum > 0) {
-                if (priorDist != null) {
-                    Messages.error("Recommend using DNF format");
-                }
 //                fw.print("# Sum Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
-                for (NodeT sub : sum) {
-                    vars.add(offset + nodes.indexOf(sub));
+                List<Integer> sumList = new ArrayList<>(sum.size());
+                for (Integer subId : sum) {
+                    sumList.add(offset + subId);
+                }
+                while (sumNum > clauseLimit) {
+                    assert phonyId < numFacts;
+                    int phonyHead = phonyId++;
+                    Messages.log("PLN: Create sum phony node " + phonyHead);
+                    fw.println();
+                    fw.println(clauseLimit + 1);
+                    fw.print(phonyHead);
+                    for (int phonySub : sumList.subList(sumNum - clauseLimit, sumNum)) {
+                        fw.print(" ");
+                        fw.print(phonySub);
+                    }
+                    fw.println();
+                    fw.print(2);
+                    for (int j = 0; j < clauseLimit; j++) {
+                        fw.print(" ");
+                        fw.print(2);
+                    }
+                    fw.println();
+                    long allRep = (1L << clauseLimit) - 1;
+                    fw.println(allRep + 1);
+                    long noneEntry = 0;
+                    fw.println(noneEntry + " " + 1);
+                    for (long subRep = 1; subRep <= allRep; subRep++) {
+                        long entry = subRep * 2 + 1;
+                        fw.println(entry + " " + 1);
+                    }
+                    fw.flush();
+                    sumList = new ArrayList<>(sumList.subList(0, sumNum - clauseLimit));
+                    sumList.add(phonyHead);
+                    sumNum -= clauseLimit - 1;
+                }
+                for (Integer subId : sumList) {
+                    vars.add(subId);
                     cards.add(2);
                 }
                 for (int probRep = 0; probRep < probCnt; probRep++) {
@@ -239,13 +331,13 @@ public class PLN<NodeT> {
                     String entry = noneRep + " " + 1;
                     entries.add(entry);
                 }
-                int allSubRep = (1 << sumNum) - 1; // 2^(subNum)-1
-                for (int subRep = 1; subRep <= allSubRep; subRep++) {
+                long allSubRep = (1L << sumNum) - 1; // 2^(subNum)-1
+                for (long subRep = 1; subRep <= allSubRep; subRep++) {
                     for (int probRep = 0; probRep < probCnt; probRep++) {
-                        double trueProb = probs.get(probRep);
+                        double trueProb = probs[probRep];
                         double falseProb = 1.0D - trueProb;
-                        int falseRep = (subRep * probCnt + probRep) * 2;
-                        int trueRep = falseRep + 1;
+                        long falseRep = (subRep * probCnt + probRep) * 2;
+                        long trueRep = falseRep + 1;
                         if (falseProb > 0) {
                             String falseEntry = falseRep + " " + falseProb;
                             entries.add(falseEntry);
@@ -259,23 +351,58 @@ public class PLN<NodeT> {
             } else if (prodNum > 0) {
 //                fw.print("# Product Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
-                for (NodeT sub : prod) {
-                    vars.add(offset + nodes.indexOf(sub));
+                List<Integer> prodList = new ArrayList<>(prod.size());
+                for (Integer subId : prod) {
+                    prodList.add(offset + subId);
+                }
+                while (prodNum > clauseLimit) {
+                    assert phonyId < numFacts;
+                    int phonyHead = phonyId++;
+                    Messages.log("PLN: Create product phony node " + phonyHead);
+                    fw.println();
+                    fw.println(clauseLimit + 1);
+                    fw.print(phonyHead);
+                    for (int phonySub : prodList.subList(prodNum - clauseLimit, prodNum)) {
+                        fw.print(" ");
+                        fw.print(phonySub);
+                    }
+                    fw.println();
+                    fw.print(2);
+                    for (int j = 0; j < clauseLimit; j++) {
+                        fw.print(" ");
+                        fw.print(2);
+                    }
+                    fw.println();
+                    long allRep = (1L << clauseLimit) - 1;
+                    fw.println(allRep + 1);
+                    for (long subRep = 0; subRep < allRep; subRep++) {
+                        long entry = subRep * 2;
+                        fw.println(entry + " " + 1);
+                    }
+                    long allEntry = allRep * 2 + 1;
+                    fw.println(allEntry + " " + 1);
+                    fw.flush();
+                    prodList = new ArrayList<>(prodList.subList(0, prodNum - clauseLimit));
+                    prodList.add(phonyHead);
+                    prodNum -= clauseLimit - 1;
+                }
+                for (Integer subId : prodList) {
+                    vars.add(subId);
                     cards.add(2);
                 }
-                int allSubRep = (1 << prodNum) - 1; // 2^(subNum)-1
-                for (int subRep = 0; subRep < allSubRep; subRep++) {
-                    for (int probRep = 0; probRep < probCnt; probRep++) {
-                        int falseRep = (subRep * probCnt + probRep) * 2;
+                long allSubRep = (1L << prodNum) - 1; // 2^(subNum)-1
+                for (long subRep = 0; subRep < allSubRep; subRep++) {
+                    for (long probRep = 0; probRep < probCnt; probRep++) {
+                        long falseRep = (subRep * probCnt + probRep) * 2;
                         String falseEntry = falseRep + " " + 1;
                         entries.add(falseEntry);
                     }
                 }
                 for (int probRep = 0; probRep < probCnt; probRep++) {
-                    double trueProb = probs.get(probRep);
+                    double trueProb = probs[probRep];
                     double falseProb = 1.0D - trueProb;
-                    int falseRep = (allSubRep * probCnt + probRep) * 2;
-                    int trueRep = falseRep + 1;
+                    long falseRep = (allSubRep * probCnt + probRep) * 2;
+                    long trueRep = falseRep + 1;
                     if (falseProb > 0) {
                         String falseEntry = falseRep + " " + falseProb;
                         entries.add(falseEntry);
@@ -289,10 +416,10 @@ public class PLN<NodeT> {
 //                fw.print("# Input Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
                 for (int probRep = 0; probRep < probCnt; probRep++) {
-                    double trueProb = probs.get(probRep);
+                    double trueProb = probs[probRep];
                     double falseProb = 1.0D - trueProb;
-                    int falseRep = probRep * 2;
-                    int trueRep = falseRep + 1;
+                    long falseRep = ((long) probRep) * 2;
+                    long trueRep = falseRep + 1;
                     if (falseProb > 0) {
                         String falseEntry = falseRep + " " + falseProb;
                         entries.add(falseEntry);
@@ -304,6 +431,7 @@ public class PLN<NodeT> {
                 }
             }
             assert (vars.size() == cards.size());
+            fw.println();
             fw.println(vars.size());
             for (Integer varId : vars) {
                 fw.print(varId);
@@ -319,10 +447,11 @@ public class PLN<NodeT> {
             for (String entry : entries) {
                 fw.println(entry);
             }
+            fw.flush();
         }
         fw.flush();
         fw.close();
-        Messages.log("FactorGraph consisting of "+ nodes.size() + " nodes and " + distNodes.size() + " dist nodes.");
+        Messages.log("FactorGraph consisting of "+ nodes.size() + " nodes, " + distNodes.size() + " dist nodes and " + numPhony + " phony nodes." );
     }
 }
 
