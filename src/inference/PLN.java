@@ -7,6 +7,7 @@ import chord.util.Utils;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.*;
+import java.util.function.Function;
 
 // Probabilistic Logic Network structure
 // (i.e. probabilistic term logic)
@@ -127,7 +128,7 @@ public class PLN<NodeT> {
         dw.close();
     }
 
-    public void dumpDot(String dir, Map<NodeT, String> nodeRepr, Map<Categorical01, String> distRepr) {
+    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
         String dotFileName = dir + File.separator + "pln.dot";
         PrintWriter dw = Utils.openOut(dotFileName);
         dw.println("digraph G{");
@@ -138,7 +139,7 @@ public class PLN<NodeT> {
             dw.print(" [");
             NodeT node = nodes.get(i);
 
-            String label = nodeRepr.getOrDefault(node, node.toString());
+            String label = nodeRepr.apply(node);
             dw.print("label=\""+label+"\"");
 
             String shape = "";
@@ -168,7 +169,7 @@ public class PLN<NodeT> {
             dw.print("\tp"+i);
             dw.print(" [");
             Categorical01 distNode = distNodes.get(i);
-            String label = distRepr.getOrDefault(distNode, distNode.toString());
+            String label = distRepr.apply(distNode);
             dw.print("label=\""+label+"\"");
             dw.print(",shape=box");
             dw.println("];");
