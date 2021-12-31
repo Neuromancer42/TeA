@@ -18,6 +18,8 @@ public class PLN<NodeT> {
     // 16 bits for probability representation
     // 1 bits for head
     private static final int clauseLimit = Integer.getInteger("chord.pln.clause.limit", 15);
+    // count number of phony nodes
+    private int numPhony;
 
     // each node is an object
     private final IndexMap<NodeT> nodes;
@@ -80,6 +82,23 @@ public class PLN<NodeT> {
             int nodeIdx = this.nodes.indexOf(node);
             int distIdx = this.distNodes.indexOf(priors.get(node));
             this.priors.put(nodeIdx, distIdx);
+        }
+
+        numPhony = 0;
+        // each phony reduces subnums by (clauseLimit-1)
+        for (Integer headId : this.sums.keySet()) {
+            int subNum = this.sums.get(headId).size();
+            while (subNum > clauseLimit) {
+                numPhony++;
+                subNum -= clauseLimit - 1;
+            }
+        }
+        for (Integer headId : this.prods.keySet()) {
+            int subNum = this.prods.get(headId).size();
+            while (subNum > clauseLimit) {
+                numPhony++;
+                subNum -= clauseLimit - 1;
+            }
         }
     }
 
@@ -204,6 +223,7 @@ public class PLN<NodeT> {
         dw.println("digraph G{");
 
         dw.println("subgraph cluster_prior {");
+        dw.println("label=params;");
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print("\tp"+i);
             dw.print(" [");
@@ -235,27 +255,19 @@ public class PLN<NodeT> {
         assert (clauseLimit > 1);
         String fgFileName = dir + File.separator + "pln.fg";
         PrintWriter fw = Utils.openOut(fgFileName);
-        int numPhony = 0;
-        // count number of phony nodes
-        // each phony reduces subnums by (clauseLimit-1)
-        for (Integer headId : sums.keySet()) {
-            int subNum = sums.get(headId).size();
-            while (subNum > clauseLimit) {
-                numPhony++;
-                subNum -= clauseLimit - 1;
-            }
-        }
-        for (Integer headId : prods.keySet()) {
-            int subNum = prods.get(headId).size();
-            while (subNum > clauseLimit) {
-                numPhony++;
-                subNum -= clauseLimit - 1;
-            }
-        }
+
         int numFacts = distNodes.size() + (nodes.size() + numPhony) * (numRepeats + 1);
         fw.println(numFacts);
         fw.flush();
         // each nodes and each distnode has a factor block
+        // additionally record list of distnodes
+        String paramFileName = dir + File.separator + "params.list";
+        PrintWriter pw = Utils.openOut(paramFileName);
+        for (int i = 0; i < distNodes.size(); i++) {
+            pw.println(i);
+        }
+        pw.flush();
+        pw.close();
         for (int i = 0; i < distNodes.size(); i++) {
             fw.println();
             Categorical01 distNode = distNodes.get(i);
@@ -481,5 +493,26 @@ public class PLN<NodeT> {
         }
         return phonyId;
     }
+
+    public void appendObs(PrintWriter ow, Map<NodeT, Boolean> obs, int idx) {
+        for (NodeT obsNode : obs.keySet()) {
+            int offset = distNodes.size() + (idx + 1) * (nodes.size() + numPhony);
+            int id = offset + nodes.indexOf(obsNode);
+            if (id < 0) continue;
+            ow.print(id);
+            ow.print(" ");
+            ow.print(obs.get(obsNode) ? 1 : 0);
+            ow.println();
+        }
+        ow.flush();
+    }
+
+    public void dumpObs(String dir, Map<NodeT, Boolean> obs) {
+        String obsFileName = dir + File.separator + "obs.list";
+        PrintWriter ow = Utils.openOut(obsFileName);
+        appendObs(ow, obs, -1);
+        ow.close();
+    }
+
 }
 

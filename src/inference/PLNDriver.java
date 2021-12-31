@@ -30,9 +30,9 @@ public abstract class PLNDriver extends JavaAnalysis {
         Categorical01 deriveDist = new Categorical01(new double[]{0.001D, 0.999D});
         buildPLN((clause) -> new Categorical01(deriveDist),
                 (inputTuple) -> new Categorical01(inputDist));
-        String dumpDirName = Config.v().outDirName + File.separator + "bnet";
+        String dumpDirName = Config.v().outDirName + File.separator + "pln";
         Utils.mkdirs(dumpDirName);
-        provenance.dump(dumpDirName);
+        //provenance.dump(dumpDirName);
         pln.dumpDot(dumpDirName, (idx) -> provenance.unfoldId(idx), Categorical01::toString);
         pln.dumpFactorGraph(dumpDirName);
     }
