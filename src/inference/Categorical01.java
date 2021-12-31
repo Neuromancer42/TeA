@@ -5,11 +5,12 @@ import org.apache.commons.math3.distribution.EnumeratedRealDistribution;
 
 import java.util.*;
 
-public class Categorical01 extends EnumeratedRealDistribution {
+public class Categorical01 {
     protected final double[] supports;
+    private EnumeratedRealDistribution dist;
 
     public Categorical01(double[] values, double[] weights) {
-        super(values, weights);
+        dist = new EnumeratedRealDistribution(values, weights);
         Set<Double> supportValues = new HashSet<>();
         for (double v : values) {
             if (v < 0 || v > 1) {
@@ -26,7 +27,7 @@ public class Categorical01 extends EnumeratedRealDistribution {
     }
 
     public Categorical01(double[] values) {
-        super(values);
+        dist = new EnumeratedRealDistribution(values);
         Set<Double> supportValues = new HashSet<>();
         for (double v : values) {
             if (v < 0 || v > 1) {
@@ -43,7 +44,7 @@ public class Categorical01 extends EnumeratedRealDistribution {
     }
 
     public Categorical01(Categorical01 other) {
-        super(other.getSupports(), other.getProbabilitis());
+        dist = new EnumeratedRealDistribution(other.getSupports(), other.getProbabilitis());
         this.supports = other.supports.clone();
     }
 
@@ -69,5 +70,14 @@ public class Categorical01 extends EnumeratedRealDistribution {
             probs[i] = probability(supports[i]);
         }
         return probs;
+    }
+
+    public void updateProbs(double[] newWeights) {
+        assert (newWeights.length == supports.length);
+        dist = new EnumeratedRealDistribution(supports, newWeights);
+    }
+
+    public double probability(double x) {
+        return dist.probability(x);
     }
 }

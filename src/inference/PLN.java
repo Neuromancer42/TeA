@@ -1,10 +1,15 @@
 package inference;
 
+import chord.Main;
+import chord.project.Config;
 import chord.project.Messages;
+import chord.project.ProcessExecutor;
 import chord.util.IndexMap;
 import chord.util.Utils;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.function.Function;
@@ -29,6 +34,7 @@ public class PLN<NodeT> {
     // some nodes corresponds to a distribution, or is determinant
     private final Map<Integer, Integer> priors;
     private final IndexMap<Categorical01> distNodes;
+    private String workdir;
 
     public PLN(
             Collection<NodeT> nodes,
@@ -36,6 +42,8 @@ public class PLN<NodeT> {
             Map<NodeT, Set<NodeT>> prods,
             Map<NodeT, Categorical01> priors
     ) {
+        workdir = System.getProperty("chord.pln.work.dir", Config.v().outDirName+File.separator+"pln");
+        Utils.mkdirs(workdir);
         this.nodes = new IndexMap<>(nodes.size());
         this.nodes.addAll(nodes);
         this.sums = new HashMap<>(sums.size());
@@ -102,8 +110,8 @@ public class PLN<NodeT> {
         }
     }
 
-    public void dump(String dir) {
-        String netFileName = dir + File.separator + "pln.txt";
+    public void dump() {
+        String netFileName = workdir + File.separator + "pln.txt";
         PrintWriter bw = Utils.openOut(netFileName);
         for (int i = 0; i < nodes.size(); i++) {
             bw.print(i + "\t");
@@ -136,7 +144,7 @@ public class PLN<NodeT> {
         bw.flush();
         bw.close();
 
-        String distFileName = dir + File.separator + "priors.list";
+        String distFileName = workdir + File.separator + "priors.list";
         PrintWriter dw = Utils.openOut(distFileName);
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print(i);
@@ -213,12 +221,12 @@ public class PLN<NodeT> {
         dw.println("\t}");
     }
 
-    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
-        dumpDot(dir, nodeRepr, distRepr, 0);
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+        dumpDot(nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
-        String dotFileName = dir + File.separator + "pln.dot";
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+        String dotFileName = workdir + File.separator + "pln.dot";
         PrintWriter dw = Utils.openOut(dotFileName);
         dw.println("digraph G{");
 
@@ -246,14 +254,14 @@ public class PLN<NodeT> {
         dw.close();
     }
 
-    public void dumpFactorGraph(String dir) {
-        dumpRepeatedFactorGraph(dir, 0);
+    public void dumpFactorGraph() {
+        dumpRepeatedFactorGraph(0);
     }
 
     // TODO: separate conditionally on probabilistic / determinant nodes
-    public void dumpRepeatedFactorGraph(String dir, int numRepeats) {
+    public void dumpRepeatedFactorGraph(int numRepeats) {
         assert (clauseLimit > 1);
-        String fgFileName = dir + File.separator + "pln.fg";
+        String fgFileName = workdir + File.separator + "pln.fg";
         PrintWriter fw = Utils.openOut(fgFileName);
 
         int numFacts = distNodes.size() + (nodes.size() + numPhony) * (numRepeats + 1);
@@ -261,7 +269,7 @@ public class PLN<NodeT> {
         fw.flush();
         // each nodes and each distnode has a factor block
         // additionally record list of distnodes
-        String paramFileName = dir + File.separator + "params.list";
+        String paramFileName = workdir + File.separator + "params.list";
         PrintWriter pw = Utils.openOut(paramFileName);
         for (int i = 0; i < distNodes.size(); i++) {
             pw.println(i);
@@ -507,12 +515,215 @@ public class PLN<NodeT> {
         ow.flush();
     }
 
-    public void dumpObs(String dir, Map<NodeT, Boolean> obs) {
-        String obsFileName = dir + File.separator + "obs.list";
+    public void dumpObses(List<Map<NodeT, Boolean>> obses) {
+        String obsFileName = workdir + File.separator + "obs.list";
         PrintWriter ow = Utils.openOut(obsFileName);
-        appendObs(ow, obs, -1);
+        for (int idx = 0; idx < obses.size(); idx++)
+            appendObs(ow, obses.get(idx), idx);
+        ow.flush();
         ow.close();
     }
 
+    public void dumpObs(Map<NodeT, Boolean> obs) {
+        String obsFileName = workdir + File.separator + "obs.list";
+        PrintWriter ow = Utils.openOut(obsFileName);
+        appendObs(ow, obs, -1);
+        ow.flush();
+        ow.close();
+    }
+
+    public void updateFactorGraphWithObservation(Map<NodeT, Boolean> obs) {
+        dumpFactorGraph();
+        dumpObs(obs);
+        invokeUpdater();
+        Map<Integer, double[]> updatedPriors = fetchParams();
+        for (Integer paramId : updatedPriors.keySet()) {
+            distNodes.get(paramId).updateProbs(updatedPriors.get(paramId));
+        }
+    }
+
+    public Map<NodeT, Double> queryFactorGraph(Collection<NodeT> queries) {
+        dumpFactorGraph();
+
+        String queryFileName = workdir + File.separator + "query.list";
+        PrintWriter qw = Utils.openOut(queryFileName);
+        int offset = distNodes.size();
+        for (NodeT q : queries) {
+            int queryId = nodes.indexOf(q);
+            if (queryId < 0) continue;
+            qw.println(offset + queryId);
+        }
+        qw.flush();
+        qw.close();
+
+        invokePredictor();
+
+        Map<Integer,Double> preds = fetchPrediction();
+        Map<NodeT, Double> ret = new HashMap<>();
+        for (Integer queryId : preds.keySet()) {
+            NodeT qNode = nodes.get(queryId - offset);
+            ret.put(qNode, preds.get(queryId));
+        }
+        return ret;
+    }
+
+    private void invokeUpdater() {
+        String daiPath = System.getProperty("chord.inference.dai.path");
+        String fgFileName = workdir + File.separator + "pln.fg";
+        String paramsFileName = workdir + File.separator + "params.list";
+        String obsFileName = workdir + File.separator + "obs.list";
+        String weightsFileName = workdir + File.separator + "weights.list";
+        String[] cmdArray = new String[] {
+                daiPath + File.separator + "updater",
+                fgFileName,
+                obsFileName,
+                paramsFileName,
+                weightsFileName
+        };
+        String cmd = "";
+        for (String s : cmdArray)
+            cmd += s + " ";
+        Messages.log("Starting command: '%s'", cmd);
+        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int timeout = Config.v().timeoutMillis;
+        timeout -= elapsedTime;
+        try {
+            int result = ProcessExecutor.execute(cmdArray, null, null, timeout);
+            if (result != 0)
+                throw new RuntimeException("Return value=" + result);
+        } catch (Throwable ex) {
+            Messages.fatal("Command '%s' terminated abnormally: %s", cmd, ex.getMessage());
+        }
+        Messages.log("Finished command: '%s'", cmd);
+    }
+
+    private void invokePredictor() {
+        String daiPath = System.getProperty("chord.inference.dai.path");
+        String fgFileName = workdir + File.separator + "pln.fg";
+        String queryFileName = workdir + File.separator + "query.list";
+        String predFileName = workdir + File.separator + "prediction.list";
+        String[] cmdArray = new String[] {
+                daiPath + File.separator + "predictor",
+                fgFileName,
+                queryFileName,
+                predFileName
+        };
+        String cmd = "";
+        for (String s : cmdArray)
+            cmd += s + " ";
+        Messages.log("Starting command: '%s'", cmd);
+        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int timeout = Config.v().timeoutMillis;
+        timeout -= elapsedTime;
+        try {
+            int result = ProcessExecutor.execute(cmdArray, null, null, timeout);
+            if (result != 0)
+                throw new RuntimeException("Return value=" + result);
+        } catch (Throwable ex) {
+            Messages.fatal("Command '%s' terminated abnormally: %s", cmd, ex.getMessage());
+        }
+        Messages.log("Finished command: '%s'", cmd);
+    }
+
+    private Map<Integer, double[]> fetchParams() {
+        String newParamsFileName = workdir + File.separator + "weights.list";
+        Map<Integer, double[]> parsed = new HashMap<>();
+        try {
+            BufferedReader in = new BufferedReader(new FileReader(newParamsFileName));
+            String s;
+            while ((s = in.readLine()) != null) {
+                String[] arr = s.split("\\s+");
+                int paramId = Integer.parseInt(arr[0]);
+                double[] weights = new double[arr.length-1];
+                for (int i = 1; i < arr.length; i++) {
+                    weights[i-1] = Double.parseDouble(arr[i]);
+                }
+                parsed.put(paramId, weights);
+            }
+            in.close();
+        } catch (Exception ex) {
+            Messages.fatal(ex);
+        }
+        return parsed;
+    }
+
+    private Map<Integer, Double> fetchPrediction() {
+        String predFileName = workdir + File.separator + "prediction.list";
+        Map<Integer, Double> parsed = new HashMap<>();
+        try {
+            BufferedReader in = new BufferedReader(new FileReader(predFileName));
+            String s;
+            while ((s = in.readLine()) != null) {
+                String[] arr = s.split("\\s+");
+                assert arr.length == 2;
+                int paramId = Integer.parseInt(arr[0]);
+                double prob = Double.parseDouble(arr[1]);
+                parsed.put(paramId, prob);
+            }
+            in.close();
+        } catch (Exception ex) {
+            Messages.fatal(ex);
+        }
+        return parsed;
+    }
+
+    @Deprecated
+    public Map<NodeT, Double> queryFactorGraphWithObservations(List<Map<NodeT, Boolean>> obses, Collection<NodeT> queries) {
+        dumpRepeatedFactorGraph(obses.size());
+        dumpObses(obses);
+        String queryFileName = workdir + File.separator + "query.list";
+        PrintWriter qw = Utils.openOut(queryFileName);
+        int offset = distNodes.size();
+        for (NodeT q : queries) {
+            int queryId = nodes.indexOf(q);
+            if (queryId < 0) continue;
+            qw.println(offset + queryId);
+        }
+        qw.flush();
+        qw.close();
+        invokeMultiPredictor();
+        Map<Integer, Double> preds = fetchPrediction();
+        Map<NodeT, Double> ret = new HashMap<>();
+        for (Integer queryId : preds.keySet()) {
+            NodeT qNode = nodes.get(queryId - offset);
+            ret.put(qNode, preds.get(queryId));
+        }
+        return ret;
+    }
+
+    @Deprecated
+    private void invokeMultiPredictor() {
+        String daiPath = System.getProperty("chord.inference.dai.path");
+        String fgFileName = workdir + File.separator + "pln.fg";
+        String obsFileName = workdir + File.separator + "obs.list";
+        String queryFileName = workdir + File.separator + "query.list";
+        String predFileName = workdir + File.separator + "prediction.list";
+        String paramFileName = workdir + File.separator + "params.list";
+        String weightsFileName = workdir + File.separator + "weights.list";
+        String[] cmdArray = new String[] {
+                daiPath + File.separator + "multi-predictor",
+                fgFileName,
+                obsFileName,
+                queryFileName,
+                predFileName,
+                paramFileName,
+                weightsFileName
+        };
+        String cmd = "";
+        for (String s : cmdArray)
+            cmd += s + " ";
+        Messages.log("Starting command: '%s'", cmd);
+        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int timeout = Config.v().timeoutMillis;
+        timeout -= elapsedTime;
+        try {
+            int result = ProcessExecutor.execute(cmdArray, null, null, timeout);
+            if (result != 0)
+                throw new RuntimeException("Return value=" + result);
+        } catch (Throwable ex) {
+            Messages.fatal("Command '%s' terminated abnormally: %s", cmd, ex.getMessage());
+        }
+        Messages.log("Finished command: '%s'", cmd);
+    }
 }
 
