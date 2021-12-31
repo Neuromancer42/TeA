@@ -13,6 +13,12 @@ import java.util.function.Function;
 // (i.e. probabilistic term logic)
 // TODO: accept DNF format only
 public class PLN<NodeT> {
+
+    // unsigned int has 32 bits
+    // 16 bits for probability representation
+    // 1 bits for head
+    private static final int clauseLimit = Integer.getInteger("chord.pln.clause.limit", 15);
+
     // each node is an object
     private final IndexMap<NodeT> nodes;
     // each node either correspond to a sum or a product, or is a singleton
@@ -128,14 +134,12 @@ public class PLN<NodeT> {
         dw.close();
     }
 
-    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
-        String dotFileName = dir + File.separator + "pln.dot";
-        PrintWriter dw = Utils.openOut(dotFileName);
-        dw.println("digraph G{");
-        dw.println("\tsubgraph cluster0 {");
-        dw.println("\t\tlabel=\"trace\";");
+    private void dumpDotSubgraph(PrintWriter dw, Function<NodeT, String> nodeRepr, Integer trace) {
+        String suffix = trace==null ? "" : ("_"+trace);
+        dw.println("\tsubgraph cluster"+suffix+" {");
+        dw.println("\t\tlabel=\"trace"+suffix+"\";");
         for (int i = 0; i < nodes.size(); i++) {
-            dw.print("\t\tn" + i);
+            dw.print("\t\tn" + i + suffix);
             dw.print(" [");
             NodeT node = nodes.get(i);
 
@@ -163,32 +167,20 @@ public class PLN<NodeT> {
                 dw.print(",style="+style);
             dw.println("];");
         }
-        dw.println("\t}");
-
-        for (int i = 0; i < distNodes.size(); i++) {
-            dw.print("\tp"+i);
-            dw.print(" [");
-            Categorical01 distNode = distNodes.get(i);
-            String label = distRepr.apply(distNode);
-            dw.print("label=\""+label+"\"");
-            dw.print(",shape=box");
-            dw.println("];");
-        }
-
         for (Integer headId : sums.keySet())
             for (Integer subId : sums.get(headId)) {
                 dw.print("\t");
-                dw.print("n"+subId);
+                dw.print("n"+subId+suffix);
                 dw.print(" -> ");
-                dw.print("n"+headId);
+                dw.print("n"+headId+suffix);
                 dw.println(" [style=dotted];");
             }
         for (Integer headId  : prods.keySet())
             for (Integer subId : prods.get(headId)) {
                 dw.print("\t");
-                dw.print("n"+subId);
+                dw.print("n"+subId+suffix);
                 dw.print(" -> ");
-                dw.print("n"+headId);
+                dw.print("n"+headId+suffix);
                 dw.println(";");
             }
         for (Integer nodeId : priors.keySet()) {
@@ -196,29 +188,53 @@ public class PLN<NodeT> {
             dw.print("\t");
             dw.print("p"+distId);
             dw.print(" -> ");
-            dw.print("n"+nodeId);
+            dw.print("n"+nodeId+suffix);
             dw.println(" [style=bold];");
         }
+        dw.println("\t}");
+    }
+
+    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+        dumpDot(dir, nodeRepr, distRepr, 0);
+    }
+
+    public void dumpDot(String dir, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+        String dotFileName = dir + File.separator + "pln.dot";
+        PrintWriter dw = Utils.openOut(dotFileName);
+        dw.println("digraph G{");
+
+        dw.println("subgraph cluster_prior {");
+        for (int i = 0; i < distNodes.size(); i++) {
+            dw.print("\tp"+i);
+            dw.print(" [");
+            Categorical01 distNode = distNodes.get(i);
+            String label = distRepr.apply(distNode);
+            dw.print("label=\""+label+"\"");
+            dw.print(",shape=box,style=filled");
+            dw.println("];");
+        }
+        dw.println("}");
+
+        dumpDotSubgraph(dw, nodeRepr, null);
+
+        for (int i = 0; i < numRepeats; i++) {
+            dumpDotSubgraph(dw, nodeRepr, i);
+        }
+
         dw.println("}");
         dw.flush();
         dw.close();
     }
 
     public void dumpFactorGraph(String dir) {
-        // unsigned int has 32 bits
-        // 16 bits for probability representation
-        // 1 bits for head
-        int defaultClauseLimit = 15;
-        dumpFactorGraph(dir, defaultClauseLimit);
+        dumpRepeatedFactorGraph(dir, 0);
     }
 
     // TODO: separate conditionally on probabilistic / determinant nodes
-    public void dumpFactorGraph(String dir, int clauseLimit) {
+    public void dumpRepeatedFactorGraph(String dir, int numRepeats) {
         assert (clauseLimit > 1);
         String fgFileName = dir + File.separator + "pln.fg";
         PrintWriter fw = Utils.openOut(fgFileName);
-        int numFacts = nodes.size() + distNodes.size();
-        int phonyId = numFacts;
         int numPhony = 0;
         // count number of phony nodes
         // each phony reduces subnums by (clauseLimit-1)
@@ -236,7 +252,7 @@ public class PLN<NodeT> {
                 subNum -= clauseLimit - 1;
             }
         }
-        numFacts += numPhony;
+        int numFacts = distNodes.size() + (nodes.size() + numPhony) * (numRepeats + 1);
         fw.println(numFacts);
         fw.flush();
         // each nodes and each distnode has a factor block
@@ -260,6 +276,20 @@ public class PLN<NodeT> {
 
         int offset = distNodes.size();
 
+        offset = dumpSubFactorGraph(clauseLimit, fw, offset);
+
+        for (int r = 0; r < numRepeats; r++) {
+            offset = dumpSubFactorGraph(clauseLimit,fw, offset);
+        }
+        assert offset == numFacts;
+
+        fw.flush();
+        fw.close();
+        Messages.log("FactorGraph consisting of "+ distNodes.size() + " dist nodes, (1+" + numRepeats + ")x(" + nodes.size() + " nodes and " + numPhony + " phony nodes)." );
+    }
+
+    private int dumpSubFactorGraph(int clauseLimit, PrintWriter fw, int offset) {
+        int phonyId = offset + nodes.size();
         for (int i = 0; i < nodes.size(); i++) {
             double[] deterministic = {1.0};
             Integer distId = priors.get(i);
@@ -293,7 +323,7 @@ public class PLN<NodeT> {
                     sumList.add(offset + subId);
                 }
                 while (sumNum > clauseLimit) {
-                    assert phonyId < numFacts;
+                    //assert phonyId < numFacts;
                     int phonyHead = phonyId++;
                     Messages.log("PLN: Create sum phony node " + phonyHead);
                     fw.println();
@@ -357,7 +387,6 @@ public class PLN<NodeT> {
                     prodList.add(offset + subId);
                 }
                 while (prodNum > clauseLimit) {
-                    assert phonyId < numFacts;
                     int phonyHead = phonyId++;
                     Messages.log("PLN: Create product phony node " + phonyHead);
                     fw.println();
@@ -450,9 +479,7 @@ public class PLN<NodeT> {
             }
             fw.flush();
         }
-        fw.flush();
-        fw.close();
-        Messages.log("FactorGraph consisting of "+ nodes.size() + " nodes, " + distNodes.size() + " dist nodes and " + numPhony + " phony nodes." );
+        return phonyId;
     }
 }
 
