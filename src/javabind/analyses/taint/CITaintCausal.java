@@ -1,13 +1,13 @@
 package javabind.analyses.taint;
 
 import chord.project.Chord;
-import inference.PLNDriver;
+import inference.CausalDriver;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Chord( name="ci-taint-pln" )
-public class CITaintPLN extends PLNDriver {
+@Chord( name="ci-taint-causal" )
+public class CITaintCausal extends CausalDriver {
     @Override
     protected String getDlogName() {
         return "java-ci-taint-dlog";

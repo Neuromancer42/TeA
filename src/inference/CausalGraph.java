@@ -6,6 +6,7 @@ import chord.project.Messages;
 import chord.project.ProcessExecutor;
 import chord.util.IndexMap;
 import chord.util.Utils;
+import com.sun.jndi.ldap.Ber;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -15,9 +16,8 @@ import java.util.*;
 import java.util.function.Function;
 
 // Probabilistic Logic Network structure
-// (i.e. probabilistic term logic)
-// TODO: accept DNF format only
-public class PLN<NodeT> {
+// (i.e. probabilistic term logic, in a causal bayesian network form)
+public class CausalGraph<NodeT> {
 
     // unsigned int has 32 bits
     // 16 bits for probability representation
@@ -33,14 +33,14 @@ public class PLN<NodeT> {
     private final Map<Integer, Set<Integer>> prods;
     // some nodes corresponds to a distribution, or is determinant
     private final Map<Integer, Integer> priors;
-    private final IndexMap<Categorical01> distNodes;
+    private final IndexMap<Bernoulli> distNodes;
     private String workdir;
 
-    public PLN(
+    public CausalGraph(
             Collection<NodeT> nodes,
             Map<NodeT, Set<NodeT>> sums,
             Map<NodeT, Set<NodeT>> prods,
-            Map<NodeT, Categorical01> priors
+            Map<NodeT, Bernoulli> priors
     ) {
         workdir = System.getProperty("chord.pln.work.dir", Config.v().outDirName+File.separator+"pln");
         Utils.mkdirs(workdir);
@@ -148,13 +148,9 @@ public class PLN<NodeT> {
         PrintWriter dw = Utils.openOut(distFileName);
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print(i);
-            Categorical01 dist = distNodes.get(i);
-            for (Double v : dist.getSupports()) {
-                dw.print(" ");
-                dw.print(v);
-                dw.print(":");
-                dw.print(dist.probability(v));
-            }
+            Bernoulli dist = distNodes.get(i);
+            dw.print("\t");
+            dw.print(dist.probability(1));
             dw.println();
         }
         dw.flush();
@@ -222,19 +218,19 @@ public class PLN<NodeT> {
         dw.println("\t}");
     }
 
-    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr) {
         dumpDot("pln.dot", nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr, int numRepeats) {
         dumpDot("pln.dot", nodeRepr, distRepr, numRepeats);
     }
 
-    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr) {
         dumpDot(filename, nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr, int numRepeats) {
         String dotFileName = workdir + File.separator + filename;
         PrintWriter dw = Utils.openOut(dotFileName);
         dw.println("digraph G{");
@@ -244,7 +240,7 @@ public class PLN<NodeT> {
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print("\tp"+i);
             dw.print(" [");
-            Categorical01 distNode = distNodes.get(i);
+            Bernoulli distNode = distNodes.get(i);
             String label = distRepr.apply(distNode);
             dw.print("label=\""+i+"\n"+label+"\"");
             dw.print(",shape=box,style=filled");
@@ -287,11 +283,11 @@ public class PLN<NodeT> {
         pw.close();
         for (int i = 0; i < distNodes.size(); i++) {
             fw.println();
-            Categorical01 distNode = distNodes.get(i);
+            Bernoulli distNode = distNodes.get(i);
 //            fw.println("# DistNode " + i + " " + distNode.toString());
             fw.println(1); // variable numbers
             fw.println(i); // variable IDs
-            double[] supports = distNode.getSupports();
+            int[] supports = distNode.getSupports();
             int cardinality = supports.length;
             fw.println(cardinality); // cardinalities
             fw.println(cardinality); // number of non-zero entries
@@ -317,12 +313,11 @@ public class PLN<NodeT> {
         Messages.log("FactorGraph consisting of "+ distNodes.size() + " dist nodes, (1+" + numRepeats + ")x(" + nodes.size() + " nodes and " + numPhony + " phony nodes)." );
     }
 
+    //  for the derivative part, every thing is determinant
     private int dumpSubFactorGraph(int clauseLimit, PrintWriter fw, int offset) {
         int phonyId = offset + nodes.size();
         for (int i = 0; i < nodes.size(); i++) {
-            double[] deterministic = {1.0};
-            Integer distId = priors.get(i);
-            double[] probs = distId == null ? deterministic : distNodes.get(distId).getSupports();
+            Integer distId = priors.get(i); // distId refers to an error or null
 
             Set<Integer> sum = sums.get(i);
             int sumNum = sum == null ? 0 : sum.size();
@@ -338,10 +333,9 @@ public class PLN<NodeT> {
             vars.add(offset + i);
             cards.add(2);
 
-            int probCnt = probs.length;
-            if (probCnt > 1) {
+            if (distId != null) {
                 vars.add(distId);
-                cards.add(probCnt);
+                cards.add(distNodes.get(distId).getSupports().length); // i.e. 2
             }
             // generate indexes, note: use long in representation to avoid int overflow
             if (sumNum > 0) {
@@ -386,26 +380,32 @@ public class PLN<NodeT> {
                     vars.add(subId);
                     cards.add(2);
                 }
-                for (int probRep = 0; probRep < probCnt; probRep++) {
-                    int noneRep = probRep * 2;
-                    String entry = noneRep + " " + 1;
-                    entries.add(entry);
+                int noneSubRep = 0;
+                if (distId != null) {
+                    long falseRep = noneSubRep * 2 * 2;
+                    String falseEntry = falseRep + " " + 1;
+                    entries.add(falseEntry);
+                    long trueRep = falseRep + 2;
+                    String trueEntry = trueRep + " " + 1;
+                    entries.add(trueEntry);
+                } else {
+                    long falseRep = noneSubRep * 2 * 2;
+                    String falseEntry = falseRep + " " + 1;
+                    entries.add(falseEntry);
                 }
                 long allSubRep = (1L << sumNum) - 1; // 2^(subNum)-1
                 for (long subRep = 1; subRep <= allSubRep; subRep++) {
-                    for (int probRep = 0; probRep < probCnt; probRep++) {
-                        double trueProb = probs[probRep];
-                        double falseProb = 1.0D - trueProb;
-                        long falseRep = (subRep * probCnt + probRep) * 2;
-                        long trueRep = falseRep + 1;
-                        if (falseProb > 0) {
-                            String falseEntry = falseRep + " " + falseProb;
-                            entries.add(falseEntry);
-                        }
-                        if (trueProb > 0) {
-                            String trueEntry = trueRep + " " + trueProb;
-                            entries.add(trueEntry);
-                        }
+                    if (distId != null) {
+                        long falseRep = subRep * 2 * 2;
+                        String falseEntry = falseRep + " "  + 1;
+                        entries.add(falseEntry);
+                        long trueRep = falseRep + 3;
+                        String trueEntry = trueRep + " " + 1;
+                        entries.add(trueEntry);
+                    } else {
+                        long trueRep = subRep * 2 + 1;
+                        String trueEntry = trueRep + " " + 1;
+                        entries.add(trueEntry);
                     }
                 }
             } else if (prodNum > 0) {
@@ -451,42 +451,47 @@ public class PLN<NodeT> {
                 }
                 long allSubRep = (1L << prodNum) - 1; // 2^(subNum)-1
                 for (long subRep = 0; subRep < allSubRep; subRep++) {
-                    for (long probRep = 0; probRep < probCnt; probRep++) {
-                        long falseRep = (subRep * probCnt + probRep) * 2;
+                    if (distId != null) {
+                        long falseRep = subRep * 2 * 2;
+                        String falseEntry = falseRep + " " + 1;
+                        entries.add(falseEntry);
+                        long trueRep = falseRep + 2;
+                        String trueEntry = trueRep + " " + 1;
+                        entries.add(trueEntry);
+                    } else {
+                        long falseRep = subRep * 2;
                         String falseEntry = falseRep + " " + 1;
                         entries.add(falseEntry);
                     }
                 }
-                for (int probRep = 0; probRep < probCnt; probRep++) {
-                    double trueProb = probs[probRep];
-                    double falseProb = 1.0D - trueProb;
-                    long falseRep = (allSubRep * probCnt + probRep) * 2;
-                    long trueRep = falseRep + 1;
-                    if (falseProb > 0) {
-                        String falseEntry = falseRep + " " + falseProb;
-                        entries.add(falseEntry);
-                    }
-                    if (trueProb > 0) {
-                        String trueEntry = trueRep + " " + trueProb;
-                        entries.add(trueEntry);
-                    }
+                if (distId != null) {
+                    long falseRep = allSubRep * 2 * 2;
+                    String falseEntry = falseRep + " " + 1;
+                    entries.add(falseEntry);
+                    long trueRep = falseRep + 3;
+                    String trueEntry = trueRep + " " + 1;
+                    entries.add(trueEntry);
+                } else {
+                    long trueRep = allSubRep * 2 + 1;
+                    String trueEntry = trueRep + " " + 1;
+                    entries.add(trueEntry);
                 }
             } else {
 //                fw.print("# Input Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
-                for (int probRep = 0; probRep < probCnt; probRep++) {
-                    double trueProb = probs[probRep];
-                    double falseProb = 1.0D - trueProb;
-                    long falseRep = ((long) probRep) * 2;
-                    long trueRep = falseRep + 1;
-                    if (falseProb > 0) {
-                        String falseEntry = falseRep + " " + falseProb;
-                        entries.add(falseEntry);
-                    }
-                    if (trueProb > 0) {
-                        String trueEntry = trueRep + " " + trueProb;
-                        entries.add(trueEntry);
-                    }
+                // Singleton Nodes
+
+                if (distId != null) {
+                    long falseRep = 0;
+                    String falseEntry = falseRep + " " + 1;
+                    entries.add(falseEntry);
+                    long trueRep = 3;
+                    String trueEntry = trueRep + " " + 1;
+                    entries.add(trueEntry);
+                } else {
+                    long trueRep = 1;
+                    String trueEntry = trueRep + " " + 1;
+                    entries.add(trueEntry);
                 }
             }
             assert (vars.size() == cards.size());

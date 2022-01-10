@@ -9,9 +9,9 @@ import provenance.Tuple;
 import java.util.*;
 import java.util.function.Function;
 
-public abstract class PLNDriver extends JavaAnalysis {
+public abstract class CausalDriver extends JavaAnalysis {
     private Provenance provenance;
-    private PLN<String> pln;
+    private CausalGraph<String> pln;
 
     protected abstract String getDlogName();
     protected abstract List<String> getObserveRelationNames();
@@ -23,10 +23,10 @@ public abstract class PLNDriver extends JavaAnalysis {
         pDriver.computeProvenance(getObserveRelationNames());
         provenance = pDriver.getProvenance();
 
-        Categorical01 inputDist = new Categorical01(new double[]{0.5D, 0.75D, 0.875D, 1D});
-        Categorical01 deriveDist = new Categorical01(new double[]{0.5D, 0.75D, 0.875D, 1D});
-        buildPLN((clause) -> new Categorical01(deriveDist),
-                (inputTuple) -> new Categorical01(inputDist));
+        Bernoulli inputDist = new Bernoulli(0.9D);
+        Bernoulli deriveDist = new Bernoulli(0.99D);
+        buildPLN((clause) -> new Bernoulli(deriveDist),
+                (inputTuple) -> new Bernoulli(inputDist));
         //provenance.dump(dumpDirName);
         List<String> outputTupleIds = provenance.getOutputTupleIds();
         List<String> hiddenTupleIds = provenance.getHiddenTupleIds();
@@ -37,7 +37,7 @@ public abstract class PLNDriver extends JavaAnalysis {
         allTupleIds.addAll(inputTupleIds);
         Map<String, Double> queryResults = pln.queryFactorGraph(allTupleIds);
         Map<String, Double> priorQueryResults = queryResults;
-        pln.dumpDot("pln_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
+        pln.dumpDot("pln_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Bernoulli::toString);
         // TODO iterative update with traces
         Map<String, Boolean> obsTrace = new HashMap<>();
         // For debug only
@@ -51,11 +51,11 @@ public abstract class PLNDriver extends JavaAnalysis {
             pln.updateFactorGraphWithObservation(obsTrace);
             queryResults = pln.queryFactorGraph(allTupleIds);
             Map<String, Double> curQueryResults = queryResults;
-            pln.dumpDot("pln_post-" + i + ".dot", (idx) -> (provenance.unfoldId(idx) + "\n" + curQueryResults.get(idx)), Categorical01::toString);
+            pln.dumpDot("pln_post-" + i + ".dot", (idx) -> (provenance.unfoldId(idx) + "\n" + curQueryResults.get(idx)), Bernoulli::toString);
         }
     }
 
-    void buildPLN(Function<ConstraintItem, Categorical01> getDeriveDist, Function<Tuple, Categorical01> getInputDist) {
+    void buildPLN(Function<ConstraintItem, Bernoulli> getDeriveDist, Function<Tuple, Bernoulli> getInputDist) {
         List<String> clauseIds = provenance.getClauseIds();
         List<String> inputTupleIds = provenance.getInputTupleIds();
         List<String> outputTupleIds = provenance.getOutputTupleIds();
@@ -66,14 +66,14 @@ public abstract class PLNDriver extends JavaAnalysis {
         hybrid.addAll(outputTupleIds);
         hybrid.addAll(hiddenTupleIds);
 
-        Map<String, Categorical01> priorMapping = new HashMap<>();
+        Map<String, Bernoulli> priorMapping = new HashMap<>();
 
         for (String clauseId : clauseIds)
             priorMapping.put(clauseId, getDeriveDist.apply(provenance.decodeClause(clauseId)));
         for (String inputId : inputTupleIds)
             priorMapping.put(inputId, getInputDist.apply(provenance.decodeTuple(inputId)));
 
-        pln = new PLN<>(hybrid,
+        pln = new CausalGraph<>(hybrid,
                 provenance.getHeadtuple2ClausesMap(),
                 provenance.getClause2SubtuplesMap(),
                 priorMapping);
