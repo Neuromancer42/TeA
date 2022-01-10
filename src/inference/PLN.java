@@ -171,7 +171,8 @@ public class PLN<NodeT> {
             NodeT node = nodes.get(i);
 
             String label = nodeRepr.apply(node);
-            dw.print("label=\""+label+"\"");
+            if (trace == null) label = (i + distNodes.size()) + "\n" + label;
+            dw.print("label=\"" + label + "\"");
 
             String shape = "";
             String style = "";
@@ -222,11 +223,19 @@ public class PLN<NodeT> {
     }
 
     public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
-        dumpDot(nodeRepr, distRepr, 0);
+        dumpDot("pln.dot", nodeRepr, distRepr, 0);
     }
 
     public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
-        String dotFileName = workdir + File.separator + "pln.dot";
+        dumpDot("pln.dot", nodeRepr, distRepr, numRepeats);
+    }
+
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+        dumpDot(filename, nodeRepr, distRepr, 0);
+    }
+
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+        String dotFileName = workdir + File.separator + filename;
         PrintWriter dw = Utils.openOut(dotFileName);
         dw.println("digraph G{");
 
@@ -237,7 +246,7 @@ public class PLN<NodeT> {
             dw.print(" [");
             Categorical01 distNode = distNodes.get(i);
             String label = distRepr.apply(distNode);
-            dw.print("label=\""+label+"\"");
+            dw.print("label=\""+i+"\n"+label+"\"");
             dw.print(",shape=box,style=filled");
             dw.println("];");
         }
