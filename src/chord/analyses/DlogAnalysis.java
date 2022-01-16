@@ -14,7 +14,6 @@ import java.util.HashSet;
 
 import chord.project.Messages;
 import chord.project.Config;
-import chord.Main;
 import chord.project.ProcessExecutor;
 
 import chord.bddbddb.RelSign;
@@ -290,7 +289,7 @@ public class DlogAnalysis extends JavaAnalysis {
 			fileName.toString()
         };
 
-		int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+		int elapsedTime = (int) (System.currentTimeMillis() - Config.v().startTime);
 		int timeout = Config.v().timeoutMillis;
 		timeout -= elapsedTime;
         //OutDirUtils.

@@ -1,12 +1,10 @@
 package inference;
 
-import chord.Main;
 import chord.project.Config;
 import chord.project.Messages;
 import chord.project.ProcessExecutor;
 import chord.util.IndexMap;
 import chord.util.Utils;
-import com.sun.jndi.ldap.Ber;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -17,12 +15,12 @@ import java.util.function.Function;
 
 // Probabilistic Logic Network structure
 // (i.e. probabilistic term logic, in a causal bayesian network form)
+// 1. each node is either an input / conjunction / disjunction
+// 2. each conjunction and each input node has a related probability
+// 3. in causal graph format, every conjunction/disjunction has a dummy node for stochastic part
 public class CausalGraph<NodeT> {
 
-    // unsigned int has 32 bits
-    // 16 bits for probability representation
-    // 1 bits for head
-    private static final int clauseLimit = Integer.getInteger("chord.pln.clause.limit", 15);
+    private static final int clauseLimit = Integer.getInteger("chord.dai.clause.limit", 15);
     // count number of phony nodes
     private int numPhony;
 
@@ -31,26 +29,41 @@ public class CausalGraph<NodeT> {
     // each node either correspond to a sum or a product, or is a singleton
     private final Map<Integer, Set<Integer>> sums;
     private final Map<Integer, Set<Integer>> prods;
+    private final Set<Integer> inputs;
     // some nodes corresponds to a distribution, or is determinant
     private final Map<Integer, Integer> priors;
-    private final IndexMap<Bernoulli> distNodes;
+    private final IndexMap<Integer> stochNodes;
+    private final IndexMap<Categorical01> distNodes;
     private String workdir;
 
     public CausalGraph(
             Collection<NodeT> nodes,
+            Collection<NodeT> inputs,
             Map<NodeT, Set<NodeT>> sums,
             Map<NodeT, Set<NodeT>> prods,
-            Map<NodeT, Bernoulli> priors
+            Map<NodeT, Categorical01> clauseDists,
+            Map<NodeT, Categorical01> inputDists
     ) {
-        workdir = System.getProperty("chord.pln.work.dir", Config.v().outDirName+File.separator+"pln");
+        workdir = System.getProperty("chord.inference.work.dir", Config.v().outDirName+File.separator+"causal");
         Utils.mkdirs(workdir);
+
+        // 1. collect determinant part
         this.nodes = new IndexMap<>(nodes.size());
         this.nodes.addAll(nodes);
         this.sums = new HashMap<>(sums.size());
+        this.prods = new HashMap<>(prods.size());
+        this.inputs = new HashSet<>(inputs.size());
+        for (NodeT input: inputs) {
+            int inputIdx = this.nodes.indexOf(input);
+            if (inputIdx < 0) {
+                Messages.error("CausalGraph: skip unmet input " + input);
+            }
+            this.inputs.add(inputIdx);
+        }
         for (NodeT head : sums.keySet()) {
             int headIdx = this.nodes.indexOf(head);
             if (headIdx < 0) {
-                Messages.error("PLN: skip unmet head " + head);
+                Messages.error("CausalGraph: skip unmet head " + head);
                 continue;
             }
             Set<NodeT> subs = sums.get(head);
@@ -58,17 +71,16 @@ public class CausalGraph<NodeT> {
             for (NodeT sub : subs) {
                 int subIdx = this.nodes.indexOf(sub);
                 if (subIdx < 0) {
-                    Messages.error("PLN: skip unmet sub " + sub);
+                    Messages.error("CausalGraph: skip unmet sub " + sub + "in head " + head);
                     continue;
                 }
                 this.sums.get(headIdx).add(subIdx);
             }
         }
-        this.prods = new HashMap<>(prods.size());
         for (NodeT head : prods.keySet()) {
             int headIdx = this.nodes.indexOf(head);
             if (headIdx < 0) {
-                Messages.error("PLN: skip unmet head " + head);
+                Messages.error("CausalGraph: skip unmet head " + head);
                 continue;
             }
             Set<NodeT> subs = prods.get(head);
@@ -76,19 +88,45 @@ public class CausalGraph<NodeT> {
             for (NodeT sub : subs) {
                 int subIdx = this.nodes.indexOf(sub);
                 if (subIdx < 0) {
-                    Messages.error("PLN: skip unmet sub " + sub + " in head " + head);
+                    Messages.error("CausalGraph: skip unmet sub " + sub + " in head " + head);
                 }
                 this.prods.get(headIdx).add(subIdx);
             }
         }
+        // check well-formedness
+        for (int i = 0; i < this.nodes.size(); i++) {
+            if ((this.inputs.contains(i) && this.sums.containsKey(i)) ||
+                    (this.inputs.contains(i) && this.prods.containsKey(i)) ||
+                    (this.sums.containsKey(i) && this.prods.containsKey(i))
+            ) {
+                Messages.fatal("CausalGraph: overlapped node " + this.nodes.get(i));
+            }
+            if ((!this.inputs.contains(i)) && (!this.sums.containsKey(i)) && (!this.prods.containsKey(i))) {
+                Messages.fatal("CausalGraph: redundant node " + this.nodes.get(i));
+            }
+        }
 
+        // 2. collect stochastic part
         this.distNodes = new IndexMap<>();
-        this.distNodes.addAll(priors.values());
+        this.distNodes.addAll(clauseDists.values());
+        this.distNodes.addAll(inputDists.values());
 
-        this.priors = new HashMap<>(priors.size());
-        for (NodeT node : priors.keySet()) {
+        // map each stochastic node to its distribution
+        this.priors = new HashMap<>(clauseDists.size() + inputDists.size());
+        // add dummy node for clauses
+        this.stochNodes = new IndexMap<>();
+
+        for (NodeT node : clauseDists.keySet()) {
             int nodeIdx = this.nodes.indexOf(node);
-            int distIdx = this.distNodes.indexOf(priors.get(node));
+            int distIdx = this.distNodes.indexOf(clauseDists.get(node));
+            assert (this.sums.containsKey(nodeIdx) || this.prods.containsKey(nodeIdx));
+            this.priors.put(nodeIdx, distIdx);
+            this.stochNodes.add(nodeIdx);
+        }
+        for (NodeT node : inputDists.keySet()) {
+            int nodeIdx = this.nodes.indexOf(node);
+            int distIdx = this.distNodes.indexOf(inputDists.get(node));
+            assert (this.inputs.contains(nodeIdx));
             this.priors.put(nodeIdx, distIdx);
         }
 
@@ -111,26 +149,24 @@ public class CausalGraph<NodeT> {
     }
 
     public void dump() {
-        String netFileName = workdir + File.separator + "pln.txt";
+        String netFileName = workdir + File.separator + "causal.txt";
         PrintWriter bw = Utils.openOut(netFileName);
         for (int i = 0; i < nodes.size(); i++) {
             bw.print(i + "\t");
             Integer distId = priors.get(i);
             bw.print(distId + "\t");
-            Set<Integer> sumNodes = sums.get(i);
-            int sumNum = sumNodes == null ? 0 : sumNodes.size();
-            Set<Integer> prodNodes = prods.get(i);
-            int prodNum = prodNodes == null ? 0 : prodNodes.size();
-            if (sumNum > 0 && prodNum > 0)
-                Messages.fatal("PLN: sums and products are not disjoint");
-            if (sumNum > 0) {
+            if (sums.containsKey(i)) {
+                Set<Integer> sumNodes = sums.get(i);
+                int sumNum = sumNodes.size();
                 bw.print(sumNum);
                 bw.print("\t+");
                 for (Integer sumId : sumNodes) {
                     bw.print("\t" + sumId);
                 }
                 bw.println();
-            } else if (prodNum > 0) {
+            } else if (prods.containsKey(i)) {
+                Set<Integer> prodNodes = prods.get(i);
+                int prodNum = prodNodes.size();
                 bw.print(prodNum);
                 bw.print("\t*");
                 for (Integer prodId : prodNodes) {
@@ -148,9 +184,17 @@ public class CausalGraph<NodeT> {
         PrintWriter dw = Utils.openOut(distFileName);
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print(i);
-            Bernoulli dist = distNodes.get(i);
+            Categorical01 dist = distNodes.get(i);
+            int valNum = dist.getSupports().length;
             dw.print("\t");
-            dw.print(dist.probability(1));
+            dw.print(valNum);
+            for (int j = 0; j < valNum; j++) {
+                dw.print("\t");
+                double val = dist.getSupports()[j];
+                dw.print(val);
+                dw.print("\t");
+                dw.print(dist.probability(val));
+            }
             dw.println();
         }
         dw.flush();
@@ -158,7 +202,7 @@ public class CausalGraph<NodeT> {
     }
 
     private void dumpDotSubgraph(PrintWriter dw, Function<NodeT, String> nodeRepr, Integer trace) {
-        String suffix = trace==null ? "" : ("_"+trace);
+        String suffix = trace==null ? "_x" : ("_"+trace);
         dw.println("\tsubgraph cluster"+suffix+" {");
         dw.println("\t\tlabel=\"trace"+suffix+"\";");
         for (int i = 0; i < nodes.size(); i++) {
@@ -172,15 +216,9 @@ public class CausalGraph<NodeT> {
 
             String shape = "";
             String style = "";
-            Set<Integer> sumNodes = sums.get(i);
-            int sumNum = sumNodes == null ? 0 : sumNodes.size();
-            Set<Integer> prodNodes = prods.get(i);
-            int prodNum = prodNodes == null ? 0 : prodNodes.size();
-            if (sumNum > 0 && prodNum > 0)
-                Messages.fatal("PLN: sums and products are not disjoint");
-            if (sumNum > 0) {
+            if (sums.containsKey(i)) {
                 shape = "ellipse";
-            } else if (prodNum > 0) {
+            } else if (prods.containsKey(i)) {
                 shape = "box";
             } else {
                 shape = "ellipse";
@@ -218,19 +256,19 @@ public class CausalGraph<NodeT> {
         dw.println("\t}");
     }
 
-    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr) {
-        dumpDot("pln.dot", nodeRepr, distRepr, 0);
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
+        dumpDot("causal.dot", nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr, int numRepeats) {
-        dumpDot("pln.dot", nodeRepr, distRepr, numRepeats);
+    public void dumpDot(Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+        dumpDot("causal.dot", nodeRepr, distRepr, numRepeats);
     }
 
-    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr) {
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr) {
         dumpDot(filename, nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Bernoulli, String> distRepr, int numRepeats) {
+    public void dumpDot(String filename, Function<NodeT, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
         String dotFileName = workdir + File.separator + filename;
         PrintWriter dw = Utils.openOut(dotFileName);
         dw.println("digraph G{");
@@ -240,7 +278,7 @@ public class CausalGraph<NodeT> {
         for (int i = 0; i < distNodes.size(); i++) {
             dw.print("\tp"+i);
             dw.print(" [");
-            Bernoulli distNode = distNodes.get(i);
+            Categorical01 distNode = distNodes.get(i);
             String label = distRepr.apply(distNode);
             dw.print("label=\""+i+"\n"+label+"\"");
             dw.print(",shape=box,style=filled");
@@ -266,10 +304,10 @@ public class CausalGraph<NodeT> {
     // TODO: separate conditionally on probabilistic / determinant nodes
     public void dumpRepeatedFactorGraph(int numRepeats) {
         assert (clauseLimit > 1);
-        String fgFileName = workdir + File.separator + "pln.fg";
+        String fgFileName = workdir + File.separator + "causal.fg";
         PrintWriter fw = Utils.openOut(fgFileName);
 
-        int numFacts = distNodes.size() + (nodes.size() + numPhony) * (numRepeats + 1);
+        int numFacts = distNodes.size() + (stochNodes.size() + nodes.size() + numPhony) * (numRepeats + 1);
         fw.println(numFacts);
         fw.flush();
         // each nodes and each distnode has a factor block
@@ -283,11 +321,11 @@ public class CausalGraph<NodeT> {
         pw.close();
         for (int i = 0; i < distNodes.size(); i++) {
             fw.println();
-            Bernoulli distNode = distNodes.get(i);
+            Categorical01 distNode = distNodes.get(i);
 //            fw.println("# DistNode " + i + " " + distNode.toString());
             fw.println(1); // variable numbers
             fw.println(i); // variable IDs
-            int[] supports = distNode.getSupports();
+            double[] supports = distNode.getSupports();
             int cardinality = supports.length;
             fw.println(cardinality); // cardinalities
             fw.println(cardinality); // number of non-zero entries
@@ -310,45 +348,71 @@ public class CausalGraph<NodeT> {
 
         fw.flush();
         fw.close();
-        Messages.log("FactorGraph consisting of "+ distNodes.size() + " dist nodes, (1+" + numRepeats + ")x(" + nodes.size() + " nodes and " + numPhony + " phony nodes)." );
+        Messages.log("FactorGraph consisting of "+ distNodes.size() + " dist nodes, (1+" + numRepeats + ")x(" + stochNodes.size() + " stochasitc nodes, " + nodes.size() + " nodes and " + numPhony + " phony nodes)." );
     }
 
     //  for the derivative part, every thing is determinant
+    // TODO: fix singleton nodes
     private int dumpSubFactorGraph(int clauseLimit, PrintWriter fw, int offset) {
-        int phonyId = offset + nodes.size();
+        int offsetStoch = offset + nodes.size();
+        for (int i = 0; i < stochNodes.size(); i++) {
+            Integer nodeId = stochNodes.get(i);
+            Integer distId = priors.get(nodeId);
+            assert (distId != null);
+            Categorical01 dist = distNodes.get(distId);
+            fw.println();
+            fw.println(2);
+            fw.println((i + offsetStoch) + " " + distId);
+            fw.println(2 + " " + dist.getSupports().length);
+            List<String> entries = new ArrayList<>();
+            for (int j = 0; j < dist.getSupports().length; j++) {
+                long falseRep = (long) j * 2;
+                long trueRep = (long) j * 2 + 1;
+                double trueProb = dist.getSupports()[j];
+                double falseProb = 1 - trueProb;
+                if (falseProb > 0)
+                    entries.add(falseRep + " " + falseProb);
+                if (trueProb > 0)
+                    entries.add(trueRep + " " + trueProb);
+            }
+            fw.println(entries.size());
+            for (String e : entries)
+                fw.println(e);
+            fw.flush();
+        }
+        int offsetNodes = offset;
+        int offsetPhony = offset + stochNodes.size() + nodes.size();
+        int phonyId = offsetPhony;
         for (int i = 0; i < nodes.size(); i++) {
             Integer distId = priors.get(i); // distId refers to an error or null
-
-            Set<Integer> sum = sums.get(i);
-            int sumNum = sum == null ? 0 : sum.size();
-            Set<Integer> prod = prods.get(i);
-            int prodNum = prod == null ? 0 : prod.size();
-            if (sumNum > 0 && prodNum > 0)
-                Messages.fatal("PLN: sums and products are not disjoint");
 
             List<Integer> vars = new ArrayList<>();
             List<Integer> cards = new ArrayList<>();
             List<String> entries = new ArrayList<>();
 
-            vars.add(offset + i);
+            vars.add(offsetNodes + i);
             cards.add(2);
 
-            if (distId != null) {
-                vars.add(distId);
-                cards.add(distNodes.get(distId).getSupports().length); // i.e. 2
-            }
             // generate indexes, note: use long in representation to avoid int overflow
-            if (sumNum > 0) {
+            if (sums.containsKey(i)) {
+                Set<Integer> sum = sums.get(i);
+                int sumNum = sum.size();
 //                fw.print("# Sum Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
+                if (distId != null) {
+                    vars.add(offsetStoch + stochNodes.indexOf(i));
+                    cards.add(2);
+                }
+
+                // separate large clause
                 List<Integer> sumList = new ArrayList<>(sum.size());
                 for (Integer subId : sum) {
-                    sumList.add(offset + subId);
+                    sumList.add(offsetNodes + subId);
                 }
                 while (sumNum > clauseLimit) {
                     //assert phonyId < numFacts;
                     int phonyHead = phonyId++;
-                    Messages.log("PLN: Create sum phony node " + phonyHead);
+                    Messages.log("CausalGraph: Create sum phony node " + phonyHead);
                     fw.println();
                     fw.println(clauseLimit + 1);
                     fw.print(phonyHead);
@@ -380,6 +444,8 @@ public class CausalGraph<NodeT> {
                     vars.add(subId);
                     cards.add(2);
                 }
+
+                // genearte entries
                 int noneSubRep = 0;
                 if (distId != null) {
                     long falseRep = noneSubRep * 2 * 2;
@@ -408,16 +474,24 @@ public class CausalGraph<NodeT> {
                         entries.add(trueEntry);
                     }
                 }
-            } else if (prodNum > 0) {
+            } else if (prods.containsKey(i)) {
+                Set<Integer> prod = prods.get(i);
+                int prodNum = prod.size();
 //                fw.print("# Product Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
+                if (distId != null) {
+                    vars.add(offsetStoch + stochNodes.indexOf(i));
+                    cards.add(2);
+                }
+
+                // separate large clause
                 List<Integer> prodList = new ArrayList<>(prod.size());
                 for (Integer subId : prod) {
-                    prodList.add(offset + subId);
+                    prodList.add(offsetNodes + subId);
                 }
                 while (prodNum > clauseLimit) {
                     int phonyHead = phonyId++;
-                    Messages.log("PLN: Create product phony node " + phonyHead);
+                    Messages.log("CausalGraph: Create product phony node " + phonyHead);
                     fw.println();
                     fw.println(clauseLimit + 1);
                     fw.print(phonyHead);
@@ -449,6 +523,8 @@ public class CausalGraph<NodeT> {
                     vars.add(subId);
                     cards.add(2);
                 }
+
+                // generate entries
                 long allSubRep = (1L << prodNum) - 1; // 2^(subNum)-1
                 for (long subRep = 0; subRep < allSubRep; subRep++) {
                     if (distId != null) {
@@ -480,14 +556,20 @@ public class CausalGraph<NodeT> {
 //                fw.print("# Input Node " + i + ": " + node.toString());
 //                fw.println(" with prior " + distNodes.indexOf(priorDist));
                 // Singleton Nodes
-
                 if (distId != null) {
-                    long falseRep = 0;
-                    String falseEntry = falseRep + " " + 1;
-                    entries.add(falseEntry);
-                    long trueRep = 3;
-                    String trueEntry = trueRep + " " + 1;
-                    entries.add(trueEntry);
+                    Categorical01 dist = distNodes.get(distId);
+                    vars.add(distId);
+                    cards.add(dist.getSupports().length);
+                    for (int j = 0; j < dist.getSupports().length; j++) {
+                        long falseRep = (long) j * 2;
+                        long trueRep = (long) j * 2 + 1;
+                        double trueProb = dist.getSupports()[j];
+                        double falseProb = 1 - trueProb;
+                        if (falseProb > 0)
+                            entries.add(falseRep + " " + falseProb);
+                        if (trueProb > 0)
+                            entries.add(trueRep + " " + trueProb);
+                    }
                 } else {
                     long trueRep = 1;
                     String trueEntry = trueRep + " " + 1;
@@ -582,8 +664,8 @@ public class CausalGraph<NodeT> {
     }
 
     private void invokeUpdater() {
-        String daiPath = System.getProperty("chord.inference.dai.path");
-        String fgFileName = workdir + File.separator + "pln.fg";
+        String daiPath = System.getProperty("chord.dai.path");
+        String fgFileName = workdir + File.separator + "causal.fg";
         String paramsFileName = workdir + File.separator + "params.list";
         String obsFileName = workdir + File.separator + "obs.list";
         String weightsFileName = workdir + File.separator + "weights.list";
@@ -598,7 +680,7 @@ public class CausalGraph<NodeT> {
         for (String s : cmdArray)
             cmd += s + " ";
         Messages.log("Starting command: '%s'", cmd);
-        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int elapsedTime = (int) (System.currentTimeMillis() - Config.v().startTime);
         int timeout = Config.v().timeoutMillis;
         timeout -= elapsedTime;
         try {
@@ -612,8 +694,8 @@ public class CausalGraph<NodeT> {
     }
 
     private void invokePredictor() {
-        String daiPath = System.getProperty("chord.inference.dai.path");
-        String fgFileName = workdir + File.separator + "pln.fg";
+        String daiPath = System.getProperty("chord.dai.path");
+        String fgFileName = workdir + File.separator + "causal.fg";
         String queryFileName = workdir + File.separator + "query.list";
         String predFileName = workdir + File.separator + "prediction.list";
         String[] cmdArray = new String[] {
@@ -626,7 +708,7 @@ public class CausalGraph<NodeT> {
         for (String s : cmdArray)
             cmd += s + " ";
         Messages.log("Starting command: '%s'", cmd);
-        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int elapsedTime = (int) (System.currentTimeMillis() - Config.v().startTime);
         int timeout = Config.v().timeoutMillis;
         timeout -= elapsedTime;
         try {
@@ -707,8 +789,8 @@ public class CausalGraph<NodeT> {
 
     @Deprecated
     private void invokeMultiPredictor() {
-        String daiPath = System.getProperty("chord.inference.dai.path");
-        String fgFileName = workdir + File.separator + "pln.fg";
+        String daiPath = System.getProperty("chord.dai.path");
+        String fgFileName = workdir + File.separator + "causal.fg";
         String obsFileName = workdir + File.separator + "obs.list";
         String queryFileName = workdir + File.separator + "query.list";
         String predFileName = workdir + File.separator + "prediction.list";
@@ -727,7 +809,7 @@ public class CausalGraph<NodeT> {
         for (String s : cmdArray)
             cmd += s + " ";
         Messages.log("Starting command: '%s'", cmd);
-        int elapsedTime = (int) (System.currentTimeMillis() - Main.startTime);
+        int elapsedTime = (int) (System.currentTimeMillis() - Config.v().startTime);
         int timeout = Config.v().timeoutMillis;
         timeout -= elapsedTime;
         try {

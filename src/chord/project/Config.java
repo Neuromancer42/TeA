@@ -9,13 +9,15 @@ import chord.util.Utils;
  */
 public class Config {
     private static final String BAD_OPTION = "ERROR: Unknown value '%s' for system property '%s'; expected: %s";
+    public long startTime;
 
-	private static Config v;
+    private static Config v;
 
     private Config()
 	{
         Utils.mkdirs(outDirName);
         Utils.mkdirs(bddbddbWorkDirName);
+        startTime = System.currentTimeMillis();
     }
 
 	public static void init()

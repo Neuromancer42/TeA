@@ -5,3 +5,4 @@ target/
 sootOutput/
 examples/
 tests/
+/test-out/

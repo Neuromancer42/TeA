@@ -18,15 +18,11 @@ import java.util.Set;
  * @author Saswat Anand
  */
 public class Main {
-	
-	public static long startTime;
 
-    public static void main(String[] args) throws Exception 
+    public static void main(String[] args) throws Exception
 	{
 		Config.init();
 		ClassicProject.init();
-
-		startTime = System.currentTimeMillis();
 
         Timer timer = new Timer("chord");
         timer.init();
