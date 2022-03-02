@@ -71,7 +71,7 @@ import java.util.*;
  */
 @Chord(name="base-java",
         consumes={"SC"},
-        produces={"M", "Z", "I", "H", "V", "T", "F", "U",
+        produces={"M", "Z", "I", "H", "V", "T", "F", "U", "S",
                 "GlobalAlloc", "Alloc", "NewH",
                 "Assign", "Load", "Store",
                 "LoadStat", "StoreStat",
