@@ -13,28 +13,28 @@ import soot.jimple.*;
 import java.util.*;
 
 @Chord(name="interval-java",
-        produces={"M", "S", "LOC",
-                "ITV", "OP", "IU", "IP",
+        produces={"M", "S", "P",
+                "ITV", "OP", "IU", "ITVP",
                 "MPentry", "PPdirect", "PPcond", "PPmay",
                 "DefineLoc", "InputLoc", "AssignPrimLoc",
                 "BinopLoc", "BinopLoc1", "BinopLoc2",
                 "Compute", "MaySat"
         },
-        namesOfTypes = {"M", "S", "LOC",
-                "ITV", "OP", "IU", "IP"
+        namesOfTypes = {"M", "S", "P",
+                "ITV", "OP", "IU", "ITVP"
         },
-        types = {DomM.class, DomS.class, DomLOC.class,
-                DomITV.class, DomOP.class, DomIU.class, DomIP.class
+        types = {DomM.class, DomS.class, DomP.class,
+                DomITV.class, DomOP.class, DomIU.class, DomITVP.class
         },
         namesOfSigns = {"MPentry", "PPdirect", "PPcond", "PPmay",
                 "DefineLoc", "InputLoc", "AssignPrimLoc",
                 "BinopLoc", "BinopLoc1", "BinopLoc2",
                 "Compute", "MaySat"
         },
-        signs = {"M0,LOC0:M0_LOC0", "LOC0,LOC1:LOC0xLOC1", "LOC0,LOC1,IP0,IU0:LOC0xLOC1_IP0_IU0", "LOC0,LOC1:LOC0xLOC1",
-                "IU0,LOC0,ITV0:IU0_LOC0_ITV0", "IU0,LOC0,ITV0:IU0_LOC0_ITV0", "LOC0,IU0,IU1:LOC0_IU0xIU1",
-                "LOC0,IU0,OP0,IU1,IU2:LOC0_OP0_IU0xIU1xIU2", "LOC0,IU0,OP0,ITV0,IU1:LOC0_OP0_ITV0_IU0xIU1", "LOC0,IU0,OP0,IU1,ITV0:LOC0_OP0_ITV0_IU0xIU1",
-                "OP0,ITV0,ITV1,ITV2:OP0_ITV0xITV1xITV2", "IP0,ITV0:IP0_ITV0"
+        signs = {"M0,P0:M0_P0", "P0,P1:P0xP1", "P0,P1,ITVP0,IU0:P0xP1_ITVP0_IU0", "P0,P1:P0xP1",
+                "IU0,P0,ITV0:IU0_P0_ITV0", "IU0,P0,ITV0:IU0_P0_ITV0", "P0,IU0,IU1:P0_IU0xIU1",
+                "P0,IU0,OP0,IU1,IU2:P0_OP0_IU0xIU1xIU2", "P0,IU0,OP0,ITV0,IU1:P0_OP0_ITV0_IU0xIU1", "P0,IU0,OP0,IU1,ITV0:P0_OP0_ITV0_IU0xIU1",
+                "OP0,ITV0,ITV1,ITV2:OP0_ITV0xITV1xITV2", "ITVP0,ITV0:ITVP0_ITV0"
         }
 )
 
@@ -45,11 +45,11 @@ public class Interval extends JavaAnalysis {
 
     private DomM domM;
     private DomS domS;
-    private DomLOC domLOC;
+    private DomP domP;
     private DomIU domIU;
     private DomITV domITV;
     private DomOP domOP;
-    private DomIP domIP;
+    private DomITVP domITVP;
 //    private DomV domV;
     private ProgramRel relMPentry;
     private ProgramRel relPPdirect;
@@ -78,22 +78,22 @@ public class Interval extends JavaAnalysis {
         domS = (DomS) ClassicProject.g().getTrgt("S");
         domIU = (DomIU) ClassicProject.g().getTrgt("IU");
 
-        domLOC = (DomLOC) ClassicProject.g().getTrgt("LOC");
+        domP = (DomP) ClassicProject.g().getTrgt("P");
 
         domITV = (DomITV) ClassicProject.g().getTrgt("ITV");
         domOP = (DomOP) ClassicProject.g().getTrgt("OP");
-        domIP = (DomIP) ClassicProject.g().getTrgt("IP");
+        domITVP = (DomITVP) ClassicProject.g().getTrgt("ITVP");
     }
     private void saveDomains() {
         domM.save();
         domS.save();
         domIU.save();
 
-        domLOC.save();
+        domP.save();
 
         domITV.save();
         domOP.save();
-        domIP.save();
+        domITVP.save();
     }
     private void collectDomains() {
         openDomains();
@@ -175,7 +175,7 @@ public class Interval extends JavaAnalysis {
                 if (u instanceof GotoStmt || u instanceof NopStmt) {
                     continue;
                 }
-                domLOC.add(u);
+                domP.add(u);
                 if (u instanceof IfStmt) {
                     IfStmt ifExpr = (IfStmt) u;
                     Value cond = ifExpr.getCondition();
@@ -247,7 +247,7 @@ public class Interval extends JavaAnalysis {
             }
         }
         for (ItvPredicate p : predicates) {
-            domIP.add(p);
+            domITVP.add(p);
         }
         saveDomains();
     }

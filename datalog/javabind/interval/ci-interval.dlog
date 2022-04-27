@@ -3,41 +3,41 @@
 
 # program
 #.include "M.dom"
-.include "LOC.dom"
+.include "P.dom"
 .include "ITV.dom"
 .include "OP.dom"
 .include "IU.dom"
-.include "IP.dom"
+.include "ITVP.dom"
 
 # BDD variable order
-.bddvarorder LOC0xLOC1_IU0xIU1xIU2_IP0_OP0_ITV0xITV1xITV2
+.bddvarorder P0xP1_IU0xIU1xIU2_ITVP0_OP0_ITV0xITV1xITV2
 
 # INPUT relations
 # inputs & definitions
-DefineLoc(v:IU0,p:LOC0,a:ITV0) input
-InputLoc(v:IU0,p:LOC0,a:ITV0) input
+DefineLoc(v:IU0,p:P0,a:ITV0) input
+InputLoc(v:IU0,p:P0,a:ITV0) input
 
 # assignments
-AssignPrimLoc(p:LOC0,v:IU0,u:IU1) input
-BinopLoc(p:LOC0,v:IU0,op:OP0,u1:IU1,u2:IU2) input
-BinopLoc1(p:LOC0,v:IU0,op:OP0,b1:ITV0,u2:IU1) input
-BinopLoc2(p:LOC0,v:IU0,op:OP0,u1:IU1,b2:ITV0) input
+AssignPrimLoc(p:P0,v:IU0,u:IU1) input
+BinopLoc(p:P0,v:IU0,op:OP0,u1:IU1,u2:IU2) input
+BinopLoc1(p:P0,v:IU0,op:OP0,b1:ITV0,u2:IU1) input
+BinopLoc2(p:P0,v:IU0,op:OP0,u1:IU1,b2:ITV0) input
 
 # control-flow
-PPdirect(p:LOC0,q:LOC1) input
-PPcond(p:LOC0,q:LOC1,cond:IP0,v:IU0) input
-PPmay(p:LOC0,q:LOC1) input
+PPdirect(p:P0,q:P1) input
+PPcond(p:P0,q:P1,cond:ITVP0,v:IU0) input
+PPmay(p:P0,q:P1) input
 
 # arithmetics
 Compute(op:OP0,b1:ITV0,b2:ITV1,a:ITV2) input
-MaySat(cond:IP0,a:ITV0) input
+MaySat(cond:ITVP0,a:ITV0) input
 
 # auxiliary relations
-untouch(p:LOC0,v:IU0)
-touch(p:LOC0,v:IU0)
+untouch(p:P0,v:IU0)
+touch(p:P0,v:IU0)
 
 # result
-varLocRange(v:IU0,p:LOC0,a:ITV0) output
+varLocRange(v:IU0,p:P0,a:ITV0) output
 
 # RULES ==============
 # Note: varLocRange refers to the post-interval of stmt p, i.e. pre-interval of next stmt q.

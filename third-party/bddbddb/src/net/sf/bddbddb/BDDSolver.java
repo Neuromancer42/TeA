@@ -343,6 +343,20 @@ public class BDDSolver extends Solver {
                 baseName = baseName.substring(0, baseName.length() - 1);
             }
             int j = varOrder.lastIndexOf(baseName);
+            for (;;) {
+                // expand finding of basename to actual basename
+                if (j <= 0) break; // no findings or just one
+                char c = varOrder.charAt(j - 1);
+                if (c == '_' || c == 'x') {
+                    int r = j + baseName.length();
+                    if (r == varOrder.length() ||
+                            (varOrder.charAt(r) >= '0' && varOrder.charAt(r) <= '9') ||
+                            varOrder.charAt(r) == '_' || varOrder.charAt(r) == 'x')
+                        break;
+                }
+                j = varOrder.lastIndexOf(baseName, j - 1);
+            }
+
             if (j <= 0) {
                 varOrder = dName + "_" + varOrder;
             } else {
