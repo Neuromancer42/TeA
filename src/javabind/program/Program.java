@@ -3,6 +3,7 @@ package javabind.program;
 import javabind.program.binddefs.BindUtils;
 import soot.*;
 import soot.options.Options;
+import soot.shimple.ShimpleTransformer;
 import soot.util.ArrayNumberer;
 import soot.util.Chain;
 import soot.util.NumberedSet;
@@ -15,9 +16,10 @@ public class Program {
     private SootMethod mainMethod;
     private ProgramScope scope;
     private Set<String> harnessClasses;
-    private List<SootMethod> defaultEntryPoints = new ArrayList();
+    private List<SootMethod> defaultEntryPoints = new ArrayList<>();
 
-    private NumberedSet stubMethods;
+    private NumberedSet<SootMethod> stubMethods;
+    private boolean isSSA;
 
     public static Program g() {
         if (g == null) {
@@ -109,7 +111,7 @@ public class Program {
     }
 
     private void identifyStubMethods() {
-        stubMethods = new NumberedSet(Scene.v().getMethodNumberer());
+        stubMethods = new NumberedSet<>(Scene.v().getMethodNumberer());
         Iterator<SootMethod> mIt = getMethods();
         while (mIt.hasNext()) {
             SootMethod m = mIt.next();
@@ -144,8 +146,15 @@ public class Program {
             options.append(" "+sparkOptions);
         //options.append(" dump-answer:true");
         options.append(" "+defaultOptions);
-        System.out.println("spark options: "+options.toString());
+        System.out.println("spark options: "+options);
         sparkTransform.setDefaultOptions(options.toString());
         sparkTransform.apply();
+    }
+
+    public void runShimple() {
+        if (!isSSA) {
+            ShimpleTransformer.v().transform();
+            isSSA = true;
+        }
     }
 }
