@@ -141,7 +141,7 @@ public class Interactive {
                 w.write(i.next()+"\n");
             }
         } finally {
-            if (w != null) try { w.close(); } catch (IOException _) { }
+            if (w != null) try { w.close(); } catch (IOException x) { }
         }
     }
     

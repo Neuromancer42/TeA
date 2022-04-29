@@ -182,7 +182,7 @@ public abstract class DomainAssignment implements OperationVisitor {
         } finally {
             if (in != null) try {
                 in.close();
-            } catch (IOException _) {
+            } catch (IOException x) {
             }
         }
     }

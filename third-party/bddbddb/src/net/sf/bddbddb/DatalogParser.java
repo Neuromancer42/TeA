@@ -106,7 +106,7 @@ public class DatalogParser {
             in = new MyReader(new LineNumberReader(new FileReader(inputFilename)));
             readDatalogProgram(in);
         } finally {
-            if (in != null) try { in.close(); } catch (IOException _) { }
+            if (in != null) try { in.close(); } catch (IOException x) { }
         }
     }
     

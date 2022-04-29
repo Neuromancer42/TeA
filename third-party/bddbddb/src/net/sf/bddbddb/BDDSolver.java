@@ -245,7 +245,7 @@ public class BDDSolver extends Solver {
         } finally {
             if (in != null) try {
                 in.close();
-            } catch (IOException _) {
+            } catch (IOException x) {
             }
         }
     }

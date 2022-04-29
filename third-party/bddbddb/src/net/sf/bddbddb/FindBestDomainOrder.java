@@ -735,7 +735,7 @@ public class FindBestDomainOrder {
         } catch (IOException x) { 
             solver.err.println("IO Exception occurred writing \""+name+"\": "+x);
         } finally {
-            if (w != null) try { w.close(); } catch (IOException _) { }
+            if (w != null) try { w.close(); } catch (IOException x) { }
         }
     }
     
@@ -748,7 +748,7 @@ public class FindBestDomainOrder {
         } catch (IOException x) { 
             solver.err.println("IO Exception occurred writing \""+name+"\": "+x);
         } finally {
-            if (w != null) try { w.close(); } catch (IOException _) { }
+            if (w != null) try { w.close(); } catch (IOException x) { }
         }
     }
 

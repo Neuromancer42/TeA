@@ -101,7 +101,7 @@ public class XMLFactory {
             System.err.println("Error writing "+filename+": "+x);
             x.printStackTrace();
         } finally {
-            try { if (w != null) w.close(); } catch (IOException _) { }
+            try { if (w != null) w.close(); } catch (IOException x) { }
         }
     }
     

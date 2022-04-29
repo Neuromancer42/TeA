@@ -400,7 +400,7 @@ public class BDDRelation extends Relation {
                 r2 = solver.bdd.load(filename);
             }
         } finally {
-            if (in != null) try { in.close(); } catch (IOException _) { }
+            if (in != null) try { in.close(); } catch (IOException x) { }
         }
         if (r2 != null) {
             if (r2.isZero()) {

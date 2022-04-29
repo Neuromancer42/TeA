@@ -92,7 +92,7 @@ public class BuildEquivalenceRelation {
             }
             b.getFactory().save(out, b);
         } finally {
-            if (out != null) try { out.close(); } catch (IOException _) { }
+            if (out != null) try { out.close(); } catch (IOException x) { }
         }
     }
     

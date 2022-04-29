@@ -38,7 +38,7 @@ public abstract class BDDFactory {
     public static final String getProperty(String key, String def) {
         try {
             return System.getProperty(key, def);
-        } catch (AccessControlException _) {
+        } catch (AccessControlException x) {
             return def;
         }
     }
@@ -95,10 +95,10 @@ public abstract class BDDFactory {
             Method m = c.getMethod("init", new Class[] { int.class, int.class });
             return (BDDFactory) m.invoke(null, new Object[] { new Integer(nodenum), new Integer(cachesize) });
         }
-        catch (ClassNotFoundException _) {}
-        catch (NoSuchMethodException _) {}
-        catch (IllegalAccessException _) {}
-        catch (InvocationTargetException _) {}
+        catch (ClassNotFoundException x) {}
+        catch (NoSuchMethodException x) {}
+        catch (IllegalAccessException x) {}
+        catch (InvocationTargetException x) {}
 		throw new RuntimeException("FAILED");
         // falling back to default java implementation.
         // return JFactory.init(nodenum, cachesize);
@@ -474,7 +474,7 @@ public abstract class BDDFactory {
             BDD result = load(r);
             return result;
         } finally {
-            if (r != null) try { r.close(); } catch (IOException _) { }
+            if (r != null) try { r.close(); } catch (IOException x) { }
         }
     }
     // TODO: error code from bdd_load (?)
@@ -636,7 +636,7 @@ public abstract class BDDFactory {
             is = new BufferedWriter(new FileWriter(filename));
             save(is, var);
         } finally {
-            if (is != null) try { is.close(); } catch (IOException _) { }
+            if (is != null) try { is.close(); } catch (IOException x) { }
         }
     }
     // TODO: error code from bdd_save (?)

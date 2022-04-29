@@ -59,7 +59,7 @@ public class TryVarOrder {
                 }
             } catch (IOException x) {
             } finally {
-                if (in != null) try { in.close(); } catch (IOException _) { }
+                if (in != null) try { in.close(); } catch (IOException x) { }
             }
         } catch (Exception x) {
             System.err.println("Exception occurred while initializing BDD factory: "+x.getLocalizedMessage());
