@@ -17,6 +17,7 @@
         <module>com.neuromancer42.tea.bddbddb</module>
         <module>com.neuromancer42.tea.bddbddb.tests</module>
         <module>com.neuromancer42.tea.core</module>
+        <module>com.neuromancer42.tea.souffle</module>
     </modules>
 
     <!-- Declare a profile for CI builds, where indexes are not permitted to
