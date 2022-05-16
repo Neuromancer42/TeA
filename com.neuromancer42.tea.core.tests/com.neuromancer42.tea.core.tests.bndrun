@@ -1,0 +1,20 @@
+-standalone: target/index.xml
+
+-runfw: org.eclipse.osgi
+-runproperties.equinox: osgi.console=, osgi.console.enable.builtin=false
+
+-runee: JavaSE-11
+
+-resolve.effective: active; skip:='osgi.service'
+
+-tester: biz.aQute.tester.junit-platform
+
+-runrequires: \
+    bnd.identity;id='junit-jupiter-engine',\
+    bnd.identity;id='biz.aQute.tester.junit-platform',\
+    bnd.identity;id='com.neuromancer42.tea.core',\
+    bnd.identity;id='com.neuromancer42.tea.core.tests'
+
+-runbundles: \
+    com.neuromancer42.tea.core,\
+    com.neuromancer42.tea.core.tests

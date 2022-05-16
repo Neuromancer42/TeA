@@ -18,6 +18,7 @@
         <module>com.neuromancer42.tea.bddbddb.tests</module>
         <module>com.neuromancer42.tea.core</module>
         <module>com.neuromancer42.tea.souffle</module>
+        <module>com.neuromancer42.tea.core.tests</module>
     </modules>
 
     <!-- Declare a profile for CI builds, where indexes are not permitted to
@@ -39,13 +40,6 @@
     </properties>
 
     <repositories>
-        <!-- Uncomment to enable Knopflerfish repository
-        <repository>
-          <id>Knopflerfish 6 Repository</id>
-          <name>Knopflerfish 6 Releases Repository</name>
-          <url>http://resources.knopflerfish.org/repo/maven2/release</url>
-        </repository>
-        -->
     </repositories>
 
     <pluginRepositories>
@@ -75,9 +69,20 @@
 
             <!-- TEST -->
             <dependency>
+                <groupId>biz.aQute.bnd</groupId>
+                <artifactId>biz.aQute.tester.junit-platform</artifactId>
+                <version>${bnd.maven.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>5.8.2</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.platform</groupId>
+                <artifactId>junit-platform-launcher</artifactId>
+                <version>1.8.2</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>

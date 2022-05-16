@@ -4,6 +4,5 @@ blobfiles/
 target/
 sootOutput/
 examples/
-tests/
 /test-out/
 /out/
