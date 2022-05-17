@@ -1,7 +1,7 @@
 -includeresource: \
-    third-party/bddbddb/lib/weka.jar;lib:=true,\
-    third-party/bddbddb/lib/jdom-1.0-fixed.jar;lib:=true,\
-    third-party/JavaBDD/lib/jdd.jar;lib:=true
+    META-INF/lib/jdom.jar=jdom-1.0-fixed.jar;lib:=true,\
+    META-INF/lib/jdd.jar=jdd.jar;lib:=true,\
+    META-INF/lib/weka.jar=weka.jar;lib:=true
 
 Import-Package: oracle*;resolution:=optional,org.jaxen*;resolution:=optional
 
