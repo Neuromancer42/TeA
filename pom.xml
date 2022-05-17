@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.neuromancer42</groupId>
+    <groupId>com.neuromancer42.tea</groupId>
     <artifactId>TeA</artifactId>
     <version>1.0-SNAPSHOT</version>
 
@@ -19,6 +19,7 @@
         <module>com.neuromancer42.tea.core</module>
         <module>com.neuromancer42.tea.souffle</module>
         <module>com.neuromancer42.tea.core.tests</module>
+        <module>com.neuromancer42.tea.program.cdt</module>
     </modules>
 
     <!-- Declare a profile for CI builds, where indexes are not permitted to
@@ -77,13 +78,11 @@
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>5.8.2</version>
-                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.junit.platform</groupId>
                 <artifactId>junit-platform-launcher</artifactId>
                 <version>1.8.2</version>
-                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -91,6 +90,7 @@
     <build>
         <pluginManagement>
             <plugins>
+                <!-- bnd plugins -->
                 <plugin>
                     <groupId>biz.aQute.bnd</groupId>
                     <artifactId>bnd-maven-plugin</artifactId>
@@ -158,23 +158,6 @@
                 </plugin>
 
                 <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M6</version>
-                </plugin>
-
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.2.2</version>
-                    <configuration>
-                        <archive>
-                            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
-                        </archive>
-                    </configuration>
-                </plugin>
-
-                <plugin>
                     <groupId>biz.aQute.bnd</groupId>
                     <artifactId>bnd-baseline-maven-plugin</artifactId>
                     <version>${bnd.maven.version}</version>
@@ -191,21 +174,44 @@
                         </execution>
                     </executions>
                 </plugin>
+
+                <!-- Maven plugins for test-->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.2.2</version>
+                    <configuration>
+                        <!-- default action for completing bnd-maven-plugin's missing MANIFEST.MF -->
+                        <archive>
+                            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                        </archive>
+                    </configuration>
+                </plugin>
+
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
                     <version>3.3.0</version>
                 </plugin>
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
                     <version>3.3.0</version>
                 </plugin>
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>3.1.0</version>
                 </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.0.0-M6</version>
+                </plugin>
+
             </plugins>
         </pluginManagement>
 

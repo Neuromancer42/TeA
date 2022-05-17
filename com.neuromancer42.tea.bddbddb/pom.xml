@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>TeA</artifactId>
-        <groupId>com.neuromancer42</groupId>
+        <groupId>com.neuromancer42.tea</groupId>
         <version>1.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -43,26 +43,27 @@
         </dependency>
 
         <dependency>
-            <groupId>com.jdom</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>jdom</artifactId>
-            <version>1.0</version><scope>system</scope>
-            <systemPath>${project.basedir}/third-party/bddbddb/lib/jdom-1.0-fixed.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.jdd</groupId>
-            <artifactId>jdd</artifactId>
             <version>1.0</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/third-party/JavaBDD/lib/jdd.jar</systemPath>
+            <systemPath>${basedir}/third-party/bddbddb/lib/jdom-1.0-fixed.jar</systemPath>
         </dependency>
 
         <dependency>
-            <groupId>com.weka</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>weka</artifactId>
             <version>1.0</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/third-party/bddbddb/lib/weka.jar</systemPath>
+            <systemPath>${basedir}/third-party/bddbddb/lib/weka.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>jdd</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${basedir}/third-party/JavaBDD/lib/jdd.jar</systemPath>
         </dependency>
     </dependencies>
 
