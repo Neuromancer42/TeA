@@ -16,6 +16,14 @@
         <maven.compiler.target>1.7</maven.compiler.target>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>third-party</id>
+            <name>Legacy third-party jars of BDDBDDB</name>
+            <url>file://${project.basedir}/third-party/lib/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.osgi</groupId>
@@ -44,26 +52,23 @@
 
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>jdom</artifactId>
+            <artifactId>jdom-fixed</artifactId>
             <version>1.0</version>
-            <scope>system</scope>
-            <systemPath>${basedir}/third-party/bddbddb/lib/jdom-1.0-fixed.jar</systemPath>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>weka</artifactId>
             <version>1.0</version>
-            <scope>system</scope>
-            <systemPath>${basedir}/third-party/bddbddb/lib/weka.jar</systemPath>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jdd</artifactId>
             <version>1.0</version>
-            <scope>system</scope>
-            <systemPath>${basedir}/third-party/JavaBDD/lib/jdd.jar</systemPath>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

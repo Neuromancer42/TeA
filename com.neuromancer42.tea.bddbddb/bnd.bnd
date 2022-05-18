@@ -1,7 +1,7 @@
 -includeresource: \
-    META-INF/lib/jdom.jar=jdom-1.0-fixed.jar;lib:=true,\
-    META-INF/lib/jdd.jar=jdd.jar;lib:=true,\
-    META-INF/lib/weka.jar=weka.jar;lib:=true
+    META-INF/lib/jdom.jar=jdom-fixed-1.0.jar;lib:=true,\
+    META-INF/lib/jdd.jar=jdd-1.0.jar;lib:=true,\
+    META-INF/lib/weka.jar=weka-1.0.jar;lib:=true
 
 Import-Package: oracle*;resolution:=optional,org.jaxen*;resolution:=optional
 
