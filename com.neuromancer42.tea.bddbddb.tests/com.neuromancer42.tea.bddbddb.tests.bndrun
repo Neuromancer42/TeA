@@ -13,3 +13,6 @@
 	bnd.identity;id='${basename;${.}}',\
 	bnd.identity;id='org.junit.jupiter.engine',\
 	bnd.identity;id='org.junit.platform.launcher'
+
+-runproperties.dlogfile: \
+    dlog=simple.dl

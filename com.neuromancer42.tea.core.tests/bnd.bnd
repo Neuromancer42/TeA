@@ -1,2 +1,11 @@
+-buildpath: \
+    osgi.core;version:=8.0.0,\
+    com.neuromancer42.tea.core;version:=latest,\
+    ${junit}
+
+Fragment-Host: com.neuromancer42.tea.core
+
+-dependson: com.neuromancer42.tea.core
+
 Test-Cases:${classes;NAMED;*Test}
 

@@ -1,8 +1,21 @@
+# IntelliJ IDEA files
 .idea/
 *.iml
+
+# Gradle files
+.gradle
+**/build/
+!src/**/build/
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# bnd workspace cache
+/cnf/cache/
+
+# build output
 blobfiles/
 target/
 sootOutput/
 examples/
-/test-out/
-/out/
+test-out/
+out/

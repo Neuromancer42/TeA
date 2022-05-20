@@ -1,8 +1,26 @@
+# include third-party code and dependencies
+src=${^src},third-party/bddbddb/src,third-party/JavaBDD/src,third-party/jwutil/src
+
+-buildpath: \
+    osgi.core;version:=8.0.0,\
+    third-party/bddbddb/lib/jdom-fixed.jar;version=file,\
+    third-party/bddbddb/lib/weka.jar;version=file,\
+    third-party/JavaBDD/lib/jdd.jar;version=file
+
 -includeresource: \
-    META-INF/lib/jdom.jar=jdom-fixed-1.0.jar;lib:=true,\
-    META-INF/lib/jdd.jar=jdd-1.0.jar;lib:=true,\
-    META-INF/lib/weka.jar=weka-1.0.jar;lib:=true
+    META-INF/lib/jdom.jar=third-party/bddbddb/lib/jdom-fixed.jar;lib:=true,\
+    META-INF/lib/weka.jar=third-party/bddbddb/lib/weka.jar;lib:=true,\
+    META-INF/lib/jdd.jar=third-party/JavaBDD/lib/jdd.jar;lib:=true
+
+# Use Java 1.7 for compatibility
+javac.source:           1.7
+javac.target:           1.7
+javac.compliance:       1.7
 
 Import-Package: oracle*;resolution:=optional,org.jaxen*;resolution:=optional
 
 Export-Package: com.neuromancer42.tea.bddbddb, net.sf.javabdd
+
+-testpath: \
+    ${junit},\
+    ${mockito}

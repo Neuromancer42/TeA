@@ -1,0 +1,14 @@
+-buildpath: \
+    com.neuromancer42.tea.bddbddb;version:=latest,\
+    ${junit}
+
+Fragment-Host: com.neuromancer42.tea.bddbddb
+
+-dependson: com.neuromancer42.tea.bddbddb
+
+-includeresource:\
+    resources/=resources/
+
+Test-Cases:${classes;NAMED;*Test}
+
+

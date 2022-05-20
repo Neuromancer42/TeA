@@ -1,0 +1,33 @@
+#
+# This file is left open for you to define your macros
+#
+
+src:          			src/
+bin:          			target/classes
+testsrc:      			test/src
+testbin:      			target/test-classes
+target-dir:   			target
+
+javac.source:           11
+javac.target:           11
+javac.compliance:       11
+javac.debug:            on
+-sources                false
+
+#
+# Developer Information
+#
+
+#Bundle-Copyright:      To-Be-Decided
+#Bundle-License:        To-Be-Decided
+Bundle-Vendor:          PLL Lab
+#Bundle-DocURL:         To-Be-Done
+
+base.version:           1.0.0
+Bundle-Versiion:        ${base.version}.${tstamp}
+-pom:                   version=${base.version}-SNAPSHOT
+-groupId:               com.neuromancer42.tea
+
+# TODO: -releaserepo?
+
+-includepackage         *;from:=classes
