@@ -12,8 +12,6 @@ mockito: org.mockito;version=latest,\
 	net.bytebuddy.byte-buddy;version=latest,\
 	org.objenesis;version=latest
 
--runsystempackages.objenesis: sun.misc,sun.reflect
-
 osgitest: \
 	org.osgi.test.common;version=latest,\
 	org.osgi.test.junit5;version=latest,\

@@ -20,7 +20,3 @@ javac.compliance:       1.7
 Import-Package: oracle*;resolution:=optional,org.jaxen*;resolution:=optional
 
 Export-Package: com.neuromancer42.tea.bddbddb, net.sf.javabdd
-
--testpath: \
-    ${junit},\
-    ${mockito}

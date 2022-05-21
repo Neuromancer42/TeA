@@ -18,7 +18,6 @@ public class BddSolverTest {
         String dirName = System.getProperty("workdir", "test-out");
         File workDir = new File(dirName);
         workDir.mkdirs();
-        System.err.println(this.getClass().getClassLoader());
         URL dlogURL = this.getClass().getResource("/resources/simple.dl");
         String dlogName = System.getProperty("dlog", dlogURL.toString());
         System.err.println("Opening " + dlogName);

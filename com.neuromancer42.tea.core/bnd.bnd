@@ -5,7 +5,3 @@
 -dependson: com.neuromancer42.tea.bddbddb
 
 Export-Package: com.neuromancer42.tea.core.*;-noimport:=true
-
--testpath: \
-    ${junit},\
-    ${mockito}
