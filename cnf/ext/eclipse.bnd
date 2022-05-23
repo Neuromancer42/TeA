@@ -1,0 +1,38 @@
+#
+# core of eclipse runtime
+#
+eclipse.version = 4.23
+eclipse.name = 2022-03
+platform.version = R-4.23-202203080310
+platform.baseurl = https://download.eclipse.org/eclipse/updates
+#platform.baseurl = "${fileuri;${user.home}}www/download.eclipse.org/eclipse/updates"
+platform.name = Platform_${platform.version}
+platform.url = ${platform.baseurl}/${eclipse.version}/${platform.version}/
+
+-plugin.10.Eclipse.Platform:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_Platform_${platform.version};\
+        url=${platform.url}
+
+orbit.baseurl = https://download.eclipse.org/tools/orbit/downloads/drops
+orbit.version = R20220302172233
+orbit.url = ${orbit.baseurl}/${orbit.version}/repository/
+
+cdt.baseurl = https://download.eclipse.org/tools/cdt/releases
+cdt.name = 10.6
+cdt.version = cdt-10.6.0
+cdt.url = ${cdt.baseurl}/${cdt.name}/${cdt.version}/
+
+#
+# collection of eclipse-related sub-projects
+#
+
+-plugin.11.Eclipse.Orbit:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_Orbit_${orbit.version};\
+        url=${orbit.url}
+
+-plugin.12.Eclipse.CDT:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_CDT_${cdt.version};\
+        url=${cdt.url}
