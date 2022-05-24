@@ -1,0 +1,16 @@
+-buildpath: \
+    osgi.core;version:=8.0.0,\
+    com.neuromancer42.tea.program.cdt;version:=latest,\
+    org.eclipse.cdt.core,\
+    org.eclipse.equinox.common,\
+    ${junit}
+
+Fragment-Host: com.neuromancer42.tea.program.cdt
+
+-dependson: com.neuromancer42.tea.program.cdt
+
+-includeresource:\
+    resources/=resources/
+
+Test-Cases:${classes;NAMED;*Test}
+

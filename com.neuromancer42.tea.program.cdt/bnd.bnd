@@ -1,0 +1,8 @@
+-buildpath: \
+    osgi.core;version:=8.0.0,\
+    com.neuromancer42.tea.core,\
+    org.eclipse.cdt.core,\
+    org.eclipse.equinox.common
+
+-dependson: \
+    com.neuromancer42.tea.core
