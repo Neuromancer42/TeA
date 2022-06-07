@@ -1,6 +1,7 @@
 -buildpath: \
     osgi.core;version:=8.0.0,\
-    com.neuromancer42.tea.bddbddb
+    com.neuromancer42.tea.bddbddb,\
+    com.google.guava;version:=27.1.0
 
 -dependson: com.neuromancer42.tea.bddbddb
 

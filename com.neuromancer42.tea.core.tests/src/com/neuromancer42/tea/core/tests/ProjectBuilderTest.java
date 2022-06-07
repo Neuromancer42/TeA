@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.neuromancer42.tea.core.project.Config;
+import com.neuromancer42.tea.core.project.Project;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 
@@ -58,15 +59,15 @@ public class ProjectBuilderTest {
 
 		Config.init();
 		OsgiProject.init();
-		Set<String> tasks = OsgiProject.g().getKnownTasks();
+		Set<String> tasks = Project.g().getTasks();
 		assertTrue(tasks.contains(task.getName()));
 		assertTrue(tasks.contains(task1.getName()));
 		assertTrue(tasks.contains(task2.getName()));
 		String[] taskSet = new String[1];
 		taskSet[0] = task.getName();
-		OsgiProject.g().run(taskSet);
+		Project.g().run(taskSet);
 		taskSet[0] = task2.getName();
-		OsgiProject.g().run(taskSet);
+		Project.g().run(taskSet);
 		assertEquals(task1.one, task2.one);
 	}
 

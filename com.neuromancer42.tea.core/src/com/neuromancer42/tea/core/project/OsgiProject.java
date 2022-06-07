@@ -79,10 +79,11 @@ public class OsgiProject extends Project {
 
 	public static void init()
 	{
-		project = new OsgiProject();
+        project = new OsgiProject();
+        Project.setProject(project);
 	}
 
-    public static OsgiProject g() 
+    public static OsgiProject g()
 	{
         return project;
     }
@@ -335,10 +336,17 @@ public class OsgiProject extends Project {
         OutDirUtils.copyResourceByName("web/targets.dtd");
         OutDirUtils.runSaxon("targets.xml", "targets.xsl");
     }
-    
-    public Set<String> getKnownTasks() {
+
+    @Override
+    public Set<String> getTasks() {
     	build();
-    	return nameToTaskMap.keySet();
+    	return Collections.unmodifiableSet(nameToTaskMap.keySet());
+    }
+
+    @Override
+    public Map<String, Object> getTrgts() {
+        build();
+        return Collections.unmodifiableMap(doneCachedNameToTrgtMap);
     }
 
     @Override
