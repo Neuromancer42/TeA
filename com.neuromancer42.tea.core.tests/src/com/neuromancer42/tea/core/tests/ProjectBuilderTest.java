@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Project;
 import org.osgi.framework.BundleContext;
@@ -33,29 +34,13 @@ public class ProjectBuilderTest {
 	public void test() {
 		System.out.println("Registerring Empty task!!");
 		Empty task = new Empty();
-		Dictionary<String, Object> props = new Hashtable<String, Object>();
-		props.put("name", task.getName());
-		context.registerService(JavaAnalysis.class, task, props);
+		AnalysesUtil.registerAnalysis(context, task);
 		
 		ProduceOne task1 = new ProduceOne();
-		Dictionary<String, Object> props1 = new Hashtable<String, Object>();
-		props1.put("name", task1.getName());
-		Supplier<Object> oneSupplier = () -> task1.one;
-		TrgtInfo oneInfo1 = new TrgtInfo(Integer.class, task1.getName(), null);
-		Map<String, Pair<TrgtInfo, Supplier<Object>>> producerMap = new HashMap<>();
-		producerMap.put("O", new Pair<>(oneInfo1, oneSupplier));
-		props1.put("output", producerMap);
-		context.registerService(JavaAnalysis.class, task1, props1);
+		AnalysesUtil.registerAnalysis(context, task1);
 		
 		ConsumeOne task2 = new ConsumeOne();
-		Dictionary<String, Object> props2 = new Hashtable<String, Object>();
-		props2.put("name", task2.getName());
-		Consumer<Object> oneConsumer = x -> task2.one = (Integer) x;
-		TrgtInfo oneInfo2 = new TrgtInfo(Integer.class, task2.getName(), null);
-		Map<String, Pair<TrgtInfo, Consumer<Object>>> consumerMap = new HashMap<>();
-		consumerMap.put("O", new Pair<>(oneInfo2, oneConsumer));
-		props2.put("input", consumerMap);
-		context.registerService(JavaAnalysis.class, task2, props2);
+		AnalysesUtil.registerAnalysis(context, task2);
 
 		Config.init();
 		OsgiProject.init();
