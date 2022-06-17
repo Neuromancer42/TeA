@@ -10,7 +10,7 @@ import java.util.*;
 public class Provenance {
     // Constraint structures
     // TODO: optimize de-duplicate operations
-    private final List<LookUpRule> rules;
+    private final List<String> ruleInfos;
 
     private final List<ConstraintItem> clauses;
     private final List<Tuple> inputTuples;
@@ -18,10 +18,9 @@ public class Provenance {
     private final List<Tuple> hiddenTuples;
     private Map<ConstraintItem, String> clauseIdMap;
     private Map<Tuple, String> tupleIdMap;
-    private Map<LookUpRule, String> ruleIdMap;
 
     public Provenance(
-            Collection<LookUpRule> rules, Collection<Tuple> tuples,
+            Collection<String> ruleInfos, Collection<Tuple> tuples,
             Collection<Tuple> inputTuples, Collection<Tuple> outputTuples,
             Collection<ConstraintItem> clauses
     ) {
@@ -35,8 +34,8 @@ public class Provenance {
         this.hiddenTuples = new ArrayList<>(hiddenTuples.size());
         this.hiddenTuples.addAll(hiddenTuples);
 
-        this.rules = new ArrayList<>(rules.size());
-        this.rules.addAll(rules);
+        this.ruleInfos = new ArrayList<>(ruleInfos.size());
+        this.ruleInfos.addAll(ruleInfos);
         this.clauses = new ArrayList<>(clauses.size());
         this.clauses.addAll(clauses);
 
@@ -50,9 +49,6 @@ public class Provenance {
             tupleIdMap.put(this.outputTuples.get(idx), "O" + idx);
         for (int idx = 0; idx < this.hiddenTuples.size(); idx++)
             tupleIdMap.put(this.hiddenTuples.get(idx), "H" + idx);
-        ruleIdMap = new HashMap<>();
-        for (int idx = 0; idx < this.rules.size(); idx++)
-            ruleIdMap.put(this.rules.get(idx), "R" + idx);
     }
 
     public void dump(String dir) {
@@ -61,24 +57,24 @@ public class Provenance {
         PrintWriter dw = Utils.openOut(tupleDictFile);
         for (Tuple t : inputTuples) {
             String tupleId = encodeTuple(t);
-            dw.println(tupleId + ":\t" + t.toVerboseString());
+            dw.println(tupleId + ":\t" + t.toString());
         }
         for (Tuple t : hiddenTuples) {
             String tupleId = encodeTuple(t);
-            dw.println(tupleId + ":\t" + t.toVerboseString());
+            dw.println(tupleId + ":\t" + t.toString());
         }
         for (Tuple t : outputTuples) {
             String tupleId = encodeTuple(t);
-            dw.println(tupleId + ":\t" + t.toVerboseString());
+            dw.println(tupleId + ":\t" + t.toString());
         }
         dw.flush();
         dw.close();
         // dump rule dictionary
         String ruleDictFile = dir + File.separator + "rule_dict.txt";
         PrintWriter rdw = Utils.openOut(ruleDictFile);
-        for (LookUpRule rule : rules) {
-            String ruleId = "R" + rules.indexOf(rule);
-            rdw.println(ruleId + ":\t" + rule.toString());
+        for (String ruleInfo : ruleInfos) {
+            String ruleId = "R" + ruleInfos.indexOf(ruleInfo);
+            rdw.println(ruleId + ":\t" + ruleInfo);
         }
         rdw.flush();
         rdw.close();
@@ -100,8 +96,8 @@ public class Provenance {
 
     private String getClauseDetail(ConstraintItem cons) {
         StringBuilder sb = new StringBuilder();
-        String ruleId = ruleIdMap.get(cons.getRule());
-        sb.append(ruleId + "-");
+        Integer ruleId = ruleInfos.indexOf(cons.getRuleInfo());
+        sb.append("R" + ruleId + "-");
         String clauseId = encodeClause(cons);
         sb.append(clauseId +  " : ");
         Tuple head = cons.getHeadTuple();

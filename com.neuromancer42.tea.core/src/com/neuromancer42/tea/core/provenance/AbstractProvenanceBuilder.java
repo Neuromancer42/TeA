@@ -11,22 +11,11 @@ import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.util.*;
 
-public class SouffleProvenanceBuilder {
-    // BDDBDDB configs
-    protected String dlogName;
-    protected File dlogFile;
-    protected File confFile;
-//    protected DlogAnalysis dlogAnalysis;
-//    protected DlogAnalysis rawDlogAnalysis;
+public abstract class AbstractProvenanceBuilder {
     private boolean activated = false;
 
     // Provenance Structure
     private Provenance provenance;
-
-    public SouffleProvenanceBuilder(String dlogName) {
-        // TODO: set and build souffle-provenance
-//        this.dlogName = DlogInstrumentor.instrumentName(dlogName);
-    }
 
     public Provenance getProvenance() {
         if (provenance == null) computeProvenance();
@@ -34,38 +23,25 @@ public class SouffleProvenanceBuilder {
     }
 
     protected void computeProvenance() {
-        computeProvenance(getOutputRelationNames());
+        computeProvenance(getOutputTuples());
     }
 
-    public void computeProvenance(Collection<String> observeRelationNames) {
+    public void computeProvenance(Collection<Tuple> observeTuples) {
         Timer timer = new Timer("provenance-builder");
         if (Config.v().verbose >= 1)
             System.out.println("ENTER: provenance-builder at " + (new Date()));
         timer.init();
 
-        // generate mappings
-        timer.pause();
-        if (!activated) {
-            // TODO
-//            activateDlog();
-            activated = true;
-        }
-        timer.resume();
-
         // fetch results and generate dicts
-        List<LookUpRule> rules = getRules();
+        List<ConstraintItem> constraintItems = getAllConstraintItems();
         Set<Tuple> tuples = new HashSet<>();
-        for (LookUpRule r : rules) {
-            Iterator<ConstraintItem> iter = r.getAllConstrIterator();
-            while (iter.hasNext()) {
-                ConstraintItem cons = iter.next();
-                tuples.add(cons.getHeadTuple());
-                tuples.addAll(cons.getSubTuples());
-            }
+        for (ConstraintItem cons : constraintItems) {
+            tuples.add(cons.getHeadTuple());
+            tuples.addAll(cons.getSubTuples());
         }
-        List<Tuple> inputTuples = getTuples(getInputRelationNames(), tuples);
-        List<Tuple> outputTuples = getTuples(getOutputRelationNames()); // output must have corresponding rules
-        Messages.log("ProvenanceBuilder recorded " + rules.size() + " rules and " + tuples.size() + " tuples.");
+        List<Tuple> inputTuples = getInputTuples();
+        List<Tuple> outputTuples = getOutputTuples(); // output must have corresponding rules
+        Messages.log("ProvenanceBuilder recorded " + tuples.size() + " tuples.");
 
         // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
@@ -76,21 +52,16 @@ public class SouffleProvenanceBuilder {
             tuple2ConsequentClauses.put(tuple, new HashSet<>());
         }
 
-        for (LookUpRule rule : rules) {
-            Iterator<ConstraintItem> iter = rule.getAllConstrIterator();
-            while (iter.hasNext()) {
-                ConstraintItem cons = iter.next();
-                for (Tuple sub : cons.getSubTuples()) {
-                    tuple2AntecedentClauses.get(sub).add(cons);
-                }
-                Tuple head = cons.getHeadTuple();
-                tuple2ConsequentClauses.get(head).add(cons);
+        for (ConstraintItem cons : constraintItems) {
+            for (Tuple sub : cons.getSubTuples()) {
+                tuple2AntecedentClauses.get(sub).add(cons);
             }
+            Tuple head = cons.getHeadTuple();
+            tuple2ConsequentClauses.get(head).add(cons);
         }
 
         // de-cycle and prune unused clauses
         DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
-        List<Tuple> observeTuples = getTuples(observeRelationNames);
         Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(observeTuples);
 
         // filter out unused tuples again
@@ -110,7 +81,8 @@ public class SouffleProvenanceBuilder {
                 activeOutputTuples.add(t);
         }
         // generate provenance structure
-        provenance = new Provenance(rules, activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
+        List<String> ruleInfos = getRuleInfos();
+        provenance = new Provenance(ruleInfos, activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
 
         timer.done();
         if (Config.v().verbose >= 1) {
@@ -124,89 +96,30 @@ public class SouffleProvenanceBuilder {
         // dump all constraints
         String consFile = Config.v().outDirName + File.separator + "cons_all.txt";
         PrintWriter cw = Utils.openOut(consFile);
-        for (LookUpRule rule : getRules()) {
-            cw.println("# " + rule.toString());
-            Iterator<ConstraintItem> iter = rule.getAllConstrIterator();
-            while (iter.hasNext()) {
-                ConstraintItem cons = iter.next();
-                Tuple head = cons.getHeadTuple();
-                cw.print(head.toSummaryString(","));
-                cw.print("=\t");
-                List<Tuple> subs = cons.getSubTuples();
-                for (int i = 0; i < subs.size(); i++) {
-                    if (i != 0) cw.print(",\t");
-                    cw.print(subs.get(i).toSummaryString(","));
-                }
-                cw.println(".");
+        // TODO: sort by rule?
+        for (ConstraintItem cons: getAllConstraintItems()) {
+            Tuple head = cons.getHeadTuple();
+            cw.print(head.toString());
+            cw.print("=\t");
+            List<Tuple> subs = cons.getSubTuples();
+            for (int i = 0; i < subs.size(); i++) {
+                if (i != 0) cw.print(",\t");
+                cw.print(subs.get(i).toString());
             }
+            cw.print(".\t");
+            cw.println("#"+cons.getRuleInfo());
         }
         cw.flush();
         cw.close();
     }
 
-    protected List<LookUpRule> getRules() {
-        List<LookUpRule> rules = new ArrayList<>();
-        try {
-            Scanner sc = new Scanner(confFile);
-            while (sc.hasNext()) {
-                String line = sc.nextLine().trim();
-                if (!line.equals("")) {
-                    LookUpRule r = new LookUpRule(line);
-                    rules.add(r);
-                }
-            }
-            sc.close();
-        }  catch (FileNotFoundException e) {
-            Messages.fatal(e);
-        }
-        return rules;
-    }
+    public abstract List<String> getRuleInfos();
 
-    protected List<Tuple> getTuples(Collection<String> relNames, Collection<Tuple> filtered) {
-        List<Tuple> tuples = new ArrayList<>();
-        for (String relName : relNames) {
-            ProgramRel rel = RelUtil.pRel(relName);
-            rel.load();
-            for (int[] vals : rel.getAryNIntTuples()) {
-                Tuple t = new Tuple(rel, vals);
-                if (filtered.contains(t))
-                    tuples.add(t);
-            }
-        }
-        return tuples;
-    }
+    public abstract List<ConstraintItem> getAllConstraintItems();
 
-    protected List<Tuple> getTuples(Collection<String> relNames) {
-        List<Tuple> tuples = new ArrayList<>();
-        for (String relName : relNames) {
-            ProgramRel rel = RelUtil.pRel(relName);
-            rel.load();
-            for (int[] vals : rel.getAryNIntTuples()) {
-                Tuple t = new Tuple(rel, vals);
-                tuples.add(t);
-            }
-        }
-        return tuples;
-    }
+    public abstract List<Tuple> getInputTuples();
 
-    // by default, get all (non-instrumenting) relation tuples
-    protected List<String> getRelationNames() {
-        List<String> relNames = new ArrayList<>();
-        // TODO
-        return relNames;
-    }
-
-    protected List<String> getInputRelationNames() {
-        List<String> inputRelNames = new ArrayList<>();
-        // TODO
-        return inputRelNames;
-    }
-    // by default, all output relations are added
-    protected List<String> getOutputRelationNames() {
-        List<String> outputRelNames = new ArrayList<>();
-        // TODO
-        return outputRelNames;
-    }
+    public abstract List<Tuple> getOutputTuples();
 
     private class DOBSolver {
         private final Map<Tuple, Integer> tupleDOB;
