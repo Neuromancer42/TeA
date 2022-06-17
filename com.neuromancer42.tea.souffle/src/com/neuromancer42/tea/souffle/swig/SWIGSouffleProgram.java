@@ -68,6 +68,18 @@ public class SWIGSouffleProgram {
     return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getRelNames(swigCPtr, this), true);
   }
 
+  public StringVector getRelSigns() {
+    return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getRelSigns(swigCPtr, this), true);
+  }
+
+  public StringVector getInputRelNames() {
+    return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getInputRelNames(swigCPtr, this), true);
+  }
+
+  public StringVector getOutputRelNames() {
+    return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getOutputRelNames(swigCPtr, this), true);
+  }
+
   public void printProvenance() {
     SwigInterfaceJNI.SWIGSouffleProgram_printProvenance(swigCPtr, this);
   }

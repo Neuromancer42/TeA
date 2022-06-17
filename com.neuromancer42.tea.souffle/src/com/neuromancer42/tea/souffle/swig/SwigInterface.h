@@ -82,12 +82,23 @@ public:
 
     std::vector<std::string> getRelNames() {
         std::vector<souffle::Relation*> relations = program->getAllRelations();
-        int relNums = relations.size();
-        std::vector<const std::string&> relNames = new std::vector<const std::string&>();
-        for (int i = 0; i < relNums; i++) {
-            relNames.append(relations[i]->getName());
-        }
-        return relNames;
+        return getRelNamesFromRels(relations);
+    }
+
+    std::vector<std::string> getRelSigns() {
+        std::vector<souffle::Relation*> relations = program->getAllRelations();
+        // TODO: keep only IO rel signs?
+        return getRelSignsFromRels(relations);
+    }
+
+    std::vector<std::string> getInputRelNames() {
+        std::vector<souffle::Relation*> relations = program->getInputRelations();
+        return getRelNamesFromRels(relations);
+    }
+
+    std::vector<std::string> getOutputRelNames() {
+        std::vector<souffle::Relation*> relations = program->getOutputRelations();
+        return getRelNamesFromRels(relations);
     }
 
     void printProvenance() {
@@ -124,6 +135,25 @@ public:
 //                rules.insert({std::make_pair(relName, ruleNum), rule});
             }
         }
+    }
+
+private:
+    inline std::vector<std::string> getRelNamesFromRels(const std::vector<souffle::Relation*>& rels) {
+        int relNum = rels.size();
+        std::vector<std::string> relNames;
+        for (int i = 0; i < relNum; i++) {
+            relNames.push_back(rels[i]->getName());
+        }
+        return relNames;
+    }
+
+    inline std::vector<std::string> getRelSignsFromRels(const std::vector<souffle::Relation*>& rels) {
+        int relNum = rels.size();
+        std::vector<std::string> relSigns;
+        for (int i = 0; i < relNum; i++) {
+            relSigns.push_back(rels[i]->getName()+rels[i]->getSignature());
+        }
+        return relSigns;
     }
 };
 

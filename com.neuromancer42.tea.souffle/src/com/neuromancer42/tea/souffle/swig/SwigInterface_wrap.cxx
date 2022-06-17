@@ -762,6 +762,51 @@ SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJN
 }
 
 
+SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1getRelSigns(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
+  jlong jresult = 0 ;
+  SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
+  std::vector< std::string > result;
+  
+  (void)jenv;
+  (void)jcls;
+  (void)jarg1_;
+  arg1 = *(SWIGSouffleProgram **)&jarg1; 
+  result = (arg1)->getRelSigns();
+  *(std::vector< std::string > **)&jresult = new std::vector< std::string >((const std::vector< std::string > &)result); 
+  return jresult;
+}
+
+
+SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1getInputRelNames(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
+  jlong jresult = 0 ;
+  SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
+  std::vector< std::string > result;
+  
+  (void)jenv;
+  (void)jcls;
+  (void)jarg1_;
+  arg1 = *(SWIGSouffleProgram **)&jarg1; 
+  result = (arg1)->getInputRelNames();
+  *(std::vector< std::string > **)&jresult = new std::vector< std::string >((const std::vector< std::string > &)result); 
+  return jresult;
+}
+
+
+SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1getOutputRelNames(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
+  jlong jresult = 0 ;
+  SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
+  std::vector< std::string > result;
+  
+  (void)jenv;
+  (void)jcls;
+  (void)jarg1_;
+  arg1 = *(SWIGSouffleProgram **)&jarg1; 
+  result = (arg1)->getOutputRelNames();
+  *(std::vector< std::string > **)&jresult = new std::vector< std::string >((const std::vector< std::string > &)result); 
+  return jresult;
+}
+
+
 SWIGEXPORT void JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1printProvenance(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
   SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
   

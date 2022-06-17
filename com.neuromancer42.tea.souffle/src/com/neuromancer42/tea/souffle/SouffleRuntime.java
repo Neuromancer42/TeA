@@ -2,20 +2,22 @@ package com.neuromancer42.tea.souffle;
 
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.souffle.swig.SwigInterface;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.nio.file.*;
+import java.util.*;
 
 public final class SouffleRuntime {
     private static SouffleRuntime runtime = null;
+
+    public static SouffleRuntime g() {
+        if (runtime == null) {
+            Messages.fatal("SouffleRuntime: souffle runtime should be inited first");
+        }
+        return runtime;
+    }
 
     public static void init() {
         if (runtime != null) {
@@ -26,12 +28,12 @@ public final class SouffleRuntime {
             runtime = new SouffleRuntime();
 
             // 2. copy source files from bundles
-            InputStream swigInterfaceHeaderStream = SouffleRuntime.class.getResourceAsStream("/resources/SwigInterface.h");
+            InputStream swigInterfaceHeaderStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface.h");
             Path swigInterfaceHeader = runtime.workDir.resolve("SwigInterface.h");
-            Files.copy(swigInterfaceHeaderStream, swigInterfaceHeader);
-            InputStream swigInterfaceCXXStream = SouffleRuntime.class.getResourceAsStream("/resources/SwigInterface_wrap.cxx");
+            Files.copy(swigInterfaceHeaderStream, swigInterfaceHeader, StandardCopyOption.REPLACE_EXISTING);
+            InputStream swigInterfaceCXXStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface_wrap.cxx");
             Path swigInterfaceCXX = runtime.workDir.resolve("SwigInterface_wrap.cxx");
-            Files.copy(swigInterfaceCXXStream, swigInterfaceCXX);
+            Files.copy(swigInterfaceCXXStream, swigInterfaceCXX, StandardCopyOption.REPLACE_EXISTING);
 
             // 3. Use C++ to compile libSwigInterface and load it
             Path libSwigIntarfacePath = runtime.compileAndLinkSouffleCPP(swigInterfaceCXX.toFile(), "libSwigInterface", false);
@@ -54,6 +56,8 @@ public final class SouffleRuntime {
     private final String[] rpaths;
     private final Path workDir;
 
+    private Set<String> loadedLibraries;
+
     private SouffleRuntime() throws IOException {
         // 0. TODO: get paths from environmental variables
         cppcompiler = "/usr/local/bin/g++-11";
@@ -65,8 +69,10 @@ public final class SouffleRuntime {
         rpaths = new String[]{"/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib"};
 
         cacheDir = Paths.get(Config.v().workDirName);
-        workDir = Files.createTempDirectory(cacheDir, "souffle");
+        workDir = Files.createDirectories(cacheDir.resolve("souffle"));
         souffle = "souffle";
+
+        loadedLibraries = new HashSet<>();
     }
 
     private Path compileAndLinkSouffleCPP(File cppSource, String targetName, boolean debug) throws IOException, InterruptedException {
@@ -144,10 +150,10 @@ public final class SouffleRuntime {
         return libraryPath;
     }
 
-    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) throws IOException, InterruptedException {
+    public Path loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) throws IOException, InterruptedException {
         String dlogFileName = analysis + ".dl";
         Path dlogFilePath = workDir.resolve(analysis + ".dl");
-        Files.copy(dlogStream, dlogFilePath);
+        Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
 
         String cppFileName = analysis + ".cpp";
         List<String> souffleCmd = new ArrayList<>();
@@ -171,15 +177,23 @@ public final class SouffleRuntime {
 
         Path cppSourcePath = workDir.resolve(cppFileName);
         Path libraryPath = compileAndLinkSouffleCPP(cppSourcePath.toFile(), analysis, false);
+        if (loadedLibraries.contains(analysis)) {
+            Messages.warn("SouffleRuntime: analysis " + analysis + " has been loaded before.");
+        }
         System.load(libraryPath.toAbsolutePath().toString());
+        loadedLibraries.add(analysis);
+        Path analysisDir = Files.createDirectories(workDir.resolve(analysis));
+        return analysisDir;
     }
 
-    public void loadDlog(String analysis, File dlogFile, boolean withProvenance) {
+    public Path loadDlog(String analysis, File dlogFile, boolean withProvenance) {
+        Path analysisDir = null;
         try {
-            loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
+            analysisDir = loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
         } catch (Exception e) {
             Messages.error("SouffleRuntime: failed to load souffle analysis '%s'", analysis);
             Messages.fatal(e);
         }
+        return analysisDir;
     }
 }

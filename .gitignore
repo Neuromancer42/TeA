@@ -19,3 +19,8 @@ sootOutput/
 examples/
 test-out/
 out/
+
+# generated C++ files
+*.o
+*.so
+*.dylib

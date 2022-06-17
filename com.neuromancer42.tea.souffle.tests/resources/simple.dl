@@ -1,0 +1,9 @@
+.type P <: symbol
+
+.decl PP(x:P,y:P)
+.decl PPP(x:P,y:P)
+
+.input PP
+.output PPP
+
+PPP(p, q):- PP(p, r), PP(r, q).
