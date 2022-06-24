@@ -7,6 +7,7 @@ import com.neuromancer42.tea.core.bddbddb.RelSign;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.provenance.AbstractProvenanceBuilder;
 import com.neuromancer42.tea.core.provenance.ConstraintItem;
+import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.Utils;
 import com.neuromancer42.tea.core.util.tuple.object.Pair;
@@ -23,9 +24,10 @@ import java.util.*;
 public class SouffleAnalysis extends JavaAnalysis {
     private final File dlogFile;
     protected final SWIGSouffleProgram souffleProgram;
+
     private final Path analysisDir;
-    public final Path factDir;
-    public final Path outDir;
+    private final Path factDir;
+    private final Path outDir;
     private final List<String> inputRelNames;
     private final List<String> outputRelNames;
     private final Map<String, RelSign> relSignMap;
@@ -42,6 +44,7 @@ public class SouffleAnalysis extends JavaAnalysis {
         if (souffleProgram == null ) {
             Messages.fatal("SouffleAnalysis %s: failed to load souffle program.", name);
         }
+        // TODO: change analysis directory?
         analysisDir = SouffleRuntime.g().getWorkDir().resolve(name);
         factDir = Files.createDirectories(analysisDir.resolve("fact"));
         outDir = Files.createDirectories(analysisDir.resolve("out"));
@@ -70,6 +73,19 @@ public class SouffleAnalysis extends JavaAnalysis {
         }
         domMap = new HashMap<>();
     }
+
+    public Path getAnalysisDir() {
+        return analysisDir;
+    }
+
+    public Path getFactDir() {
+        return factDir;
+    }
+
+    public Path getOutDir() {
+        return outDir;
+    }
+
 
     public void run() {
         if (souffleProgram == null) {
@@ -178,13 +194,33 @@ public class SouffleAnalysis extends JavaAnalysis {
         }
     }
 
-    public class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
+    private SouffleProvenanceBuilder provBuilder;
+
+    private Path provenanceDir;
+
+    public Path getProvenanceDir() {
+        return provenanceDir;
+    }
+
+    public Provenance getProvenance() {
+        if (provBuilder == null) {
+            try {
+                provenanceDir = Files.createDirectories(analysisDir.resolve("provenance"));
+            } catch(IOException e){
+                Messages.error("SouffleAnalysis %s: failed to create provenance directory", name);
+                Messages.fatal(e);
+            }
+            provBuilder = new SouffleProvenanceBuilder();
+        }
+        return provBuilder.getProvenance();
+    }
+
+    private class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
         private final SWIGSouffleProgram provenanceProgram;
         private final String provenanceName;
 
         private boolean provActivated;
 
-        private final Path provenanceDir;
         private List<String> ruleInfos;
         private List<ConstraintItem> constraintItems;
         private List<Tuple> inputTuples;
@@ -269,14 +305,16 @@ public class SouffleAnalysis extends JavaAnalysis {
                 Messages.fatal("SouffleProvenanceBuilder %s: wrong rule info recorded - %s", provenanceName, ruleInfo);
             }
             ruleInfo = ruleInfo.substring(1);
-            return new ConstraintItem(ruleInfo, headTuple, bodyTuples, headSign, bodySigns);
+            int ruleId = ruleInfos.indexOf(ruleInfo);
+            return new ConstraintItem(ruleId, headTuple, bodyTuples, headSign, bodySigns);
         }
 
-        public SouffleProvenanceBuilder() throws IOException {
+        public SouffleProvenanceBuilder() {
+            // Souffle's provenance has been pruned, not need to use prune in AbstractProvenanceBuilder again
+            super(false);
             provenanceName = name + "_w_P";
             SouffleRuntime.g().loadDlog(provenanceName, dlogFile, true);
             provenanceProgram = SwigInterface.newInstance(provenanceName);
-            provenanceDir = Files.createDirectories(analysisDir.resolve("provenance"));
         }
 
 
@@ -289,7 +327,7 @@ public class SouffleAnalysis extends JavaAnalysis {
         }
 
         @Override
-        public List<ConstraintItem> getAllConstraintItems() {
+        public Collection<ConstraintItem> getAllConstraintItems() {
             if (!provActivated) {
                 activate();
             }
@@ -297,7 +335,7 @@ public class SouffleAnalysis extends JavaAnalysis {
         }
 
         @Override
-        public List<Tuple> getInputTuples() {
+        public Collection<Tuple> getInputTuples() {
             if (!provActivated) {
                 activate();
             }
@@ -305,7 +343,7 @@ public class SouffleAnalysis extends JavaAnalysis {
         }
 
         @Override
-        public List<Tuple> getOutputTuples() {
+        public Collection<Tuple> getOutputTuples() {
             if (!provActivated) {
                 activate();
             }

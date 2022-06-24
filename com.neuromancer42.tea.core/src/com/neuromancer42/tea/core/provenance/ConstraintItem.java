@@ -19,24 +19,24 @@ public class ConstraintItem {
 	private final  List<Tuple> subTuples;
 	private final Boolean headTupleSign;
 	private final List<Boolean> subTuplesSign;
-	private final String ruleInfo;
+	private final int ruleId;
 
 	public ConstraintItem(
-			String ruleInfo,
-			Tuple headTuple, List<Tuple> subTuples,
-			Boolean headTupleSign, List<Boolean> subTuplesSign
+            int ruleId,
+            Tuple headTuple, List<Tuple> subTuples,
+            Boolean headTupleSign, List<Boolean> subTuplesSign
 	) {
     	Preconditions.checkNotNull(headTuple);
     	Preconditions.checkArgument(subTuples.size() == subTuplesSign.size());
 		subTuples.removeAll(nullSingleton);
-		this.ruleInfo = ruleInfo;
+		this.ruleId = ruleId;
 		this.headTuple = headTuple;
 		this.subTuples = subTuples;
 		this.headTupleSign = headTupleSign;
 		this.subTuplesSign = Lists.newArrayList(subTuplesSign);
 	}
 
-	public String getRuleInfo() { return ruleInfo; }
+	public int getRuleId() { return ruleId; }
 
 	public Tuple getHeadTuple() {
 		return headTuple;
@@ -74,7 +74,7 @@ public class ConstraintItem {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result
-				+ ((ruleInfo == null) ? 0 : ruleInfo.hashCode());
+				+ ruleId;
 		result = prime * result
 				+ ((headTuple == null) ? 0 : headTuple.hashCode());
 		result = prime * result
@@ -95,10 +95,12 @@ public class ConstraintItem {
 		if (getClass() != obj.getClass())
 			return false;
 		ConstraintItem other = (ConstraintItem) obj;
-		if (ruleInfo == null) {
-			if (other.ruleInfo != null)
-				return false;
-		} else if (!ruleInfo.equals(other.ruleInfo))
+//		if (ruleInfo == null) {
+//			if (other.ruleInfo != null)
+//				return false;
+//		} else if (!ruleInfo.equals(other.ruleInfo))
+//			return false;
+		if (ruleId != other.ruleId)
 			return false;
 
 		if (headTuple == null) {
@@ -111,7 +113,7 @@ public class ConstraintItem {
 				return false;
 		} else if (!subTuples.equals(other.subTuples))
 			return false;
-		
+
 		if (headTupleSign == null) {
 			if (other.headTupleSign != null)
 				return false;

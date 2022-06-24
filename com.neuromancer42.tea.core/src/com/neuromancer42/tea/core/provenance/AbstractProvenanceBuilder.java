@@ -6,14 +6,18 @@ import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.core.util.Utils;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.util.*;
 
 public abstract class AbstractProvenanceBuilder {
 
+    private final boolean doPrune;
     // Provenance Structure
     private Provenance provenance;
+
+    protected AbstractProvenanceBuilder(boolean doPrune) {
+        this.doPrune = doPrune;
+    }
 
     public Provenance getProvenance() {
         if (provenance == null) computeProvenance();
@@ -31,14 +35,14 @@ public abstract class AbstractProvenanceBuilder {
         timer.init();
 
         // fetch results and generate dicts
-        List<ConstraintItem> constraintItems = getAllConstraintItems();
+        Collection<ConstraintItem> constraintItems = getAllConstraintItems();
         Set<Tuple> tuples = new HashSet<>();
         for (ConstraintItem cons : constraintItems) {
             tuples.add(cons.getHeadTuple());
             tuples.addAll(cons.getSubTuples());
         }
-        List<Tuple> inputTuples = getInputTuples();
-        List<Tuple> outputTuples = getOutputTuples(); // output must have corresponding rules
+        Collection<Tuple> inputTuples = getInputTuples();
+        Collection<Tuple> outputTuples = getOutputTuples(); // output must have corresponding rules
         Messages.log("ProvenanceBuilder recorded " + tuples.size() + " tuples.");
 
         // generate provenance structures
@@ -58,10 +62,14 @@ public abstract class AbstractProvenanceBuilder {
             tuple2ConsequentClauses.get(head).add(cons);
         }
 
-        // TODO: split pruning from provenance builder
         // de-cycle and prune unused clauses
-        DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
-        Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(observeTuples);
+        Set<ConstraintItem> activeClauses;
+        if (doPrune) {
+            DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
+            activeClauses = dobSolver.getActiveClauses(observeTuples);
+        } else {
+            activeClauses = new HashSet<>(constraintItems);
+        }
 
         // filter out unused tuples again
         Set<Tuple> activeTuples = new HashSet<>();
@@ -80,7 +88,7 @@ public abstract class AbstractProvenanceBuilder {
                 activeOutputTuples.add(t);
         }
         // generate provenance structure
-        provenance = new Provenance(activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
+        provenance = new Provenance(activeTuples, activeInputTuples, activeOutputTuples, activeClauses, getRuleInfos());
 
         timer.done();
         if (Config.v().verbose >= 1) {
@@ -90,34 +98,13 @@ public abstract class AbstractProvenanceBuilder {
         }
     }
 
-    public void dump() {
-        // dump all constraints
-        String consFile = Config.v().outDirName + File.separator + "cons_all.txt";
-        PrintWriter cw = Utils.openOut(consFile);
-        // TODO: sort by rule?
-        for (ConstraintItem cons: getAllConstraintItems()) {
-            Tuple head = cons.getHeadTuple();
-            cw.print(head.toString());
-            cw.print("=\t");
-            List<Tuple> subs = cons.getSubTuples();
-            for (int i = 0; i < subs.size(); i++) {
-                if (i != 0) cw.print(",\t");
-                cw.print(subs.get(i).toString());
-            }
-            cw.print(".\t");
-            cw.println("# R"+cons.getRuleInfo());
-        }
-        cw.flush();
-        cw.close();
-    }
-
     public abstract List<String> getRuleInfos();
 
-    public abstract List<ConstraintItem> getAllConstraintItems();
+    public abstract Collection<ConstraintItem> getAllConstraintItems();
 
-    public abstract List<Tuple> getInputTuples();
+    public abstract Collection<Tuple> getInputTuples();
 
-    public abstract List<Tuple> getOutputTuples();
+    public abstract Collection<Tuple> getOutputTuples();
 
     private class DOBSolver {
         private final Map<Tuple, Integer> tupleDOB;

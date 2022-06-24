@@ -17,12 +17,15 @@ public class Provenance {
     private final List<Tuple> hiddenTuples;
     private Map<ConstraintItem, String> clauseIdMap;
     private Map<Tuple, String> tupleIdMap;
+    private final List<String> ruleInfos;
 
     public Provenance(
             Collection<Tuple> tuples,
             Collection<Tuple> inputTuples, Collection<Tuple> outputTuples,
-            Collection<ConstraintItem> clauses
+            Collection<ConstraintItem> clauses,
+            List<String> ruleInfos
     ) {
+        this.ruleInfos = ruleInfos;
         this.inputTuples = new ArrayList<>(inputTuples.size());
         this.inputTuples.addAll(inputTuples);
         this.outputTuples = new ArrayList<>(outputTuples.size());
@@ -66,15 +69,15 @@ public class Provenance {
         }
         dw.flush();
         dw.close();
-//        // dump rule dictionary
-//        String ruleDictFile = dir + File.separator + "rule_dict.txt";
-//        PrintWriter rdw = Utils.openOut(ruleDictFile);
-//        for (String ruleInfo : ruleInfos) {
-//            String ruleId = "R" + ruleInfos.indexOf(ruleInfo);
-//            rdw.println(ruleId + ":\t" + ruleInfo);
-//        }
-//        rdw.flush();
-//        rdw.close();
+        // dump rule dictionary
+        String ruleDictFile = dir + File.separator + "rule_dict.txt";
+        PrintWriter rdw = Utils.openOut(ruleDictFile);
+        for (int i = 0; i < ruleInfos.size(); ++i) {
+            String ruleId = "R" + i;
+            rdw.println(ruleId + ":\t" + ruleInfos.get(i));
+        }
+        rdw.flush();
+        rdw.close();
         // dump pruned provenance
         String prunedFile = dir + File.separator + "cons_pruned.txt";
         PrintWriter pw = Utils.openOut(prunedFile);
@@ -93,7 +96,7 @@ public class Provenance {
 
     private String getClauseDetail(ConstraintItem cons) {
         StringBuilder sb = new StringBuilder();
-        sb.append("R" + cons.getRuleInfo() + "-");
+        sb.append("R" + cons.getRuleId() + "-");
         String clauseId = encodeClause(cons);
         sb.append(clauseId +  " : ");
         Tuple head = cons.getHeadTuple();
