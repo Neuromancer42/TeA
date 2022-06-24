@@ -36,18 +36,27 @@ public class SouffleAnalysis extends JavaAnalysis {
 
     private boolean activated = false;
 
-    public SouffleAnalysis(String name, String filename) throws IOException {
+    public SouffleAnalysis(String name, String filename) {
         this.name = name;
         dlogFile = new File(filename);
         SouffleRuntime.g().loadDlog(name, dlogFile, false);
         souffleProgram = SwigInterface.newInstance(name);
         if (souffleProgram == null ) {
-            Messages.fatal("SouffleAnalysis %s: failed to load souffle program.", name);
+            Messages.fatal("SouffleAnalysis %s: failed to load souffle program", name);
         }
         // TODO: change analysis directory?
         analysisDir = SouffleRuntime.g().getWorkDir().resolve(name);
-        factDir = Files.createDirectories(analysisDir.resolve("fact"));
-        outDir = Files.createDirectories(analysisDir.resolve("out"));
+        Path tmpFactDir = null;
+        Path tmpOutDir = null;
+        try {
+            tmpFactDir = Files.createDirectories(analysisDir.resolve("fact"));
+            tmpOutDir = Files.createDirectories(analysisDir.resolve("out"));
+        } catch (IOException e) {
+            Messages.error("SouffleAnalysis %s: failed to create I/O directory", name);
+            Messages.fatal(e);
+        }
+        factDir = tmpFactDir;
+        outDir = tmpOutDir;
         inputRelNames = new ArrayList<>();
         inputRelNames.addAll(souffleProgram.getInputRelNames());
         outputRelNames = new ArrayList<>();
