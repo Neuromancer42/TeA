@@ -10,7 +10,6 @@ import java.util.*;
 public class Provenance {
     // Constraint structures
     // TODO: optimize de-duplicate operations
-    private final List<String> ruleInfos;
 
     private final List<ConstraintItem> clauses;
     private final List<Tuple> inputTuples;
@@ -20,7 +19,7 @@ public class Provenance {
     private Map<Tuple, String> tupleIdMap;
 
     public Provenance(
-            Collection<String> ruleInfos, Collection<Tuple> tuples,
+            Collection<Tuple> tuples,
             Collection<Tuple> inputTuples, Collection<Tuple> outputTuples,
             Collection<ConstraintItem> clauses
     ) {
@@ -34,8 +33,6 @@ public class Provenance {
         this.hiddenTuples = new ArrayList<>(hiddenTuples.size());
         this.hiddenTuples.addAll(hiddenTuples);
 
-        this.ruleInfos = new ArrayList<>(ruleInfos.size());
-        this.ruleInfos.addAll(ruleInfos);
         this.clauses = new ArrayList<>(clauses.size());
         this.clauses.addAll(clauses);
 
@@ -69,15 +66,15 @@ public class Provenance {
         }
         dw.flush();
         dw.close();
-        // dump rule dictionary
-        String ruleDictFile = dir + File.separator + "rule_dict.txt";
-        PrintWriter rdw = Utils.openOut(ruleDictFile);
-        for (String ruleInfo : ruleInfos) {
-            String ruleId = "R" + ruleInfos.indexOf(ruleInfo);
-            rdw.println(ruleId + ":\t" + ruleInfo);
-        }
-        rdw.flush();
-        rdw.close();
+//        // dump rule dictionary
+//        String ruleDictFile = dir + File.separator + "rule_dict.txt";
+//        PrintWriter rdw = Utils.openOut(ruleDictFile);
+//        for (String ruleInfo : ruleInfos) {
+//            String ruleId = "R" + ruleInfos.indexOf(ruleInfo);
+//            rdw.println(ruleId + ":\t" + ruleInfo);
+//        }
+//        rdw.flush();
+//        rdw.close();
         // dump pruned provenance
         String prunedFile = dir + File.separator + "cons_pruned.txt";
         PrintWriter pw = Utils.openOut(prunedFile);
@@ -96,8 +93,7 @@ public class Provenance {
 
     private String getClauseDetail(ConstraintItem cons) {
         StringBuilder sb = new StringBuilder();
-        Integer ruleId = ruleInfos.indexOf(cons.getRuleInfo());
-        sb.append("R" + ruleId + "-");
+        sb.append("R" + cons.getRuleInfo() + "-");
         String clauseId = encodeClause(cons);
         sb.append(clauseId +  " : ");
         Tuple head = cons.getHeadTuple();

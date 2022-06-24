@@ -36,6 +36,7 @@ public class SwigInterfaceJNI {
   public final static native long SWIGSouffleProgram_getRelSigns(long jarg1, SWIGSouffleProgram jarg1_);
   public final static native long SWIGSouffleProgram_getInputRelNames(long jarg1, SWIGSouffleProgram jarg1_);
   public final static native long SWIGSouffleProgram_getOutputRelNames(long jarg1, SWIGSouffleProgram jarg1_);
-  public final static native void SWIGSouffleProgram_printProvenance(long jarg1, SWIGSouffleProgram jarg1_);
+  public final static native long SWIGSouffleProgram_getInfoRelNames(long jarg1, SWIGSouffleProgram jarg1_);
+  public final static native void SWIGSouffleProgram_printProvenance(long jarg1, SWIGSouffleProgram jarg1_, String jarg2);
   public final static native long newInstance(String jarg1);
 }

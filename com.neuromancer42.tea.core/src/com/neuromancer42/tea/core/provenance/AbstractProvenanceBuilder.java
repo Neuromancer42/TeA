@@ -1,6 +1,5 @@
 package com.neuromancer42.tea.core.provenance;
 
-import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.Timer;
@@ -12,7 +11,6 @@ import java.io.PrintWriter;
 import java.util.*;
 
 public abstract class AbstractProvenanceBuilder {
-    private boolean activated = false;
 
     // Provenance Structure
     private Provenance provenance;
@@ -60,6 +58,7 @@ public abstract class AbstractProvenanceBuilder {
             tuple2ConsequentClauses.get(head).add(cons);
         }
 
+        // TODO: split pruning from provenance builder
         // de-cycle and prune unused clauses
         DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
         Set<ConstraintItem> activeClauses = dobSolver.getActiveClauses(observeTuples);
@@ -81,8 +80,7 @@ public abstract class AbstractProvenanceBuilder {
                 activeOutputTuples.add(t);
         }
         // generate provenance structure
-        List<String> ruleInfos = getRuleInfos();
-        provenance = new Provenance(ruleInfos, activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
+        provenance = new Provenance(activeTuples, activeInputTuples, activeOutputTuples, activeClauses);
 
         timer.done();
         if (Config.v().verbose >= 1) {
@@ -107,7 +105,7 @@ public abstract class AbstractProvenanceBuilder {
                 cw.print(subs.get(i).toString());
             }
             cw.print(".\t");
-            cw.println("#"+cons.getRuleInfo());
+            cw.println("# R"+cons.getRuleInfo());
         }
         cw.flush();
         cw.close();

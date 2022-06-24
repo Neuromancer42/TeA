@@ -80,8 +80,12 @@ public class SWIGSouffleProgram {
     return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getOutputRelNames(swigCPtr, this), true);
   }
 
-  public void printProvenance() {
-    SwigInterfaceJNI.SWIGSouffleProgram_printProvenance(swigCPtr, this);
+  public StringVector getInfoRelNames() {
+    return new StringVector(SwigInterfaceJNI.SWIGSouffleProgram_getInfoRelNames(swigCPtr, this), true);
+  }
+
+  public void printProvenance(String provDirectory) {
+    SwigInterfaceJNI.SWIGSouffleProgram_printProvenance(swigCPtr, this, provDirectory);
   }
 
 }

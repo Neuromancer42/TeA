@@ -30,13 +30,15 @@ public final class SouffleRuntime {
             // 2. copy source files from bundles
             InputStream swigInterfaceHeaderStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface.h");
             Path swigInterfaceHeader = runtime.workDir.resolve("SwigInterface.h");
+            assert swigInterfaceHeaderStream != null;
             Files.copy(swigInterfaceHeaderStream, swigInterfaceHeader, StandardCopyOption.REPLACE_EXISTING);
             InputStream swigInterfaceCXXStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface_wrap.cxx");
             Path swigInterfaceCXX = runtime.workDir.resolve("SwigInterface_wrap.cxx");
+            assert swigInterfaceCXXStream != null;
             Files.copy(swigInterfaceCXXStream, swigInterfaceCXX, StandardCopyOption.REPLACE_EXISTING);
 
             // 3. Use C++ to compile libSwigInterface and load it
-            Path libSwigIntarfacePath = runtime.compileAndLinkSouffleCPP(swigInterfaceCXX.toFile(), "libSwigInterface", false);
+            Path libSwigIntarfacePath = runtime.compileAndLinkSouffleCPP(swigInterfaceCXX.toFile(), "libSwigInterface", true);
             System.load(libSwigIntarfacePath.toAbsolutePath().toString());
         } catch (IOException | RuntimeException | InterruptedException e) {
             Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
@@ -54,6 +56,11 @@ public final class SouffleRuntime {
 
     private final String[] linkOptions;
     private final String[] rpaths;
+
+    public Path getWorkDir() {
+        return workDir;
+    }
+
     private final Path workDir;
 
     private Set<String> loadedLibraries;
@@ -95,8 +102,9 @@ public final class SouffleRuntime {
         compileCmd.addAll(Arrays.asList(cxx_flags));
         final String[] definitions = {"-D__EMBEDDED_SOUFFLE__","-DUSE_NCURSES","-DUSE_LIBZ","-DUSE_SQLITE"};
         compileCmd.addAll(Arrays.asList(definitions));
-        List<String> includes = new ArrayList<>();
-        includes.addAll(List.of(systemIncludes));
+        if (!debug)
+            compileCmd.add("-DNDEBUG");
+        List<String> includes = new ArrayList<>(List.of(systemIncludes));
         includes.add(javaHeaders);
         includes.add(jniHeaders);
         for (String inc : includes) {
@@ -135,7 +143,7 @@ public final class SouffleRuntime {
         linkCmd.add("-fopenmp");
         linkCmd.addAll(Arrays.asList(linkOptions));
         for (String rpath: rpaths) {
-            linkCmd.add(String.format("-Wl,-rpath,{}", rpath));
+            linkCmd.add(String.format("-Wl,-rpath,%s", rpath));
         }
         ProcessBuilder linkBuilder = new ProcessBuilder(linkCmd);
         linkBuilder.directory(workDir.toFile());
@@ -150,7 +158,7 @@ public final class SouffleRuntime {
         return libraryPath;
     }
 
-    public Path loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) throws IOException, InterruptedException {
+    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) throws IOException, InterruptedException {
         String dlogFileName = analysis + ".dl";
         Path dlogFilePath = workDir.resolve(analysis + ".dl");
         Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
@@ -176,24 +184,20 @@ public final class SouffleRuntime {
         }
 
         Path cppSourcePath = workDir.resolve(cppFileName);
-        Path libraryPath = compileAndLinkSouffleCPP(cppSourcePath.toFile(), analysis, false);
+        Path libraryPath = compileAndLinkSouffleCPP(cppSourcePath.toFile(), analysis, true);
         if (loadedLibraries.contains(analysis)) {
             Messages.warn("SouffleRuntime: analysis " + analysis + " has been loaded before.");
         }
         System.load(libraryPath.toAbsolutePath().toString());
         loadedLibraries.add(analysis);
-        Path analysisDir = Files.createDirectories(workDir.resolve(analysis));
-        return analysisDir;
     }
 
-    public Path loadDlog(String analysis, File dlogFile, boolean withProvenance) {
-        Path analysisDir = null;
+    public void loadDlog(String analysis, File dlogFile, boolean withProvenance) {
         try {
-            analysisDir = loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
+            loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
         } catch (Exception e) {
             Messages.error("SouffleRuntime: failed to load souffle analysis '%s'", analysis);
             Messages.fatal(e);
         }
-        return analysisDir;
     }
 }

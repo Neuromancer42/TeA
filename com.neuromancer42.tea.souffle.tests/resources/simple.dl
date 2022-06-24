@@ -1,4 +1,4 @@
-.type P <: symbol
+.type P <: unsigned
 
 .decl PP(x:P,y:P)
 .decl PPP(x:P,y:P)

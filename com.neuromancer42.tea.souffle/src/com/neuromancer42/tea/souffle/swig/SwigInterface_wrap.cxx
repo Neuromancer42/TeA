@@ -807,14 +807,39 @@ SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJN
 }
 
 
-SWIGEXPORT void JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1printProvenance(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
+SWIGEXPORT jlong JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1getInfoRelNames(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_) {
+  jlong jresult = 0 ;
   SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
+  std::vector< std::string > result;
   
   (void)jenv;
   (void)jcls;
   (void)jarg1_;
   arg1 = *(SWIGSouffleProgram **)&jarg1; 
-  (arg1)->printProvenance();
+  result = (arg1)->getInfoRelNames();
+  *(std::vector< std::string > **)&jresult = new std::vector< std::string >((const std::vector< std::string > &)result); 
+  return jresult;
+}
+
+
+SWIGEXPORT void JNICALL Java_com_neuromancer42_tea_souffle_swig_SwigInterfaceJNI_SWIGSouffleProgram_1printProvenance(JNIEnv *jenv, jclass jcls, jlong jarg1, jobject jarg1_, jstring jarg2) {
+  SWIGSouffleProgram *arg1 = (SWIGSouffleProgram *) 0 ;
+  std::string *arg2 = 0 ;
+  
+  (void)jenv;
+  (void)jcls;
+  (void)jarg1_;
+  arg1 = *(SWIGSouffleProgram **)&jarg1; 
+  if(!jarg2) {
+    SWIG_JavaThrowException(jenv, SWIG_JavaNullPointerException, "null string");
+    return ;
+  }
+  const char *arg2_pstr = (const char *)jenv->GetStringUTFChars(jarg2, 0); 
+  if (!arg2_pstr) return ;
+  std::string arg2_str(arg2_pstr);
+  arg2 = &arg2_str;
+  jenv->ReleaseStringUTFChars(jarg2, arg2_pstr); 
+  (arg1)->printProvenance((std::string const &)*arg2);
 }
 
 
