@@ -316,7 +316,7 @@ public class SortedIntList implements Cloneable, Serializable, RandomAccess {
             s.size = this.size;
             System.arraycopy(this.elementData, 0, s.elementData, 0, this.size);
             return s;
-        } catch (CloneNotSupportedException _) { return null; }
+        } catch (CloneNotSupportedException e1) { return null; }
     }
 
 }

@@ -73,7 +73,7 @@ public abstract class Reflect {
             }
             try {
                 m.setAccessible(true);
-            } catch (AccessControlException _) { }
+            } catch (AccessControlException e1) { }
         } catch (SecurityException e1) {
             System.err.println("Cannot access "+c.getName()+"."+methodName);
             e1.printStackTrace();

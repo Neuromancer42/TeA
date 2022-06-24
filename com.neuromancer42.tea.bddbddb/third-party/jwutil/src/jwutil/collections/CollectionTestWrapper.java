@@ -3,13 +3,8 @@
 // Licensed under the terms of the GNU LGPL; see COPYING for details.
 package jwutil.collections;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Set;
-import java.util.SortedSet;
+import java.util.*;
+
 import jwutil.util.Assert;
 
 /**
@@ -20,6 +15,15 @@ public class CollectionTestWrapper implements Set, SortedSet, List {
 
     private final Collection c1;
     private final Collection c2;
+
+    /**
+     * Updating to Java version >= 8,explicitly call one of splierator() of Set and List
+     * @return
+     */
+    @Override
+    public Spliterator spliterator() {
+        return List.super.spliterator();
+    }
 
     public CollectionTestWrapper(Collection c1, Collection c2) {
         this.c1 = c1; this.c2 = c2;

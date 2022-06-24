@@ -46,7 +46,7 @@ public class SystemProperties {
     public static String getProperty(String key, String def) {
         try {
             return System.getProperty(key, def);
-        } catch (AccessControlException _) {
+        } catch (AccessControlException e1) {
             return def;
         }
     }
@@ -83,12 +83,12 @@ public class SystemProperties {
                 String s = new BufferedReader(new FileReader(f), 64).readLine();
                 return s == null ? "" : s;
             }
-        } catch (IOException _) {
+        } catch (IOException e1) {
             ; // silent
         }
         try {
             return System.getProperty(key);
-        } catch (AccessControlException _) {
+        } catch (AccessControlException e1) {
             return def;
         }
     }
@@ -105,7 +105,7 @@ public class SystemProperties {
             System.setProperties(p);
         } catch (IOException ie) {
             ; // silent
-        } catch (AccessControlException _) {
+        } catch (AccessControlException e1) {
             ; // silent
         } finally {
             if (propFile != null) try {
@@ -211,7 +211,7 @@ public class SystemProperties {
             } else {
                 System.err.println("Unknown type for " + f + ": " + c);
             }
-        } catch (IllegalAccessException _) {
+        } catch (IllegalAccessException e1) {
             System.err.println("Cannot access " + f + ".");
         }
     }

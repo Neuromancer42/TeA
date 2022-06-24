@@ -253,7 +253,7 @@ public class AppletIO extends JApplet {
             PrintStream out, err;
             try {
                 err = out = new PrintStream(new AppletOutputStream(), true, DEFAULT_ENCODING);
-            } catch (NoSuchMethodError _) {
+            } catch (NoSuchMethodError e1) {
                 err = out = new PrintStream(new AppletOutputStream(), true);
             }
             try {
@@ -308,20 +308,20 @@ public class AppletIO extends JApplet {
             f = c.getDeclaredField("in");
             f.set(null, in);
         }
-        catch (NoSuchFieldException _) {}
-        catch (IllegalAccessException _) {}
+        catch (NoSuchFieldException e1) {}
+        catch (IllegalAccessException e2) {}
         try {
             f = c.getDeclaredField("out");
             f.set(null, out);
         }
-        catch (NoSuchFieldException _) {}
-        catch (IllegalAccessException _) {}
+        catch (NoSuchFieldException e1) {}
+        catch (IllegalAccessException e2) {}
         try {
             f = c.getDeclaredField("err");
             f.set(null, err);
         }
-        catch (NoSuchFieldException _) {}
-        catch (IllegalAccessException _) {}
+        catch (NoSuchFieldException e1) {}
+        catch (IllegalAccessException e2) {}
     }
     
     public static void launch(final PrintStream out, final Method m, final Object[] args) {

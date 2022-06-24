@@ -13,9 +13,9 @@ src=${^src},third-party/bddbddb/src,third-party/JavaBDD/src,third-party/jwutil/s
     META-INF/lib/jdd.jar=third-party/JavaBDD/lib/jdd.jar;lib:=true
 
 # Use Java 1.7 for compatibility
-javac.source:           1.7
-javac.target:           1.7
-javac.compliance:       1.7
+#javac.source:           1.7
+#javac.target:           1.7
+#javac.compliance:       1.7
 
 Import-Package: oracle*;resolution:=optional,org.jaxen*;resolution:=optional
 

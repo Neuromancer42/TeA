@@ -4,17 +4,7 @@
 package jwutil.collections;
 
 import java.io.Serializable;
-import java.util.AbstractList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.RandomAccess;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
  * Set that is stored as a sorted list.  This allows linear-time merge operations,
@@ -28,6 +18,16 @@ import java.util.TreeSet;
 public class SortedArraySet
     extends AbstractList
     implements SortedSet, List, Cloneable, Serializable, RandomAccess {
+
+    /**
+     * Updating to Java version >= 8,explicitly call one of splierator() of Set and List
+     * @return
+     */
+    @Override
+    public Spliterator spliterator() {
+        return super.spliterator();
+    }
+
 
     /**
      * Version ID for serialization.
@@ -189,6 +189,16 @@ public class SortedArraySet
     private class SubSet
     extends AbstractList
     implements SortedSet, List, Serializable, RandomAccess {
+
+        /**
+         * Updating to Java version >= 8,explicitly call one of splierator() of Set and List
+         * @return
+         */
+        @Override
+        public Spliterator spliterator() {
+            return super.spliterator();
+        }
+
         /**
          * Version ID for serialization.
          */
@@ -696,7 +706,7 @@ public class SortedArraySet
             //s.comparator = comparator;
             System.arraycopy(this.elementData, 0, s.elementData, 0, this.size);
             return s;
-        } catch (CloneNotSupportedException _) { return null; }
+        } catch (CloneNotSupportedException e1) { return null; }
     }
 
     public static final SortedArraySetFactory FACTORY = new SortedArraySetFactory();

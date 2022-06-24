@@ -3,10 +3,8 @@
 // Licensed under the terms of the GNU LGPL; see COPYING for details.
 package jwutil.collections;
 
-import java.util.AbstractList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
 import jwutil.util.Assert;
 
 /**
@@ -19,6 +17,15 @@ import jwutil.util.Assert;
  * @version $Id: HashWorklist.java,v 1.1 2004/09/27 22:42:32 joewhaley Exp $
  */
 public class HashWorklist extends AbstractList implements Worklist, Set {
+
+    /**
+     * Updating to Java version >= 8,explicitly call one of splierator() of Set and List
+     * @return
+     */
+    @Override
+    public Spliterator spliterator() {
+        return super.spliterator();
+    }
 
     private final Set set;
     private final List list;
