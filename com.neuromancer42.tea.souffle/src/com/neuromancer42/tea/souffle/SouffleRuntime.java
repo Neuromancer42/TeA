@@ -32,14 +32,38 @@ public final class SouffleRuntime {
             Path swigInterfaceHeader = runtime.workDir.resolve("SwigInterface.h");
             assert swigInterfaceHeaderStream != null;
             Files.copy(swigInterfaceHeaderStream, swigInterfaceHeader, StandardCopyOption.REPLACE_EXISTING);
-            InputStream swigInterfaceCXXStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface_wrap.cxx");
-            Path swigInterfaceCXX = runtime.workDir.resolve("SwigInterface_wrap.cxx");
-            assert swigInterfaceCXXStream != null;
-            Files.copy(swigInterfaceCXXStream, swigInterfaceCXX, StandardCopyOption.REPLACE_EXISTING);
+            InputStream swigInterfaceObjStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface_wrap.o");
+            Path swigInterfaceObj = runtime.workDir.resolve("SwigInterface_wrap.o");
+            assert swigInterfaceObjStream != null;
+            Files.copy(swigInterfaceObjStream, swigInterfaceObj, StandardCopyOption.REPLACE_EXISTING);
 
             // 3. Use C++ to compile libSwigInterface and load it
-            Path libSwigIntarfacePath = runtime.compileAndLinkSouffleCPP(swigInterfaceCXX.toFile(), "libSwigInterface", true);
-            System.load(libSwigIntarfacePath.toAbsolutePath().toString());
+            List<String> linkCmd = new ArrayList<>();
+            linkCmd.add(runtime.cppcompiler);
+            linkCmd.add(swigInterfaceObj.toAbsolutePath().toString());
+            String libraryFile;
+            if (SystemUtils.IS_OS_MAC_OSX) {
+                linkCmd.add("-dynamiclib");
+                libraryFile = "libSwigInterface.dylib";
+            } else if (SystemUtils.IS_OS_LINUX) {
+                linkCmd.add("-shared");
+                libraryFile = "libSwigInterface.so";
+            } else {
+                throw new RuntimeException("Not supported yet!");
+            }
+            linkCmd.add("-o");
+            linkCmd.add(libraryFile);
+            ProcessBuilder linkBuilder = new ProcessBuilder(linkCmd);
+            linkBuilder.directory(runtime.workDir.toFile());
+            Process linkProcess = linkBuilder.start();
+            int linkRetVal = linkProcess.waitFor();
+            if (linkRetVal != 0) {
+                Messages.log(new String(linkProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+                String errString = new String(linkProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+                throw new RuntimeException(errString);
+            }
+            Path libSwigInterfacePath = runtime.workDir.resolve(libraryFile);
+            System.load(libSwigInterfacePath.toAbsolutePath().toString());
         } catch (IOException | RuntimeException | InterruptedException e) {
             Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
             Messages.fatal(e);
@@ -89,13 +113,76 @@ public final class SouffleRuntime {
         loadedLibraries = new HashSet<>();
     }
 
-    private Path compileAndLinkSouffleCPP(File cppSource, String targetName, boolean debug) throws IOException, InterruptedException {
-        // compile source file to object
-        String objectFile = targetName + ".o";
+    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) {
+        String dlogFileName = analysis + ".dl";
+        Path dlogFilePath = workDir.resolve(analysis + ".dl");
+        try {
+            Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            Messages.error("SouffleRuntime: error while copying dlog file %s", dlogFileName);
+            Messages.fatal(e);
+        }
+
+        try {
+            // compile dlog file to generated cpp source
+            String cppFileName = analysis + ".cpp";
+            Path cppSourcePath = souffleCompileDlog(dlogFileName, cppFileName, withProvenance);
+
+            // compile source file to object
+            String objectName = analysis + ".o";
+            Path objectPath = compileSouffleCPP(cppSourcePath, objectName, true);
+
+            // link the object and generate a dynamic library loadable by jvm
+            Path libraryPath = linkSouffleObj(objectPath, analysis);
+
+            System.load(libraryPath.toAbsolutePath().toString());
+        } catch (IOException | InterruptedException e) {
+            Messages.error("SouffelRuntime: failed to compile runtime of analysis %s", analysis);
+            Messages.fatal(e);
+        }
+        if (loadedLibraries.contains(analysis)) {
+            Messages.warn("SouffleRuntime: analysis %s has been loaded before", analysis);
+        }
+        loadedLibraries.add(analysis);
+    }
+
+    public void loadDlog(String analysis, File dlogFile, boolean withProvenance) {
+        try {
+            loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
+        } catch (Exception e) {
+            Messages.error("SouffleRuntime: failed to load souffle analysis '%s'", analysis);
+            Messages.fatal(e);
+        }
+    }
+
+    private Path souffleCompileDlog(String dlogFileName, String cppFileName, boolean withProvenance) throws IOException, InterruptedException {
+        List<String> souffleCmd = new ArrayList<>();
+        souffleCmd.add(souffle);
+        souffleCmd.add(dlogFileName);
+        souffleCmd.add("-g");
+        souffleCmd.add(cppFileName);
+        if (withProvenance) {
+            souffleCmd.add("-t");
+            souffleCmd.add("none");
+        }
+        ProcessBuilder souffleBuilder = new ProcessBuilder(souffleCmd);
+        souffleBuilder.directory(workDir.toFile());
+        Process souffleProcess = souffleBuilder.start();
+        int souffleRetVal = souffleProcess.waitFor();
+        if (souffleRetVal != 0) {
+            Messages.log(new String(souffleProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            String errString = new String(souffleProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            throw new RuntimeException(errString);
+        }
+        Path cppSourcePath = workDir.resolve(cppFileName);
+        return cppSourcePath;
+    }
+
+    private Path compileSouffleCPP(Path cppPath, String objectName, boolean debug) throws IOException, InterruptedException {
         List<String> compileCmd = new ArrayList<>();
         compileCmd.add(cppcompiler);
         compileCmd.add("-c");
-        compileCmd.add(cppSource.getAbsolutePath());
+        compileCmd.add(cppPath.toAbsolutePath().toString());
         final String std_flag = "-std=c++17";
         compileCmd.add(std_flag);
         final String release_cxx_flags = "-O3";
@@ -119,7 +206,7 @@ public final class SouffleRuntime {
             compileCmd.add(inc);
         }
         compileCmd.add("-o");
-        compileCmd.add(objectFile);
+        compileCmd.add(objectName);
 
         ProcessBuilder compileBuilder = new ProcessBuilder(compileCmd);
         compileBuilder.directory(workDir.toFile());
@@ -130,11 +217,13 @@ public final class SouffleRuntime {
             String errString = new String(compileProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             throw new RuntimeException(errString);
         }
+        return workDir.resolve(objectName);
+    }
 
-        // link the object and generate a dynamic library loadable by jvm
+    private Path linkSouffleObj(Path objectPath, String targetName) throws IOException, InterruptedException {
         List<String> linkCmd = new ArrayList<>();
         linkCmd.add(cppcompiler);
-        linkCmd.add(objectFile);
+        linkCmd.add(objectPath.toAbsolutePath().toString());
         String libraryFile;
         if (SystemUtils.IS_OS_MAC_OSX) {
             linkCmd.add("-dynamiclib");
@@ -161,64 +250,6 @@ public final class SouffleRuntime {
             String errString = new String(linkProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             throw new RuntimeException(errString);
         }
-        Path libraryPath = workDir.resolve(libraryFile);
-        return libraryPath;
-    }
-
-    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) {
-        String dlogFileName = analysis + ".dl";
-        Path dlogFilePath = workDir.resolve(analysis + ".dl");
-        try {
-            Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            Messages.error("SouffleRuntime: error while copying dlog file %s", dlogFileName);
-            Messages.fatal(e);
-        }
-        String cppFileName = analysis + ".cpp";
-        List<String> souffleCmd = new ArrayList<>();
-        souffleCmd.add(souffle);
-        souffleCmd.add(dlogFileName);
-        souffleCmd.add("-g");
-        souffleCmd.add(cppFileName);
-        if (withProvenance) {
-            souffleCmd.add("-t");
-            souffleCmd.add("none");
-        }
-        ProcessBuilder souffleBuilder = new ProcessBuilder(souffleCmd);
-        souffleBuilder.directory(workDir.toFile());
-        try {
-            Process souffleProcess = souffleBuilder.start();
-            int souffleRetVal = souffleProcess.waitFor();
-            if (souffleRetVal != 0) {
-                Messages.log(new String(souffleProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-                String errString = new String(souffleProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-                throw new RuntimeException(errString);
-            }
-        } catch (IOException | InterruptedException e) {
-            Messages.error("SouffleRuntime: error while compiling %s into %s", dlogFileName, cppFileName);
-            Messages.fatal(e);
-        }
-        Path cppSourcePath = workDir.resolve(cppFileName);
-        Path libraryPath = null;
-        try {
-            libraryPath = compileAndLinkSouffleCPP(cppSourcePath.toFile(), analysis, true);
-        } catch (IOException | InterruptedException e) {
-            Messages.error("SouffelRuntime: failed to compile runtime of analysis %s", analysis);
-            Messages.fatal(e);
-        }
-        if (loadedLibraries.contains(analysis)) {
-            Messages.warn("SouffleRuntime: analysis %s has been loaded before", analysis);
-        }
-        System.load(libraryPath.toAbsolutePath().toString());
-        loadedLibraries.add(analysis);
-    }
-
-    public void loadDlog(String analysis, File dlogFile, boolean withProvenance) {
-        try {
-            loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
-        } catch (Exception e) {
-            Messages.error("SouffleRuntime: failed to load souffle analysis '%s'", analysis);
-            Messages.fatal(e);
-        }
+        return workDir.resolve(libraryFile);
     }
 }
