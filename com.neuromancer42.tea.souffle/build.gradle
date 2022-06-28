@@ -1,0 +1,30 @@
+tasks.register('swigGen') {
+    it.inputs.file('src/com/neuromancer42/tea/souffle/swig/SwigInterface.i')
+    it.inputs.file('src/com/neuromancer42/tea/souffle/swig/SwigInterface.h')
+    it.outputs.dir('src/com/neuromancer42/tea/souffle/swig/')
+    it.doLast {
+        exec {
+            workingDir 'src/com/neuromancer42/tea/souffle/swig/'
+            commandLine 'swig', '-c++', '-java', '-package', 'com.neuromancer42.tea.souffle.swig', 'SwigInterface.i'
+        }
+    }
+}
+
+tasks.register('swigCompile') {
+    it.inputs.file compileJava.destinationDirectory.file('com/neuromancer42/tea/souffle/swig/SwigInterface_wrap.cxx')
+    it.outputs.file compileJava.destinationDirectory.file('com/neuromancer42/tea/souffle/swig/SwigInterface_wrap.o')
+    it.doLast {
+        exec {
+            workingDir compileJava.destinationDirectory.dir('com/neuromancer42/tea/souffle/swig')
+            commandLine 'g++-11', '-fPIC', '-c', '-D__EMBEDDED_SOUFFLE__', 'SwigInterface_wrap.cxx', '-DUSE_NCURSES', '-DUSE_LIBZ', '-DUSE_SQLITE',  '-I/usr/local/include', '-I/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/include', '-std=c++17', '-fopenmp', '-O3', '-I/Library/Java/JavaVirtualMachines/jdk-11.0.14.jdk/Contents/Home/include', '-I/Library/Java/JavaVirtualMachines/jdk-11.0.14.jdk/Contents/Home/include/darwin'
+        }
+    }
+    it.dependsOn tasks.named('processResources')
+}
+
+// generate swig java sources before compiling java
+tasks.named('compileJava').configure { dependsOn tasks.named('swigGen') }
+tasks.named('processResources').configure { dependsOn tasks.named('swigGen') }
+
+// compile c++ objects as resource file
+tasks.named('jar').configure { dependsOn tasks.named('swigCompile') }
