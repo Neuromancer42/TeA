@@ -63,9 +63,9 @@ public class Categorical01 {
         return sb.toString();
     }
 
-    double[] getSupports() { return supports.clone(); }
+    public double[] getSupports() { return supports.clone(); }
 
-    double[] getProbabilitis() {
+    public double[] getProbabilitis() {
         double[] probs = new double[supports.length];
         for (int i = 0; i < supports.length; i++) {
             probs[i] = probability(supports[i]);

@@ -1,83 +1,79 @@
 package com.neuromancer42.tea.core.inference;
 
-import com.neuromancer42.tea.core.provenance.Tuple;
-import com.neuromancer42.tea.core.provenance.ConstraintItem;
-import com.neuromancer42.tea.core.provenance.Provenance;
+import com.neuromancer42.tea.core.project.Config;
+import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.core.project.ProcessExecutor;
+import com.neuromancer42.tea.core.util.Utils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.util.*;
 
 public abstract class AbstractCausalDriver {
-    private Provenance provenance;
-    private CausalGraph<String> causal;
+    protected final CausalGraph<String> causalGraph;
 
-    protected abstract String getDlogName();
-    protected abstract List<String> getObserveRelationNames();
+    protected Path workDir;
 
-    protected AbstractCausalDriver(Provenance provenance) {
-        this.provenance = provenance;
+    protected AbstractCausalDriver(CausalGraph<String> causalGraph) {
+        this.causalGraph = causalGraph;
     }
 
-    public void run() {
-        Categorical01 inputDist = new Categorical01(new double[]{1D, 0.75D, 0.5D, 0.25D});
-        Categorical01 deriveDist = new Categorical01(new double[]{1D, 0.75D, 0.5D, 0.25D});
-        buildCausalGraph((clause) -> new Categorical01(deriveDist),
-                (inputTuple) -> new Categorical01(inputDist));
-        //provenance.dump(dumpDirName);
-        List<String> outputTupleIds = provenance.getOutputTupleIds();
-        List<String> hiddenTupleIds = provenance.getHiddenTupleIds();
-        List<String> inputTupleIds = provenance.getInputTupleIds();
-        List<String> allTupleIds = new ArrayList<>(outputTupleIds.size() + hiddenTupleIds.size() + inputTupleIds.size());
-        allTupleIds.addAll(outputTupleIds);
-        allTupleIds.addAll(hiddenTupleIds);
-        allTupleIds.addAll(inputTupleIds);
-        Map<String, Double> queryResults = causal.queryFactorGraph(allTupleIds);
+    public void run(List<Map<String, Boolean>> traces) {
+        Map<String, Double> queryResults = queryAllPossibilities();
         Map<String, Double> priorQueryResults = queryResults;
-        causal.dumpDot("causal_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
-        // TODO iterative update with traces
-        Map<String, Boolean> obsTrace = new HashMap<>();
+        //causalGraph.dumpDot("causal_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
+        causalGraph.dumpDot(workDir.resolve("causal_prior.dot"), (idx) -> (idx + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
+
         // For debug only
-        for (String tupleId : allTupleIds) {
-            if (provenance.unfoldId(tupleId).contains("labelPrimFld")) {
-                obsTrace.put(tupleId, true);
-            }
-        }
-        // TODO: combine the following two actions
-        for (int i = 0; i < 20; i++) {
-            causal.updateFactorGraphWithObservation(obsTrace);
-            queryResults = causal.queryFactorGraph(allTupleIds);
+//        Map<String, Boolean> obsTrace = new HashMap<>();
+//        for (String tupleId : allTupleIds) {
+//            if (provenance.unfoldId(tupleId).contains("labelPrimFld")) {
+//                obsTrace.put(tupleId, true);
+//            }
+//        }
+        for (int i = 0; i < traces.size(); i++) {
+            appendObservation(traces.get(i));
+            queryResults = queryAllPossibilities();
             Map<String, Double> curQueryResults = queryResults;
-            causal.dumpDot("causal_post-" + i + ".dot", (idx) -> (provenance.unfoldId(idx) + "\n" + curQueryResults.get(idx)), Categorical01::toString);
+            causalGraph.dumpDot(workDir.resolve("causal_post-" + i + ".dot"), (idx) -> (idx + "\n" + curQueryResults.get(idx)), Categorical01::toString);
         }
     }
 
-    void buildCausalGraph(Function<ConstraintItem, Categorical01> getDeriveDist, Function<Tuple, Categorical01> getInputDist) {
-        List<String> clauseIds = provenance.getClauseIds();
-        List<String> inputTupleIds = provenance.getInputTupleIds();
-        List<String> outputTupleIds = provenance.getOutputTupleIds();
-        List<String> hiddenTupleIds = provenance.getHiddenTupleIds();
-        List<String> hybrid = new ArrayList<>();
-        hybrid.addAll(clauseIds);
-        hybrid.addAll(inputTupleIds);
-        hybrid.addAll(outputTupleIds);
-        hybrid.addAll(hiddenTupleIds);
 
-        Map<String, Categorical01> deriveMapping = new HashMap<>();
-        Map<String, Categorical01> inputMapping = new HashMap<>();
+    protected abstract void appendObservation(Map<String, Boolean> obs);
 
-        for (String clauseId : clauseIds)
-            deriveMapping.put(clauseId, getDeriveDist.apply(provenance.decodeClause(clauseId)));
-        for (String inputId : inputTupleIds)
-            inputMapping.put(inputId, getInputDist.apply(provenance.decodeTuple(inputId)));
+    protected abstract Double queryPossibilityById(int nodeId);
 
-        causal = new CausalGraph<>(hybrid,
-                inputTupleIds,
-                provenance.getHeadtuple2ClausesMap(),
-                provenance.getClause2SubtuplesMap(),
-                deriveMapping,
-                inputMapping);
+    protected Double queryPossibility(String node) {
+        Integer nodeId = causalGraph.getNodeId(node);
+        return queryPossibilityById(nodeId);
     }
+
+    protected Map<String, Double> queryPossibilities(Collection<String> nodes) {
+        Map<String, Double> queryResults = new HashMap<>();
+        for (String node : nodes) {
+            Double possibility = queryPossibility(node);
+            if (possibility != null)
+                queryResults.put(node, possibility);
+        }
+        return queryResults;
+    }
+
+    protected Map<String, Double> queryAllPossibilities() {
+        return queryPossibilities(causalGraph.getAllNodes());
+    }
+
+
+    protected abstract double[] queryFactorById(int distId);
+
+    protected void updateAllFactors() {
+        for (int distId = 0; distId < causalGraph.getAllDistNodes().size(); distId++) {
+            double[] factor = queryFactorById(distId);
+            causalGraph.getAllDistNodes().get(distId).updateProbs(factor);
+        }
+    }
+
 }

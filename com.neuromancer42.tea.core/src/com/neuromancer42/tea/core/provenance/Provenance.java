@@ -187,21 +187,21 @@ public class Provenance {
         return l;
     }
 
-    public Map<String, Set<String>> getHeadtuple2ClausesMap() {
-        Map<String, Set<String>> tuple2Clauses = new HashMap<>();
+    public Map<String, List<String>> getHeadtuple2ClausesMap() {
+        Map<String, List<String>> tuple2Clauses = new HashMap<>();
         for (ConstraintItem clause : clauses) {
             String head = encodeTuple(clause.getHeadTuple());
-            tuple2Clauses.putIfAbsent(head, new HashSet<>());
+            tuple2Clauses.putIfAbsent(head, new ArrayList<>());
             tuple2Clauses.get(head).add(encodeClause(clause));
         }
         return tuple2Clauses;
     }
 
-    public Map<String, Set<String>> getClause2SubtuplesMap() {
-        Map<String, Set<String>> clause2Tuples = new HashMap<>();
+    public Map<String, List<String>> getClause2SubtuplesMap() {
+        Map<String, List<String>> clause2Tuples = new HashMap<>();
         for (ConstraintItem clause : clauses) {
             String cid = encodeClause(clause);
-            clause2Tuples.put(cid, new HashSet<>());
+            clause2Tuples.put(cid, new ArrayList<>());
             for (Tuple sub : clause.getSubTuples()) {
                 clause2Tuples.get(cid).add(encodeTuple(sub));
             }
