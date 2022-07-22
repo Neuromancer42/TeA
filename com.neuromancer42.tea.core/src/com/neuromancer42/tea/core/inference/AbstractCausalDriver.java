@@ -1,14 +1,6 @@
 package com.neuromancer42.tea.core.inference;
 
-import com.neuromancer42.tea.core.project.Config;
-import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.project.ProcessExecutor;
-import com.neuromancer42.tea.core.util.Utils;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.PrintWriter;
+import com.neuromancer42.tea.core.util.IndexMap;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -66,13 +58,13 @@ public abstract class AbstractCausalDriver {
         return queryPossibilities(causalGraph.getAllNodes());
     }
 
-
     protected abstract double[] queryFactorById(int distId);
 
     protected void updateAllFactors() {
-        for (int distId = 0; distId < causalGraph.getAllDistNodes().size(); distId++) {
+        IndexMap<Categorical01> distNodes = causalGraph.getAllDistNodes();
+        for (int distId = 0; distId < distNodes.size(); distId++) {
             double[] factor = queryFactorById(distId);
-            causalGraph.getAllDistNodes().get(distId).updateProbs(factor);
+            distNodes.get(distId).updateProbs(factor);
         }
     }
 

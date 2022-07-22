@@ -1,14 +1,10 @@
 package com.neuromancer42.tea.core.inference;
 
-import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.project.ProcessExecutor;
 import com.neuromancer42.tea.core.provenance.ConstraintItem;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.IndexMap;
-import com.neuromancer42.tea.core.util.IndexSet;
-import com.neuromancer42.tea.core.util.Utils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -173,6 +169,11 @@ public class CausalGraph<NodeT> {
             Categorical01 dist = stochNodeEntry.getValue();
             setStochNode(node, dist);
         }
+    }
+
+    public void resetStochNodes() {
+        this.stochMap.clear();
+        this.distNodes.clear();
     }
 
     public void dump(Path workdir) {
@@ -365,8 +366,40 @@ public class CausalGraph<NodeT> {
         return allNodes;
     }
 
+    public int nodeSize() {
+        return nodes.size();
+    }
+
+    public int distSize() {
+        return distNodes.size();
+    }
+
     public IndexMap<Categorical01> getAllDistNodes() {
         return distNodes;
+    }
+
+    public Iterator<Map.Entry<Integer, List<Integer>>> getSumIter() {
+        return sums.entrySet().iterator();
+    }
+
+    public Iterator<Map.Entry<Integer, List<Integer>>> getProdIter() {
+        return prods.entrySet().iterator();
+    }
+
+    public boolean isSingleton(Integer nodeId) {
+        return singletons.contains(nodeId);
+    }
+
+    public boolean isStochNode(Integer nodeId) {
+        return stochMap.containsKey(nodeId);
+    }
+
+    public Integer getNodesDistId(Integer nodeId) {
+        return stochMap.get(nodeId);
+    }
+
+    public Iterator<Integer> getSingletonIter() {
+        return singletons.iterator();
     }
 }
 
