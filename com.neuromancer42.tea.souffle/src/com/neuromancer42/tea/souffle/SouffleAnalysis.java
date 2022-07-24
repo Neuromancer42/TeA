@@ -226,7 +226,7 @@ public class SouffleAnalysis extends JavaAnalysis {
 
     private class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
         private final SWIGSouffleProgram provenanceProgram;
-        private final String provenanceName;
+        private final String provenanceProcess;
 
         private boolean provActivated;
 
@@ -237,7 +237,7 @@ public class SouffleAnalysis extends JavaAnalysis {
 
         private void activate() {
             if (!activated) {
-                Messages.fatal("SouffleProvenanceBuilder %s: the analysis %s should be activated before building provenance", provenanceName, name);
+                Messages.fatal("SouffleProvenanceBuilder %s: the analysis %s should be activated before building provenance", provenanceProcess, SouffleAnalysis.this.name);
             }
             // 1. fetch inputTuples
             inputTuples = new ArrayList<>();
@@ -264,7 +264,7 @@ public class SouffleAnalysis extends JavaAnalysis {
             ruleInfos.addAll(provenanceProgram.getInfoRelNames());
 
             if (provActivated) {
-                Messages.warn("SouffleProvenanceBuilder %s: the provenance has been activated before, are you sure to re-run?", provenanceName);
+                Messages.warn("SouffleProvenanceBuilder %s: the provenance has been activated before, are you sure to re-run?", provenanceProcess);
             }
             provenanceProgram.loadAll(factDir.toString());
             provenanceProgram.run();
@@ -275,7 +275,7 @@ public class SouffleAnalysis extends JavaAnalysis {
             try {
                 consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
             } catch (IOException e) {
-                Messages.error("SouffleProvenanceBuilder %s: failed to read constraint items from file %s", provenanceName, consFilePath.toString());
+                Messages.error("SouffleProvenanceBuilder %s: failed to read constraint items from file %s", provenanceProcess, consFilePath.toString());
                 Messages.fatal(e);
             }
             constraintItems = new ArrayList<>();
@@ -311,7 +311,7 @@ public class SouffleAnalysis extends JavaAnalysis {
 
             String ruleInfo = atoms[atoms.length - 1];
             if (ruleInfo.charAt(0) != '#') {
-                Messages.fatal("SouffleProvenanceBuilder %s: wrong rule info recorded - %s", provenanceName, ruleInfo);
+                Messages.fatal("SouffleProvenanceBuilder %s: wrong rule info recorded - %s", provenanceProcess, ruleInfo);
             }
             ruleInfo = ruleInfo.substring(1);
             int ruleId = ruleInfos.indexOf(ruleInfo);
@@ -320,10 +320,10 @@ public class SouffleAnalysis extends JavaAnalysis {
 
         public SouffleProvenanceBuilder() {
             // Souffle's provenance has been pruned, not need to use prune in AbstractProvenanceBuilder again
-            super(false);
-            provenanceName = name + "_w_P";
-            SouffleRuntime.g().loadDlog(provenanceName, dlogFile, true);
-            provenanceProgram = SwigInterface.newInstance(provenanceName);
+            super(SouffleAnalysis.this.name, false);
+            provenanceProcess = SouffleAnalysis.this.name + "_w_P";
+            SouffleRuntime.g().loadDlog(provenanceProcess, dlogFile, true);
+            provenanceProgram = SwigInterface.newInstance(provenanceProcess);
         }
 
 

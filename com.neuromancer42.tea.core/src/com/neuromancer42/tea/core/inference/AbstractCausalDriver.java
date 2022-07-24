@@ -1,6 +1,8 @@
 package com.neuromancer42.tea.core.inference;
 
 import com.neuromancer42.tea.core.util.IndexMap;
+
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -8,8 +10,10 @@ public abstract class AbstractCausalDriver {
     protected final CausalGraph<String> causalGraph;
 
     protected Path workDir;
+    protected final String name;
 
-    protected AbstractCausalDriver(CausalGraph<String> causalGraph) {
+    protected AbstractCausalDriver(String name, CausalGraph<String> causalGraph) {
+        this.name = name;
         this.causalGraph = causalGraph;
     }
 

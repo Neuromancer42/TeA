@@ -5,8 +5,6 @@ import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.core.util.Utils;
 
-import java.io.File;
-import java.io.PrintWriter;
 import java.util.*;
 
 public abstract class AbstractProvenanceBuilder {
@@ -14,8 +12,10 @@ public abstract class AbstractProvenanceBuilder {
     private final boolean doPrune;
     // Provenance Structure
     private Provenance provenance;
+    protected final String name;
 
-    protected AbstractProvenanceBuilder(boolean doPrune) {
+    protected AbstractProvenanceBuilder(String name, boolean doPrune) {
+        this.name = name;
         this.doPrune = doPrune;
     }
 
@@ -88,7 +88,7 @@ public abstract class AbstractProvenanceBuilder {
                 activeOutputTuples.add(t);
         }
         // generate provenance structure
-        provenance = new Provenance(activeTuples, activeInputTuples, activeOutputTuples, activeClauses, getRuleInfos());
+        provenance = new Provenance(name, activeTuples, activeInputTuples, activeOutputTuples, activeClauses, getRuleInfos());
 
         timer.done();
         if (Config.v().verbose >= 1) {

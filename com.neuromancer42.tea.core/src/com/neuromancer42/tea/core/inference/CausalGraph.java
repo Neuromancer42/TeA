@@ -42,7 +42,8 @@ public class CausalGraph<NodeT> {
         for (String inputId : inputTupleIds)
             stochMapping.put(inputId, inputDist.apply(provenance.decodeTuple(inputId)));
 
-        return createCausalGraph(hybrid,
+        return createCausalGraph(provenance.getName(),
+                hybrid,
                 inputTupleIds,
                 provenance.getHeadtuple2ClausesMap(),
                 provenance.getClause2SubtuplesMap(),
@@ -50,6 +51,7 @@ public class CausalGraph<NodeT> {
     }
 
     public static <NodeT> CausalGraph<NodeT> createCausalGraph(
+            String name,
             Collection<NodeT> nodes,
             Collection<NodeT> singletons,
             Map<NodeT, List<NodeT>> sums,
@@ -113,17 +115,18 @@ public class CausalGraph<NodeT> {
                 Messages.fatal("CausalGraph: redundant node " + node);
             }
         }
-        return new CausalGraph<>(nodeList, singletonSet, sumMap, prodMap);
+        return new CausalGraph<>(name, nodeList, singletonSet, sumMap, prodMap);
     }
 
     public static <NodeT> CausalGraph<NodeT> createCausalGraph(
+            String name,
             Collection<NodeT> nodes,
             Collection<NodeT> singletons,
             Map<NodeT, List<NodeT>> sums,
             Map<NodeT, List<NodeT>> prods,
             Map<NodeT, Categorical01> distMap
     ) {
-        CausalGraph<NodeT> causalGraph = createCausalGraph(nodes, singletons, sums, prods);
+        CausalGraph<NodeT> causalGraph = createCausalGraph(name, nodes, singletons, sums, prods);
         causalGraph.setStochNodes(distMap);
         return causalGraph;
     }
@@ -138,12 +141,20 @@ public class CausalGraph<NodeT> {
     private final Map<Integer, Integer> stochMap;
     private final IndexMap<Categorical01> distNodes;
 
+    public String getName() {
+        return name;
+    }
+
+    private final String name;
+
     private CausalGraph(
+            String name,
             IndexMap<NodeT> nodes,
             Set<Integer> singletons,
             Map<Integer, List<Integer>> sums,
             Map<Integer, List<Integer>> prods
     ) {
+        this.name = name;
         this.nodes = nodes;
         this.singletons = singletons;
         this.sums = sums;
@@ -178,7 +189,7 @@ public class CausalGraph<NodeT> {
 
     public void dump(Path workdir) {
         try {
-            Path netFilePath = workdir.resolve("causal.txt");
+            Path netFilePath = workdir.resolve(name + ".causal.graph");
             List<String> netLines = new ArrayList<>();
             for (int nodeId = 0; nodeId < nodes.size(); nodeId++) {
                 // 1. head id
@@ -221,7 +232,7 @@ public class CausalGraph<NodeT> {
             }
             Files.write(netFilePath, netLines, StandardCharsets.UTF_8);
 
-            Path distFilePath = workdir.resolve("priors.list");
+            Path distFilePath = workdir.resolve(name + ".priors.list");
             List<String> distLines = new ArrayList<>(distNodes.size());
             for (int i = 0; i < distNodes.size(); i++) {
                 StringBuilder lb = new StringBuilder();

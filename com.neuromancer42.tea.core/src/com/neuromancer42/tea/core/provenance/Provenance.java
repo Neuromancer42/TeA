@@ -11,6 +11,11 @@ public class Provenance {
     // Constraint structures
     // TODO: optimize de-duplicate operations
 
+    public String getName() {
+        return name;
+    }
+
+    private final String name;
     private final List<ConstraintItem> clauses;
     private final List<Tuple> inputTuples;
     private final List<Tuple> outputTuples;
@@ -19,12 +24,13 @@ public class Provenance {
     private Map<Tuple, String> tupleIdMap;
     private final List<String> ruleInfos;
 
-    public Provenance(
+    public Provenance(String name,
             Collection<Tuple> tuples,
             Collection<Tuple> inputTuples, Collection<Tuple> outputTuples,
             Collection<ConstraintItem> clauses,
             List<String> ruleInfos
     ) {
+        this.name = name;
         this.ruleInfos = ruleInfos;
         this.inputTuples = new ArrayList<>(inputTuples.size());
         this.inputTuples.addAll(inputTuples);

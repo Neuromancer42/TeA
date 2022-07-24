@@ -21,7 +21,7 @@ public final class SouffleRuntime {
 
     public static void init() {
         if (runtime != null) {
-            Messages.warn("Souffle runtime has been built before, are you sure to rebuild it?");
+            Messages.warn("SouffleRuntime: runtime has been built before, are you sure to rebuild it?");
         }
         try {
             // 1. New runtime instance, setting paths and toolchains
@@ -70,8 +70,6 @@ public final class SouffleRuntime {
         }
     }
 
-    private final Path cacheDir;
-
     private final String souffle;
     private final String cppcompiler;
     private final String[] systemIncludes;
@@ -99,10 +97,9 @@ public final class SouffleRuntime {
         linkOptions = new String[]{"/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libsqlite3.tbd", "/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libz.tbd", "/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libncurses.tbd"};
         rpaths = new String[]{"/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib"};
 
-        cacheDir = Paths.get(Config.v().workDirName);
         Path tmpWorkDir = null;
         try {
-            tmpWorkDir = Files.createDirectories(cacheDir.resolve("souffle"));
+            tmpWorkDir = Files.createDirectories(Paths.get(Config.v().workDirName).resolve("souffle"));
         } catch (IOException e) {
             Messages.error("SouffleRuntime: failed to create working directory");
             Messages.fatal(e);
