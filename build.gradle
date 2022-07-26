@@ -1,0 +1,18 @@
+plugins {
+    id 'biz.aQute.bnd.workspace'
+    id 'org.jetbrains.gradle.plugin.idea-ext'
+}
+
+idea.project.settings {
+    doNotDetectFrameworks("OSGi", "bnd")
+}
+
+gradle.taskGraph.whenReady {
+    subprojects { sub ->
+        if (sub.tasks.findByName("genSWIG")) {
+            idea.project.settings.taskTriggers {
+                afterSync sub.tasks.named("genSWIG")
+            }
+        }
+    }
+}

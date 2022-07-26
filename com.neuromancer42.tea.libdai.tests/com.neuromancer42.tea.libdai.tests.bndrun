@@ -15,4 +15,4 @@
 	bnd.identity;id='org.junit.platform.launcher'
 
 -runproperties.dai: \
-    chord.work.dir=test-out,chord.dai.runtime.path=/Users/neuromancer/Workspace/tdd-analysis/libdai/cmake-build-debug/libdaifg.dylib
+    chord.work.dir=test-out,chord.dai.runtime.path=/Users/neuromancer/Workspace/tdd-analysis/libdai/cmake-build-debug/libdaifg.jnilib

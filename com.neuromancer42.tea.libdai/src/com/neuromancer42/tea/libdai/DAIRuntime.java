@@ -5,12 +5,15 @@ import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.IndexMap;
+import org.apache.commons.lang3.SystemUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,10 +29,36 @@ public class DAIRuntime {
     }
 
     public static void init() {
-        runtime = new DAIRuntime();
-        Path libdaifgPath = Paths.get(System.getProperty("chord.dai.runtime.path", "libdai.dylib"));
-        System.load(libdaifgPath.toAbsolutePath().toString());
-        Messages.log("DAIRuntime: libdai runtime has been loaded");
+        // 1. new runtime instance, setting paths
+        Path tmpWorkDir = null;
+        try {
+            tmpWorkDir = Files.createDirectories(Paths.get(Config.v().workDirName).resolve("dai"));
+        } catch (IOException e) {
+            Messages.error("DAIRuntime: failed to create working directory");
+            Messages.fatal(e);
+        }
+        runtime = new DAIRuntime(tmpWorkDir);
+
+        try {
+            // Currently, no OS check is needed as all packages are locally built
+//            if (SystemUtils.IS_OS_MAC_OSX || SystemUtils.IS_OS_LINUX) {
+//
+//            } else {
+//                throw new RuntimeException("Not supported yet!");
+//            }
+            // 2. copy jnilib from bundles
+            InputStream daifgJNIStream = DAIRuntime.class.getResourceAsStream("swig/jnilib/libdaifg.jnilib");
+            Path daifgJNIPath = runtime.workDir.resolve("libdaifg.jnilib");
+            assert daifgJNIStream != null;
+            Files.copy(daifgJNIStream, daifgJNIPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // 3. load library
+            System.load(daifgJNIPath.toAbsolutePath().toString());
+            Messages.log("DAIRuntime: libdai runtime has been loaded");
+        } catch (IOException | RuntimeException e ) {
+            Messages.error("DAIRuntime: failed to initialize libdai runtime.");
+            Messages.fatal(e);
+        }
     }
 
     public Path getWorkDir() {
@@ -38,15 +67,8 @@ public class DAIRuntime {
 
     private final Path workDir;
 
-    public DAIRuntime() {
-        Path tmpWorkDir = null;
-        try {
-            tmpWorkDir = Files.createDirectories(Paths.get(Config.v().workDirName).resolve("dai"));
-        } catch (IOException e) {
-            Messages.error("DAIRuntime: failed to create working directory");
-            Messages.fatal(e);
-        }
-        workDir = tmpWorkDir;
+    public DAIRuntime(Path workDir) {
+        this.workDir = workDir;
     }
 
     public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph<String> causalGraph, int numRepeats) throws IOException {
