@@ -49,7 +49,7 @@ tasks.named("compileJava") {
 }
 
 tasks.named("processResources") {
-    configure { dependsOn tasks.named("genSWIG")}
+    configure { dependsOn tasks.named("compileSWIG")}
 }
 
 sourceSets.main {

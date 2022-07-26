@@ -24,6 +24,3 @@ out/
 *.o
 *.so
 *.dylib
-**/swig/*
-!**/swig/*.h
-!**/swig/*.i

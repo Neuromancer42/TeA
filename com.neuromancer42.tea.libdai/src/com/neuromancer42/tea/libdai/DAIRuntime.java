@@ -29,6 +29,10 @@ public class DAIRuntime {
     }
 
     public static void init() {
+        if (runtime != null) {
+            Messages.warn("DAIRuntime: runtime has been built before, are you sure to rebuild it?");
+        }
+
         // 1. new runtime instance, setting paths
         Path tmpWorkDir = null;
         try {
