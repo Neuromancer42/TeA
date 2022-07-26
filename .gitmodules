@@ -1,3 +1,5 @@
 [submodule "com.neuromancer42.tea.libdai/libdai"]
 	path = com.neuromancer42.tea.libdai/libdai
 	url = https://github.com/Neuromancer42/libdai
+	branch = master
+	update = rebase
