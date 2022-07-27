@@ -44,15 +44,16 @@ public class DAIRuntime {
         runtime = new DAIRuntime(tmpWorkDir);
 
         try {
-            // Currently, no OS check is needed as all packages are locally built
-//            if (SystemUtils.IS_OS_MAC_OSX || SystemUtils.IS_OS_LINUX) {
-//
-//            } else {
-//                throw new RuntimeException("Not supported yet!");
-//            }
+            String libraryFileName = null;
+            if (SystemUtils.IS_OS_MAC_OSX) {
+                libraryFileName = "libdaifg.jnilib";
+            } else {
+                throw new RuntimeException("Not supported yet!");
+            }
             // 2. copy jnilib from bundles
-            InputStream daifgJNIStream = DAIRuntime.class.getResourceAsStream("swig/jnilib/libdaifg.jnilib");
-            Path daifgJNIPath = runtime.workDir.resolve("libdaifg.jnilib");
+            Messages.log("DAIRuntime: loading libdai runtime file " + libraryFileName);
+            InputStream daifgJNIStream = DAIRuntime.class.getResourceAsStream("swig/jnilib/" + libraryFileName);
+            Path daifgJNIPath = runtime.workDir.resolve(libraryFileName);
             assert daifgJNIStream != null;
             Files.copy(daifgJNIStream, daifgJNIPath, StandardCopyOption.REPLACE_EXISTING);
 
