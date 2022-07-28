@@ -24,7 +24,7 @@ public class SouffleSingleRunTest {
         SouffleRuntime.init();
         String dlogName = System.getProperty("dlog");
         System.err.println("Opening " + dlogName);
-        analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple1", "simple1", new File(dlogName));
+        analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple", "simple1", new File(dlogName));
         List<String> inputLines = new ArrayList<>();
         inputLines.add("1\t2");
         inputLines.add("2\t3");
