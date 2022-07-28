@@ -6,6 +6,7 @@ import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,7 +24,7 @@ public class SouffleSingleRunTest {
         SouffleRuntime.init();
         String dlogName = System.getProperty("dlog");
         System.err.println("Opening " + dlogName);
-        analysis = new SouffleAnalysis("simple1", dlogName);
+        analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple1", "simple1", new File(dlogName));
         List<String> inputLines = new ArrayList<>();
         inputLines.add("1\t2");
         inputLines.add("2\t3");

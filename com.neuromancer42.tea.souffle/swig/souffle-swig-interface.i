@@ -23,14 +23,14 @@ namespace std {
 }
 
 %{
-#include "SwigInterface.h"
+#include "souffle-swig-interface.h"
 #include <iostream>
 #include <map>
 #include <string>
 #include <vector>
 %}
 
-%include "SwigInterface.h"
+%include "souffle-swig-interface.h"
 
 %newobject newInstance;
 SWIGSouffleProgram* newInstance(const std::string& name);

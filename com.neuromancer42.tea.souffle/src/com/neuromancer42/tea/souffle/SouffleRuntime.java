@@ -2,6 +2,8 @@ package com.neuromancer42.tea.souffle;
 
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.souffle.swig.SWIGSouffleProgram;
+import com.neuromancer42.tea.souffle.swig.SwigInterface;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.*;
@@ -23,80 +25,8 @@ public final class SouffleRuntime {
         if (runtime != null) {
             Messages.warn("SouffleRuntime: runtime has been built before, are you sure to rebuild it?");
         }
-        try {
-            // 1. New runtime instance, setting paths and toolchains
-            runtime = new SouffleRuntime();
 
-            // 2. copy source files from bundles
-            InputStream swigInterfaceHeaderStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface.h");
-            Path swigInterfaceHeader = runtime.workDir.resolve("SwigInterface.h");
-            assert swigInterfaceHeaderStream != null;
-            Files.copy(swigInterfaceHeaderStream, swigInterfaceHeader, StandardCopyOption.REPLACE_EXISTING);
-            InputStream swigInterfaceObjStream = SouffleRuntime.class.getResourceAsStream("swig/SwigInterface_wrap.o");
-            Path swigInterfaceObj = runtime.workDir.resolve("SwigInterface_wrap.o");
-            assert swigInterfaceObjStream != null;
-            Files.copy(swigInterfaceObjStream, swigInterfaceObj, StandardCopyOption.REPLACE_EXISTING);
-
-            // 3. Use C++ to compile libSwigInterface and load it
-            List<String> linkCmd = new ArrayList<>();
-            linkCmd.add(runtime.cppcompiler);
-            linkCmd.add(swigInterfaceObj.toAbsolutePath().toString());
-            String libraryFile;
-            if (SystemUtils.IS_OS_MAC_OSX) {
-                linkCmd.add("-dynamiclib");
-                libraryFile = "libSwigInterface.dylib";
-            } else if (SystemUtils.IS_OS_LINUX) {
-                linkCmd.add("-shared");
-                libraryFile = "libSwigInterface.so";
-            } else {
-                throw new RuntimeException("Not supported yet!");
-            }
-            linkCmd.add("-o");
-            linkCmd.add(libraryFile);
-            ProcessBuilder linkBuilder = new ProcessBuilder(linkCmd);
-            linkBuilder.directory(runtime.workDir.toFile());
-            Process linkProcess = linkBuilder.start();
-            int linkRetVal = linkProcess.waitFor();
-            if (linkRetVal != 0) {
-                Messages.log(new String(linkProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-                String errString = new String(linkProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-                throw new RuntimeException(errString);
-            }
-            Path libSwigInterfacePath = runtime.workDir.resolve(libraryFile);
-            System.load(libSwigInterfacePath.toAbsolutePath().toString());
-        } catch (IOException | RuntimeException | InterruptedException e) {
-            Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
-            Messages.fatal(e);
-        }
-    }
-
-    private final String souffle;
-    private final String cppcompiler;
-    private final String[] systemIncludes;
-    private final String javaHeaders;
-    private final String jniHeaders;
-
-    private final String[] linkOptions;
-    private final String[] rpaths;
-
-    public Path getWorkDir() {
-        return workDir;
-    }
-
-    private final Path workDir;
-
-    private Set<String> loadedLibraries;
-
-    private SouffleRuntime() {
-        // 0. TODO: get paths from environmental variables
-        cppcompiler = "/usr/local/bin/g++-11";
-        systemIncludes = new String[]{"/usr/local/include","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/include"};
-        javaHeaders = "/Library/Java/JavaVirtualMachines/jdk-11.0.14.jdk/Contents/Home/include";
-        jniHeaders = "/Library/Java/JavaVirtualMachines/jdk-11.0.14.jdk/Contents/Home/include/darwin";
-
-        linkOptions = new String[]{"/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libsqlite3.tbd", "/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libz.tbd", "/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib/libncurses.tbd"};
-        rpaths = new String[]{"/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib","/Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk/usr/lib"};
-
+        // 1. New runtime instance, setting paths and toolchains
         Path tmpWorkDir = null;
         try {
             tmpWorkDir = Files.createDirectories(Paths.get(Config.v().workDirName).resolve("souffle"));
@@ -104,149 +34,209 @@ public final class SouffleRuntime {
             Messages.error("SouffleRuntime: failed to create working directory");
             Messages.fatal(e);
         }
-        workDir = tmpWorkDir;
-        souffle = "souffle";
-
-        loadedLibraries = new HashSet<>();
-    }
-
-    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance) {
-        String dlogFileName = analysis + ".dl";
-        Path dlogFilePath = workDir.resolve(analysis + ".dl");
+        runtime = new SouffleRuntime(tmpWorkDir);
         try {
-            Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            Messages.error("SouffleRuntime: error while copying dlog file %s", dlogFileName);
+            // 0. copy files from bundles
+            {
+                InputStream souffleCMakeStream = SouffleRuntime.class.getResourceAsStream("swig/CMakeLists.txt");
+                Path souffleCMakePath = runtime.workDir.resolve("CMakeLists.txt");
+                assert souffleCMakeStream != null;
+                Files.copy(souffleCMakeStream, souffleCMakePath, StandardCopyOption.REPLACE_EXISTING);
+                InputStream souffleSrcStream = SouffleRuntime.class.getResourceAsStream("swig/souffle-swig-interface_wrap.cxx");
+                Path souffleSrcPath = runtime.workDir.resolve("souffle-swig-interface_wrap.cxx");
+                assert souffleSrcStream != null;
+                Files.copy(souffleSrcStream, souffleSrcPath, StandardCopyOption.REPLACE_EXISTING);
+                InputStream souffleHeaderStream = SouffleRuntime.class.getResourceAsStream("swig/souffle-swig-interface.h");
+                Path souffleHeaderPath = runtime.workDir.resolve("souffle-swig-interface.h");
+                assert souffleHeaderStream != null;
+                Files.copy(souffleHeaderStream, souffleHeaderPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // 1. get target name for specific OS
+            String libraryFileName;
+            if (SystemUtils.IS_OS_MAC_OSX) {
+                libraryFileName = "lib"+"souffle"+".dylib";
+            } else {
+                throw new RuntimeException("Not supported yet!");
+            }
+
+            // 2. build native library and install it to workdir
+            Path cmakeDir = Files.createDirectories(runtime.workDir.resolve("cmake-build"));
+            {
+                List<String> cmakeCmd = new ArrayList<>();
+                cmakeCmd.add("cmake");
+                cmakeCmd.add("-DBUILD_WRAPPER=On");
+                if (System.getProperty("java.home") != null)
+                    cmakeCmd.add("-DJAVA_HOME=" + System.getProperty("java.home"));
+                cmakeCmd.add("..");
+                executeExternal(cmakeCmd, cmakeDir);
+            }
+            {
+                List<String> makeCmd = new ArrayList<>();
+                makeCmd.add("make");
+                executeExternal(makeCmd, cmakeDir);
+            }
+            {
+                List<String> installCmd = new ArrayList<>();
+                installCmd.add("cmake");
+                installCmd.add("--install");
+                installCmd.add(".");
+                installCmd.add("--prefix");
+                installCmd.add(runtime.workDir.toAbsolutePath().toString());
+                executeExternal(installCmd, cmakeDir);
+            }
+
+
+            // 3. load library
+            Path souffleJNIPath = runtime.workDir.resolve("native").resolve(libraryFileName);
+            System.load(souffleJNIPath.toAbsolutePath().toString());
+            Messages.log("SouffleRuntime: souffle runtime has been loaded");
+        } catch (IOException | RuntimeException | InterruptedException e) {
+            Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
             Messages.fatal(e);
         }
+    }
 
+    private static void executeExternal(List<String> cmd, Path path) throws IOException, InterruptedException {
+        ProcessBuilder cmakeBuilder = new ProcessBuilder(cmd);
+        cmakeBuilder.directory(path.toFile());
+        Process cmakeProcess = cmakeBuilder.start();
+        int cmakeRetVal = cmakeProcess.waitFor();
+        if (cmakeRetVal != 0) {
+            Messages.log(new String(cmakeProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            String errString = new String(cmakeProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            throw new RuntimeException(errString);
+        }
+    }
+
+    public Path getWorkDir() {
+        return workDir;
+    }
+
+    private final Path workDir;
+
+    private final Set<String> loadedLibraries;
+    private final Map<String, String> loadedProvenances;
+
+    private SouffleRuntime(Path workDir) {
+        this.workDir = workDir;
+        loadedLibraries = new HashSet<>();
+        loadedProvenances = new HashMap<>();
+    }
+
+    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance, boolean withDebug) {
+        if (loadedLibraries.contains(analysis)) {
+            Messages.warn("SouffleRuntime: analysis %s has been loaded before!", analysis);
+            return;
+        }
         try {
-            // compile dlog file to generated cpp source
-            String cppFileName = analysis + ".cpp";
-            Path cppSourcePath = souffleCompileDlog(dlogFileName, cppFileName, withProvenance);
+            // 0. copy files
+            String dlogFileName = analysis + ".dl";
+            Path dlogFilePath = workDir.resolve(dlogFileName);
+            Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
 
-            // compile source file to object
-            String objectName = analysis + ".o";
-            Path objectPath = compileSouffleCPP(cppSourcePath, objectName, true);
+            // 1. get target name for specific OS
+            String provenance = analysis + "_wP";
+            String analysisLibName;
+            String provLibName;
+            if (SystemUtils.IS_OS_MAC_OSX) {
+                analysisLibName = "lib"+analysis+".dylib";
+                provLibName = "lib"+provenance+".dylib";
+            } else {
+                throw new RuntimeException("Not supported yet!");
+            }
 
-            // link the object and generate a dynamic library loadable by jvm
-            Path libraryPath = linkSouffleObj(objectPath, analysis);
+            // 1. build native library and load it
+            Path cmakeDir = workDir.resolve("cmake-build");
+            {
+                List<String> cmakeCmd = new ArrayList<>();
+                cmakeCmd.add("cmake");
+                cmakeCmd.add("-DBUILD_WRAPPER=Off");
+                cmakeCmd.add("-DANALYSIS_NAME="+analysis);
+                if (withDebug) {
+                    cmakeCmd.add("-DENABLE_EXE=On");
+                } else {
+                    cmakeCmd.add("-DENABLE_EXE=Off");
+                }
+                if (withProvenance) {
+                    cmakeCmd.add("-DENABLE_PROVENANCE=On");
+                } else {
+                    cmakeCmd.add("-DENABLE_PROVENANCE=Off");
+                }
+                if (System.getProperty("java.home") != null)
+                    cmakeCmd.add("-DJAVA_HOME=" + System.getProperty("java.home"));
+                cmakeCmd.add("..");
+                executeExternal(cmakeCmd, cmakeDir);
+            }
+            {
+                List<String> makeCmd = new ArrayList<>();
+                makeCmd.add("make");
+                executeExternal(makeCmd, cmakeDir);
+            }
+            {
+                List<String> installCmd = new ArrayList<>();
+                installCmd.add("cmake");
+                installCmd.add("--install");
+                installCmd.add(".");
+                installCmd.add("--prefix");
+                installCmd.add(runtime.workDir.toAbsolutePath().toString());
+                executeExternal(installCmd, cmakeDir);
+            }
 
-            System.load(libraryPath.toAbsolutePath().toString());
+            // 3. load library
+            Path analysisLibPath = runtime.workDir.resolve("native").resolve(analysisLibName);
+            System.load(analysisLibPath.toAbsolutePath().toString());
+            Messages.log("SouffleRuntime: analysis runtime %s has been loaded", analysisLibName);
+            loadedLibraries.add(analysis);
+            if (withProvenance) {
+                Path provLibPath = runtime.workDir.resolve("native").resolve(provLibName);
+                System.load(provLibPath.toAbsolutePath().toString());
+                Messages.log("SouffleRuntime: provenance runtime %s has been loaded", provLibName);
+                loadedProvenances.put(analysis, provenance);
+            }
         } catch (IOException | InterruptedException e) {
             Messages.error("SouffelRuntime: failed to compile runtime of analysis %s", analysis);
             Messages.fatal(e);
         }
-        if (loadedLibraries.contains(analysis)) {
-            Messages.warn("SouffleRuntime: analysis %s has been loaded before", analysis);
-        }
-        loadedLibraries.add(analysis);
     }
 
-    public void loadDlog(String analysis, File dlogFile, boolean withProvenance) {
+    public boolean hasLoaded(String analysis) {
+        return loadedLibraries.contains(analysis);
+    }
+
+    public String hasLoadedProvenance(String analysis) {
+        return loadedProvenances.get(analysis);
+    }
+
+    public SouffleAnalysis createSouffleAnalysisFromFile(String name, String analysis, File dlogFile) {
+        SouffleAnalysis ret = null;
         try {
-            loadDlog(analysis, new FileInputStream(dlogFile), withProvenance);
-        } catch (Exception e) {
-            Messages.error("SouffleRuntime: failed to load souffle analysis '%s'", analysis);
-            Messages.fatal(e);
+            ret = createSouffleAnalysisFromStream(name, analysis, new FileInputStream(dlogFile));
+        } catch (FileNotFoundException e) {
+            Messages.error("SouffleRuntime: the referenced dlog file of analysis %s does not exists!", name, analysis);
         }
+        return ret;
     }
 
-    private Path souffleCompileDlog(String dlogFileName, String cppFileName, boolean withProvenance) throws IOException, InterruptedException {
-        List<String> souffleCmd = new ArrayList<>();
-        souffleCmd.add(souffle);
-        souffleCmd.add(dlogFileName);
-        souffleCmd.add("-g");
-        souffleCmd.add(cppFileName);
-        if (withProvenance) {
-            souffleCmd.add("-t");
-            souffleCmd.add("none");
-        }
-        ProcessBuilder souffleBuilder = new ProcessBuilder(souffleCmd);
-        souffleBuilder.directory(workDir.toFile());
-        Process souffleProcess = souffleBuilder.start();
-        int souffleRetVal = souffleProcess.waitFor();
-        if (souffleRetVal != 0) {
-            Messages.log(new String(souffleProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            String errString = new String(souffleProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            throw new RuntimeException(errString);
-        }
-        Path cppSourcePath = workDir.resolve(cppFileName);
-        return cppSourcePath;
-    }
-
-    private Path compileSouffleCPP(Path cppPath, String objectName, boolean debug) throws IOException, InterruptedException {
-        List<String> compileCmd = new ArrayList<>();
-        compileCmd.add(cppcompiler);
-        compileCmd.add("-c");
-        compileCmd.add(cppPath.toAbsolutePath().toString());
-        final String std_flag = "-std=c++17";
-        compileCmd.add(std_flag);
-        final String release_cxx_flags = "-O3";
-        final String debug_cxx_flags = "-g";
-        if (debug) {
-            compileCmd.add(debug_cxx_flags);
+    public SouffleAnalysis createSouffleAnalysisFromStream(String name, String analysis, InputStream dlogStream) {
+        if (hasLoaded(analysis)) {
+            Messages.warn("SouffleRuntime: the analysis %s has been loaded before!");
         } else {
-            compileCmd.add(release_cxx_flags);
+            loadDlog(analysis, dlogStream, true, false);
         }
-        final String[] cxx_flags = {"-fPIC", "-fopenmp"};
-        compileCmd.addAll(Arrays.asList(cxx_flags));
-        final String[] definitions = {"-D__EMBEDDED_SOUFFLE__","-DUSE_NCURSES","-DUSE_LIBZ","-DUSE_SQLITE"};
-        compileCmd.addAll(Arrays.asList(definitions));
-        if (!debug)
-            compileCmd.add("-DNDEBUG");
-        List<String> includes = new ArrayList<>(List.of(systemIncludes));
-        includes.add(javaHeaders);
-        includes.add(jniHeaders);
-        for (String inc : includes) {
-            compileCmd.add("-I");
-            compileCmd.add(inc);
-        }
-        compileCmd.add("-o");
-        compileCmd.add(objectName);
-
-        ProcessBuilder compileBuilder = new ProcessBuilder(compileCmd);
-        compileBuilder.directory(workDir.toFile());
-        Process compileProcess = compileBuilder.start();
-        int compileRetVal = compileProcess.waitFor();
-        if (compileRetVal != 0) {
-            Messages.log(new String(compileProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            String errString = new String(compileProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            throw new RuntimeException(errString);
-        }
-        return workDir.resolve(objectName);
+        return createSouffleAnalysis(name, analysis);
     }
 
-    private Path linkSouffleObj(Path objectPath, String targetName) throws IOException, InterruptedException {
-        List<String> linkCmd = new ArrayList<>();
-        linkCmd.add(cppcompiler);
-        linkCmd.add(objectPath.toAbsolutePath().toString());
-        String libraryFile;
-        if (SystemUtils.IS_OS_MAC_OSX) {
-            linkCmd.add("-dynamiclib");
-            libraryFile = targetName + ".dylib";
-        } else if (SystemUtils.IS_OS_LINUX) {
-            linkCmd.add("-shared");
-            libraryFile = targetName + ".so";
-        } else {
-            throw new RuntimeException("Not supported yet!");
+    public SouffleAnalysis createSouffleAnalysis(String name, String analysis) {
+        if (!hasLoaded(analysis)) {
+            Messages.fatal("SouffleRuntime: the analysis %s has not been loaded yet!");
         }
-        linkCmd.add("-o");
-        linkCmd.add(libraryFile);
-        linkCmd.add("-fopenmp");
-        linkCmd.addAll(Arrays.asList(linkOptions));
-        for (String rpath: rpaths) {
-            linkCmd.add(String.format("-Wl,-rpath,%s", rpath));
+        SWIGSouffleProgram program = SwigInterface.newInstance(analysis);
+        SWIGSouffleProgram provProgram = null;
+        String provName = hasLoadedProvenance(analysis);
+        if (provName != null) {
+            provProgram = SwigInterface.newInstance(provName);
         }
-        ProcessBuilder linkBuilder = new ProcessBuilder(linkCmd);
-        linkBuilder.directory(workDir.toFile());
-        Process linkProcess = linkBuilder.start();
-        int linkRetVal = linkProcess.waitFor();
-        if (linkRetVal != 0) {
-            Messages.log(new String(linkProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            String errString = new String(linkProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            throw new RuntimeException(errString);
-        }
-        return workDir.resolve(libraryFile);
+        return new SouffleAnalysis(name, analysis, program, provProgram);
     }
 }
