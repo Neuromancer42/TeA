@@ -23,3 +23,5 @@ include 'com.neuromancer42.tea.core.tests'
 include 'com.neuromancer42.tea.program.cdt.tests'
 include 'com.neuromancer42.tea.souffle.tests'
 include 'com.neuromancer42.tea.libdai.tests'
+
+include 'com.neuromancer42.tea.tests'

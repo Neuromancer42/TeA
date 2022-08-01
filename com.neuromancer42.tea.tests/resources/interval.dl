@@ -1,0 +1,10 @@
+.type M <: unsigned
+.type P <: unsigned
+
+.decl MPentry(m:M,p:P)
+.input MPentry
+
+.decl MP(m:M,p:P)
+.output MP
+
+MP(m,p) :- MPentry(m,p).

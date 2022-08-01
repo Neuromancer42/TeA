@@ -98,7 +98,7 @@ public class OsgiProject extends Project {
     
     private Map<String, Set<ITask>> trgtNameToProducingTasksMap = new HashMap<>();
     //private Map<ITask, Set<String>> taskToConsumedTrgtNamesMap = new HashMap<>();
-    
+
     // record done jobs
     private Set<ITask> doneTasks = new HashSet<ITask>();
     private Map<String, Supplier<Object>> doneNameToTrgtProducerMap = new HashMap<>();
@@ -147,8 +147,7 @@ public class OsgiProject extends Project {
         	if (nameToTaskMap.put(name, task) != null) {
         		Messages.fatal(MULTIPLE_TASKS_BY_NAME, name);
         	}
-        	
-        	Map<String, Consumer<Object>> consmuerMap = new HashMap<>();
+
         	// first, find signatures in the registered properties
         	// note that both should be exact
         	Map<String, Pair<TrgtInfo, Supplier<Object>>> production = null;
@@ -431,6 +430,7 @@ public class OsgiProject extends Project {
             Object trgt = getTrgt(trgtName);
             assert (trgt != null);
             doneCachedNameToTrgtMap.put(trgtName, trgt);
+//            Messages.log("OsgiProject: passing target %s: %s", trgtName, trgt.toString());
             trgtConsumers.get(trgtName).accept(trgt);
             Set<ITask> consumingTasks = doneTrgtToConsumingTasksMap.get(trgt);
             if (consumingTasks == null) {
@@ -570,5 +570,9 @@ public class OsgiProject extends Project {
                 msg += "\t'" + taskName + "'\n";
             Messages.log(msg);
         }
+    }
+
+    public Set<ITask> getDoneTasks() {
+        return doneTasks;
     }
 }

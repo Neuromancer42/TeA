@@ -4,5 +4,5 @@
     org.eclipse.cdt.core,\
     org.eclipse.equinox.common
 
--dependson: \
-    com.neuromancer42.tea.core
+Export-Package: \
+    com.neuromancer42.tea.program.cdt;-noimport:=true

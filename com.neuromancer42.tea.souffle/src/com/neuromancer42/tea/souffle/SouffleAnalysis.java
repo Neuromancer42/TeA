@@ -175,6 +175,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
 
     private void dumpRel(ProgramRel rel) {
         Path factPath = factDir.resolve(rel.getName()+".facts");
+        Messages.log("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
         try {
             List<String> lines = new ArrayList<>();
             Rel.AryNIterable tuples = rel.getAryNValTuples();
