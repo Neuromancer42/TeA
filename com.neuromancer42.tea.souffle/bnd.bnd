@@ -5,3 +5,5 @@
 
 Export-Package: !com.neuromancer42.tea.souffle.swig, \
     com.neuromancer42.tea.souffle;-noimport:=true
+
+Bundle-Activator: com.neuromancer42.tea.souffle.SouffleActivator

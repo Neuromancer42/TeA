@@ -115,6 +115,10 @@ public final class SouffleRuntime {
 
     private final Path workDir;
 
+    public Set<String> getLoadedLibraries() {
+        return loadedLibraries;
+    }
+
     private final Set<String> loadedLibraries;
     private final Map<String, String> loadedProvenances;
 

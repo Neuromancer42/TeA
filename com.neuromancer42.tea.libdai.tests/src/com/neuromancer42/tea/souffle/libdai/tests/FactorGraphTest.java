@@ -22,10 +22,6 @@ public class FactorGraphTest {
 
     @BeforeAll
     public static void setup() {
-        Config.init();
-        Messages.log("Initialized");
-        DAIRuntime.init();
-
         List<String> nodes = new ArrayList<>();
         nodes.add("Coin1");  nodes.add("Coin2");
         nodes.add("Or"); nodes.add("And");

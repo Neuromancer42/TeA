@@ -23,8 +23,6 @@ public class CIntervalTest {
 
     @BeforeAll
     public static void registerAnalyses() {
-        Config.init();
-        SouffleRuntime.init();
         Messages.log("Registering CParser");
         CParser cparser = new CParser();
         AnalysesUtil.registerAnalysis(context, cparser);
@@ -35,7 +33,6 @@ public class CIntervalTest {
         AnalysesUtil.registerAnalysis(context, interval);
 
         OsgiProject.init();
-        DAIRuntime.init();
     }
 
     @Test

@@ -3,8 +3,6 @@ package com.neuromancer42.tea.core.project;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -16,8 +14,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.osgi.framework.BundleContext;
@@ -30,9 +26,6 @@ import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.TrgtInfo;
-import com.neuromancer42.tea.core.bddbddb.Dom;
-import com.neuromancer42.tea.core.bddbddb.RelSign;
-import com.neuromancer42.tea.core.util.ArraySet;
 import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.core.util.Utils;
 import com.neuromancer42.tea.core.util.tuple.object.Pair;
@@ -444,7 +437,7 @@ public class OsgiProject extends Project {
         timer.done();
         if (Config.v().verbose >= 1) {
             System.out.println("LEAVE: " + task);
-            printTimer(timer);
+            Timer.printTimer(timer);
         }
         setTaskDone(task);
         Map<String, Supplier<Object>> newProduced = taskToTrgtProducersMap.get(task);
@@ -453,11 +446,6 @@ public class OsgiProject extends Project {
         }
     }
 
-    private static void printTimer(Timer timer) {
-        System.out.println("Exclusive time: " + timer.getExclusiveTimeStr());
-        System.out.println("Inclusive time: " + timer.getInclusiveTimeStr());
-    }
-    
     public ITask runTask(String name) {
         ITask task = nameToTaskMap.get(name);
         runTask(task);

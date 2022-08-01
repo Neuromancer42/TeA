@@ -21,6 +21,12 @@ public class Timer {
     public Timer(String name) {
         this.name = name;
     }
+
+    public static void printTimer(Timer timer) {
+        System.out.println("Exclusive time: " + timer.getExclusiveTimeStr());
+        System.out.println("Inclusive time: " + timer.getInclusiveTimeStr());
+    }
+
     public void init() {
         if (initDate != null)
             throw new RuntimeException("Timer '" + name + "' already started.");

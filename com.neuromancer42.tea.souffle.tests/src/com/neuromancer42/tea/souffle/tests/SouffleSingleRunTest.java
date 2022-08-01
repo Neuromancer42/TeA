@@ -20,8 +20,6 @@ public class SouffleSingleRunTest {
 
     @BeforeAll
     public static void setup() throws IOException {
-        Config.init();
-        SouffleRuntime.init();
         String dlogName = System.getProperty("dlog");
         System.err.println("Opening " + dlogName);
         analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple", "simple1", new File(dlogName));

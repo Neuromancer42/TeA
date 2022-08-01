@@ -22,6 +22,9 @@ public class Config {
 
 	public static void init()
 	{
+        if (v != null) {
+            System.err.println("Config: Config has been initialized before, are you sure to re-init?");
+        }
 		v = new Config();
 	}
 

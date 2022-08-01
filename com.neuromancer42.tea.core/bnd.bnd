@@ -7,3 +7,5 @@
 -dependson: com.neuromancer42.tea.bddbddb
 
 Export-Package: com.neuromancer42.tea.core.*;-noimport:=true
+
+Bundle-Activator: com.neuromancer42.tea.core.project.CoreActivator

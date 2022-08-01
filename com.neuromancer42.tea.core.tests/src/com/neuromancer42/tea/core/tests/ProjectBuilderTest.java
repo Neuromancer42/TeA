@@ -42,7 +42,6 @@ public class ProjectBuilderTest {
 		ConsumeOne task2 = new ConsumeOne();
 		AnalysesUtil.registerAnalysis(context, task2);
 
-		Config.init();
 		OsgiProject.init();
 		Set<String> tasks = Project.g().getTasks();
 		assertTrue(tasks.contains(task.getName()));
