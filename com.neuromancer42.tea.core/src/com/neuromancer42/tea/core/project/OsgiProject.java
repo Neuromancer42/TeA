@@ -1,17 +1,8 @@
 package com.neuromancer42.tea.core.project;
 
-import java.io.File;
 import java.io.FilenameFilter;
 import java.io.PrintWriter;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -37,35 +28,8 @@ import com.neuromancer42.tea.core.util.tuple.object.Pair;
  * @author Yifan Chen 
  */
 public class OsgiProject extends Project {
-    private static final String NULL_BUNDLE_CONTEXT =
-    		"OsgiProject: No bundle context, is it running in a osgi framework?";
 
-    private static final String ANON_TASK = 
-    		"OsgiProject: Anonymous task %s, using class simplename instead.";
-    private static final String CONFIG_CAST_ERROR = 
-    		"OsgiProject: Error in casting configuration of task %s: %s";
-    private static final String TASK_NO_INPUT = 
-    		"OsgiProject: Task %s registers no input";
-    private static final String TASK_NO_OUTPUT = 
-    		"OsgiProject: Task %s registers no output";
-    private static final String TRGT_TYPECHECK_FAIL = 
-    		"OsgiProject: Typecheck fail for trgt %s, produced type %s may be cast to %s";
-    
-    
-    private static final String TASK_NOT_FOUND =
-    		"OsgiProject: Task named '%s' not found in project.";
-    private static final String TASK_PRODUCING_TRGT_NOT_FOUND =
-    		"OsgiProject: No task producing target '%s' found in project.";
-    private static final String MULTIPLE_TASKS_PRODUCING_TRGT =
-    		"OsgiProject: Multiple tasks produced target '%s'";
-    private static final String CANNOT_DECIDE_TASK = 
-    		"OsgiProject: Cannot decide task for trgt %s; include exactly one of them via property 'chord.run.analyses'.";
 
-    private static final String TRGT_NOT_PRODUCED = 
-    		"OsgiProject: Target named '%s' not produced yet in other tasks";
-    private static final String MULTIPLE_TASKS_BY_NAME =
-    		"OsgiProject: Multiple tasks named '%s' found in project.";
-    
     private OsgiProject() { }
 
     private static OsgiProject project = null;
@@ -93,7 +57,7 @@ public class OsgiProject extends Project {
     //private Map<ITask, Set<String>> taskToConsumedTrgtNamesMap = new HashMap<>();
 
     // record done jobs
-    private Set<ITask> doneTasks = new HashSet<ITask>();
+    private Set<ITask> doneTasks = new HashSet<>();
     private Map<String, Supplier<Object>> doneNameToTrgtProducerMap = new HashMap<>();
     private Map<String, Object> doneCachedNameToTrgtMap = new HashMap<>();
     private Map<Object, Set<ITask>> doneTrgtToConsumingTasksMap = new HashMap<>();
@@ -109,8 +73,7 @@ public class OsgiProject extends Project {
         
     	BundleContext context = FrameworkUtil.getBundle(this.getClass()).getBundleContext();
         if (context == null) {
-        	Messages.log(NULL_BUNDLE_CONTEXT);
-        	abort();
+        	Messages.fatal("OsgiProject: No bundle context, is it running in a osgi framework?");
         }
 
         // build nameToTaskMap 
@@ -119,13 +82,12 @@ public class OsgiProject extends Project {
 		try {
 			taskRefs = context.getServiceReferences(JavaAnalysis.class, null);
 		} catch (InvalidSyntaxException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			abort();
+            Messages.error("OsgiProject: failed to fetch available tasks.");
+			Messages.fatal(e);
 		}
 		
 		// for typecheck 
-		Map<String, Set<Class>> trgtNameToProducedTypesMap = new HashMap<>();
+		Map<String, Set<Class<?>>> trgtNameToProducedTypesMap = new HashMap<>();
 		
         for (ServiceReference<JavaAnalysis> taskRef : taskRefs) {
         	JavaAnalysis task = context.getService(taskRef);
@@ -133,12 +95,11 @@ public class OsgiProject extends Project {
         	String location = taskRef.getProperty(Constants.OBJECTCLASS).toString();
         	
         	if (name == null) {
-        		if (Config.v().verbose >= 2)
-        			Messages.log(ANON_TASK, task.getClass().toString());
+                Messages.warn("OsgiProject: Anonymous task %s, using class simplename instead.", task.getClass().toString());
         		name = task.getClass().getSimpleName();
         	}
         	if (nameToTaskMap.put(name, task) != null) {
-        		Messages.fatal(MULTIPLE_TASKS_BY_NAME, name);
+        		Messages.fatal("OsgiProject: Multiple tasks named '%s' found in project.", name);
         	}
 
         	// first, find signatures in the registered properties
@@ -147,8 +108,7 @@ public class OsgiProject extends Project {
         	try {
         		production = (Map<String, Pair<TrgtInfo, Supplier<Object>>>) taskRef.getProperty("output");
         	} catch (ClassCastException e) {
-        		Messages.warn(CONFIG_CAST_ERROR, location, e);
-        		production = null;
+        		Messages.warn("OsgiProject: Error in casting configuration of task %s: %s", location, e);
         	}
         	Map<String, Supplier<Object>> producerMap = new HashMap<>();
         	if (production != null) {
@@ -166,7 +126,7 @@ public class OsgiProject extends Project {
 	        			trgtNameToProducingTasksMap.put(trgtName, producers);
 	        		}
 	        		producers.add(task);
-	        		Set<Class> producedTypes = trgtNameToProducedTypesMap.get(trgtName);
+	        		Set<Class<?>> producedTypes = trgtNameToProducedTypesMap.get(trgtName);
 	        		if (producedTypes == null) {
 	        			producedTypes = new HashSet<>();
 	        			trgtNameToProducedTypesMap.put(trgtName, producedTypes);
@@ -175,7 +135,7 @@ public class OsgiProject extends Project {
 	        	}
         	} else {
         		if (Config.v().verbose >= 2)
-        			Messages.log(TASK_NO_OUTPUT, location);
+        			Messages.log("OsgiProject: Task %s registers no output", location);
         	}
         	taskToTrgtProducersMap.put(task, producerMap);
         	
@@ -183,8 +143,7 @@ public class OsgiProject extends Project {
         	try {
         		consumption = (Map<String, Pair<TrgtInfo, Consumer<Object>>>) taskRef.getProperty("input");
         	} catch (ClassCastException e) {
-        		Messages.warn(CONFIG_CAST_ERROR, location, e);
-        		consumption = null;
+        		Messages.warn("OsgiProject: Error in casting configuration of task %s: %s", location, e);
         	}
         	Map<String, Consumer<Object>> consumerMap = new HashMap<>();
 	        if (consumption != null) {
@@ -198,26 +157,27 @@ public class OsgiProject extends Project {
 	        	}
         	} else {
         		if (Config.v().verbose >= 2) 
-        			Messages.log(TASK_NO_INPUT, location);
+        			Messages.log("OsgiProject: Task %s registers no input", location);
         	}
 	        taskToTrgtConsumersMap.put(task, consumerMap);
         }
        
         // Use TrgtParser only to check type consistency
         TrgtParser trgtParser = new TrgtParser(nameToTrgtInfosMap);
-        if (!trgtParser.run())
-            abort();
+        if (!trgtParser.run()) {
+            Messages.fatal("OsgiProject: failed to parse target information.");
+        }
         // for casting safety in consumers, producers should provide subclasses
         for (String trgtName : trgtParser.getNameToTrgtTypeMap().keySet()) {
-        	Set<Class> producedTypes  = trgtNameToProducedTypesMap.get(trgtName);
+        	Set<Class<?>> producedTypes  = trgtNameToProducedTypesMap.get(trgtName);
         	if (producedTypes == null || producedTypes.isEmpty()) {
-        		Messages.warn(TASK_PRODUCING_TRGT_NOT_FOUND, trgtName);
+        		Messages.warn("OsgiProject: No task producing target '%s' found in project.", trgtName);
         		continue;
         	}
-        	Class trgtType = trgtParser.getNameToTrgtTypeMap().get(trgtName);
-        	for (Class type : producedTypes) {
+        	Class<?> trgtType = trgtParser.getNameToTrgtTypeMap().get(trgtName);
+        	for (Class<?> type : producedTypes) {
         		if (!Utils.isSubclass(type, trgtType)) {
-        			Messages.warn(TRGT_TYPECHECK_FAIL, trgtName, type, trgtType);
+        			Messages.warn("OsgiProject: Typecheck fail for trgt %s, produced type %s may be cast to %s", trgtName, type, trgtType);
         		}
         	}
         }
@@ -228,7 +188,7 @@ public class OsgiProject extends Project {
 	private void markTrgtInfo(String name, TrgtInfo info) {
 		Set<TrgtInfo> infos = nameToTrgtInfosMap.get(name);
 		if (infos == null) {
-			infos = new HashSet<TrgtInfo>();
+			infos = new HashSet<>();
 			nameToTrgtInfosMap.put(name, infos);
 		}
 		infos.add(info);
@@ -243,7 +203,7 @@ public class OsgiProject extends Project {
     	
     	trgtNameToProducingTasksMap = new HashMap<>();
     	
-    	doneTasks = new HashSet<ITask>(); 
+    	doneTasks = new HashSet<>();
     	doneNameToTrgtProducerMap = new HashMap<>();
     	doneCachedNameToTrgtMap = new HashMap<>();
     	doneTrgtToConsumingTasksMap = new HashMap<>();
@@ -255,9 +215,7 @@ public class OsgiProject extends Project {
     @Override
     public void run(String[] taskNames) {
     	scheduledTaskNames = new HashSet<>();
-    	for (String name : taskNames) {
-    		scheduledTaskNames.add(name);
-    	}
+        scheduledTaskNames.addAll(Arrays.asList(taskNames));
         for (String name : taskNames)
             runTask(name);
     }
@@ -270,9 +228,9 @@ public class OsgiProject extends Project {
         out.println("<targets " +
             "java_analysis_path=\"" + Config.v().javaAnalysisPathName + "\" " +
             "dlog_analysis_path=\"" + Config.v().dlogAnalysisPathName + "\">");
-        Map<String, Class> nameToTrgtTypeMap = trgtParser.getNameToTrgtTypeMap();
+        Map<String, Class<?>> nameToTrgtTypeMap = trgtParser.getNameToTrgtTypeMap();
         for (String trgtName : nameToTrgtTypeMap.keySet()) {
-            Class trgtClass = nameToTrgtTypeMap.get(trgtName);
+            Class<?> trgtClass = nameToTrgtTypeMap.get(trgtName);
             String kind;
             if (Utils.isSubclass(trgtClass, ProgramDom.class))
                 kind = "domain";
@@ -283,13 +241,13 @@ public class OsgiProject extends Project {
             Set<ITask> tasks = trgtNameToProducingTasksMap.get(trgtName);
             Iterator<ITask> it = tasks.iterator();
             String producerStr;
-            String otherProducersStr = "";
+            StringBuilder otherProducersStr = new StringBuilder();
             if (it.hasNext()) {
                 ITask fstTask = it.next();
                 producerStr = getNameAndURL(fstTask);
                 while (it.hasNext()) {
                     ITask task = it.next();
-                    otherProducersStr += "<producer " + getNameAndURL(task) + "/>";
+                    otherProducersStr.append("<producer ").append(getNameAndURL(task)).append("/>");
                 }
             } else
                 producerStr = "producer_name=\"-\" producer_url=\"-\"";
@@ -304,7 +262,7 @@ public class OsgiProject extends Project {
         for (String trgtName : nameToTrgtTypeMap.keySet()) {
             String trgtId = "\"" + trgtName + "_trgt\"";
             out.println(trgtId + "[label=\"\",shape=ellipse,style=filled,color=blue];");
-            Class trgtClass = nameToTrgtTypeMap.get(trgtName);
+            Class<?> trgtClass = nameToTrgtTypeMap.get(trgtName);
             for (ITask task : trgtNameToProducingTasksMap.get(trgtName)) {
                 String taskId = "\"" + task.getName() + "_task\"";
                 out.println(taskId + " -> " + trgtId + ";");
@@ -346,20 +304,21 @@ public class OsgiProject extends Project {
         // build(); similarly, only done jobs are considered
         for (String relName : relNames) {
             Object obj = getTrgt(relName);
-            if (obj == null || !(obj instanceof ProgramRel))
+            if (!(obj instanceof ProgramRel))
                 Messages.fatal("Failed to load relation " + relName);
-            ProgramRel rel = (ProgramRel) obj;
-            rel.load();
-            rel.print();
+            else {
+                ProgramRel rel = (ProgramRel) obj;
+                rel.load();
+                rel.print();
+            }
         }
     }
 
-    @Deprecated
     public ITask getTask(String name) {
         build();
         ITask task = nameToTaskMap.get(name);
         if (task == null)
-        	Messages.fatal(TASK_NOT_FOUND);
+        	Messages.fatal("OsgiProject: Task named '%s' not found in project.", name);
         return task;
     }
 
@@ -371,7 +330,7 @@ public class OsgiProject extends Project {
         		obj = producer.get();
         }
         if (obj == null) {
-        	Messages.log(TRGT_NOT_PRODUCED, name);
+        	Messages.warn("OsgiProject: Target named '%s' not produced yet in other tasks", name);
         }
         return obj;
     }
@@ -379,14 +338,14 @@ public class OsgiProject extends Project {
         Set<ITask> tasks = trgtNameToProducingTasksMap.get(trgtName);
         int n = tasks.size();
         if (n > 1) {
-            String tasksStr = "";
+            StringBuilder tasksStr = new StringBuilder();
             for (ITask task : tasks)
-                tasksStr += " " + task.getName();
+                tasksStr.append(" ").append(task.getName());
             if (Config.v().verbose >= 2)
-            	Messages.log(MULTIPLE_TASKS_PRODUCING_TRGT, tasksStr.substring(1), trgtName);
+            	Messages.warn("OsgiProject: Multiple tasks produced target '%s'", tasksStr.substring(1), trgtName);
         }
         if (n == 0)
-            Messages.fatal(TASK_PRODUCING_TRGT_NOT_FOUND, trgtName);
+            Messages.fatal("OsgiProject: No task producing target '%s' found in project.", trgtName);
         return tasks;
     }
 
@@ -398,7 +357,7 @@ public class OsgiProject extends Project {
         			.collect(Collectors.toSet());
         }
         if (candidates.size() != 1) {
-        	Messages.fatal(CANNOT_DECIDE_TASK, trgtName);
+        	Messages.fatal("OsgiProject: Cannot decide task for trgt %s; include exactly one of them via property 'chord.run.analyses'.", trgtName);
         }
         return candidates.iterator().next();
     }
@@ -406,12 +365,12 @@ public class OsgiProject extends Project {
     public void runTask(ITask task) {
         if (isTaskDone(task)) {
             if (Config.v().verbose >= 1)
-                System.out.println("TASK " + task + " ALREADY DONE.");
+                Messages.log("OsgiProject: task %s already done.", task.getName());
             return;
         }
         Timer timer = new Timer(task.getName());
         if (Config.v().verbose >= 1)
-            System.out.println("ENTER: " + task + " at " + (new Date()));
+            Messages.log("ENTER: " + task + " at " + (new Date()));
         timer.init();
         timer.pause();
         Map<String, Consumer<Object>> trgtConsumers = taskToTrgtConsumersMap.get(task);
@@ -459,7 +418,7 @@ public class OsgiProject extends Project {
 
     private void setTrgtDone(String name, Supplier<Object> producer) {
         if (doneNameToTrgtProducerMap.put(name, producer) != null) {
-        	Messages.warn(MULTIPLE_TASKS_PRODUCING_TRGT, name);
+        	Messages.warn("OsgiProject: Multiple tasks produced target '%s'", name);
         }
     }
 
@@ -509,16 +468,10 @@ public class OsgiProject extends Project {
         resetTaskDone(getTask(name));
     }
 
-    private static final FilenameFilter filter = new FilenameFilter() {
-        public boolean accept(File dir, String name) {
-            if (name.startsWith("."))
-                return false;
-            return true;
-        }
-    };
+    private static final FilenameFilter filter = (dir, name) -> !name.startsWith(".");
     
     private static String getNameAndURL(ITask task) {
-        Class clazz = task.getClass();
+        Class<?> clazz = task.getClass();
         String loc;
 //        if (clazz == DlogAnalysis.class) {
 //            loc = ((DlogAnalysis) task).getFileName();
@@ -531,7 +484,7 @@ public class OsgiProject extends Project {
     }
 
     private static String getSourceName(ITask analysis) {
-        Class clazz = analysis.getClass();
+        Class<?> clazz = analysis.getClass();
 //        if (clazz == DlogAnalysis.class)
 //            return ((DlogAnalysis) analysis).getFileName();
         return clazz.getName();
@@ -539,24 +492,24 @@ public class OsgiProject extends Project {
 
     private void undefinedTarget(String name, List<String> consumerTaskNames) {
         if (Config.v().verbose >= 2) {
-            String msg = "WARNING: '" + name + "' not declared as produced name of any task";
+            StringBuilder msg = new StringBuilder("'" + name + "' not declared as produced name of any task");
             if (consumerTaskNames.isEmpty())
-                msg += "\n";
+                msg.append("\n");
             else {
-                msg += "; declared as consumed name of following tasks:\n";
+                msg.append("; declared as consumed name of following tasks:\n");
                 for (String taskName : consumerTaskNames)
-                    msg += "\t'" + taskName + "'\n";
+                    msg.append("\t'").append(taskName).append("'\n");
             }
-            Messages.log(msg);
+            Messages.warn("OsgiProject: " + msg);
         }
     }
     
     private void redefinedTarget(String name, List<String> producerTaskNames) {
         if (Config.v().verbose >= 2) {
-            String msg = "WARNING: '" + name + "' declared as produced name of multiple tasks:\n";
+            StringBuilder msg = new StringBuilder("'" + name + "' declared as produced name of multiple tasks:\n");
             for (String taskName : producerTaskNames) 
-                msg += "\t'" + taskName + "'\n";
-            Messages.log(msg);
+                msg.append("\t'").append(taskName).append("'\n");
+            Messages.warn("OsgiProject: " + msg);
         }
     }
 

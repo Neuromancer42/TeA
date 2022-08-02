@@ -31,8 +31,4 @@ public abstract class Project {
     public abstract void printRels(String[] relNames);
     // print the project (all tasks and trgts and dependencies b/w them)
     public abstract void print();
-    protected void abort() {
-        System.err.println("Found errors (see above). Exiting ...");
-        System.exit(1);
-    }
 }

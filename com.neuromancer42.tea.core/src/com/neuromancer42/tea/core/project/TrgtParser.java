@@ -23,17 +23,17 @@ public class TrgtParser {
         "ERROR: TrgtParser: Target '%s' declared with inconsistent types '%s' and '%s' in '%s' and '%s' respectively.";
 
     private final Map<String, Set<TrgtInfo>> nameToTrgtInfosMap;
-    private final Map<String, Class> nameToTrgtTypeMap =
-        new HashMap<String, Class>();
+    private final Map<String, Class<?>> nameToTrgtTypeMap =
+        new HashMap<>();
     private final Map<String, RelSign> nameToTrgtSignMap =
-        new HashMap<String, RelSign>();
+        new HashMap<>();
     private boolean hasNoErrors = true;
     
     public TrgtParser(Map<String, Set<TrgtInfo>> nameToTrgtInfosMap) {
         this.nameToTrgtInfosMap = nameToTrgtInfosMap;
     }
 
-    public Map<String, Class> getNameToTrgtTypeMap() {
+    public Map<String, Class<?>> getNameToTrgtTypeMap() {
         return nameToTrgtTypeMap;
     }
 
@@ -47,7 +47,7 @@ public class TrgtParser {
             Set<TrgtInfo> infos = e.getValue();
             Iterator<TrgtInfo> it = infos.iterator();
             TrgtInfo fstInfo = it.next();
-            Class resType = fstInfo.type;
+            Class<?> resType = fstInfo.type;
             String resTypeLoc = fstInfo.location;
             String[] resDomNames;
             String resDomOrder;
@@ -63,7 +63,7 @@ public class TrgtParser {
             boolean corrupt = false;
             while (it.hasNext()) {
                 TrgtInfo info = it.next();
-                Class curType = info.type;
+                Class<?> curType = info.type;
                 if (curType != null) {
                     if (resType == null) {
                         resType = curType;

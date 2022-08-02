@@ -61,6 +61,7 @@ public final class SouffleRuntime {
             }
 
             // 2. build native library and install it to workdir
+            // we do not cache the generated targets, as cmake takes this responsibility
             Path cmakeDir = Files.createDirectories(runtime.workDir.resolve("cmake-build"));
             {
                 List<String> cmakeCmd = new ArrayList<>();

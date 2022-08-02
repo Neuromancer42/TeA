@@ -8,7 +8,6 @@ import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class AnalysesUtil {
     private static Dictionary<String, Object> genAnalysisProperties(JavaAnalysis task) {
@@ -56,5 +55,32 @@ public final class AnalysesUtil {
             domOrder.append('x').append(domNames[i]);
         }
         return new RelSign(domNames, domOrder.toString());
+    }
+
+    public static <T> ProgramDom<T> createProgramDom(String name) {
+        ProgramDom<T> dom = new ProgramDom<>();
+        dom.setName(name);
+        return dom;
+    }
+
+    public static ProgramRel createProgramRel(String name, ProgramDom<?>[] doms, String[] domNames, String domOrder) {
+        ProgramRel rel = new ProgramRel();
+        rel.setName(name);
+        rel.setSign(domNames, domOrder);
+        rel.setDoms(doms);
+        return rel;
+    }
+
+    public static ProgramRel createProgramRel(String name, ProgramDom<?>[] doms) {
+        ProgramRel rel = new ProgramRel();
+        rel.setName(name);
+        String[] rawDomNames = new String[doms.length];
+        for (int i = 0; i < doms.length; ++i) {
+            rawDomNames[i] = doms[i].getName();
+        }
+        RelSign defaultRelSign = genDefaultRelSign(rawDomNames);
+        rel.setSign(defaultRelSign);
+        rel.setDoms(doms);
+        return rel;
     }
 }

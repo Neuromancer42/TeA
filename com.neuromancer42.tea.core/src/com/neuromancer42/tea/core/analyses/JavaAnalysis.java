@@ -31,6 +31,18 @@ public abstract class JavaAnalysis implements ITask {
     public String getName() {
         return name;
     }
+
+    protected final <T> void registerProducedDom(ProgramDom<T> dom) {
+        TrgtInfo domInfo = new TrgtInfo(dom.getClass(), name, null);
+        producerMap.put(dom.getName(), new Pair<>(domInfo, () -> dom));
+    }
+
+    protected final void registerProducedRel(ProgramRel rel) {
+        TrgtInfo relInfo = new TrgtInfo(rel.getClass(), name, rel.getSign());
+        // TODO: Rel.save erases bdd; do some refactering
+        producerMap.put(rel.getName(), new Pair<>(relInfo, () -> { rel.load(); return rel; } ));
+    }
+
     @Override
     public void run() {
         Messages.fatal(UNDEFINED_RUN, name);

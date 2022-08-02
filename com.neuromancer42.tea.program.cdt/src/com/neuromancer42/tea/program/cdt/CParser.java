@@ -1,17 +1,15 @@
 package com.neuromancer42.tea.program.cdt;
 
-import com.neuromancer42.tea.core.analyses.JavaAnalysis;
-import com.neuromancer42.tea.core.analyses.ProgramDom;
-import com.neuromancer42.tea.core.analyses.ProgramRel;
-import com.neuromancer42.tea.core.analyses.TrgtInfo;
-import com.neuromancer42.tea.core.bddbddb.RelSign;
+import com.neuromancer42.tea.core.analyses.*;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.tuple.object.Pair;
 import org.eclipse.cdt.core.dom.ast.IASTFunctionDefinition;
 import org.eclipse.cdt.core.dom.ast.IASTNode;
+import org.eclipse.cdt.core.dom.ast.IASTStatement;
 import org.eclipse.cdt.core.dom.ast.IASTTranslationUnit;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.cdt.internal.core.dom.parser.c.CASTFunctionDefinition;
 import org.eclipse.core.runtime.CoreException;
 
 import java.io.File;
@@ -20,14 +18,14 @@ import java.util.Map;
 
 public class CParser extends JavaAnalysis {
 
-    private final DomM domM = new DomM();
-    private final DomP domP = new DomP();
+    private final ProgramDom<IASTFunctionDefinition> domM = AnalysesUtil.createProgramDom("M");
+    private final ProgramDom<IASTStatement> domP = AnalysesUtil.createProgramDom("P");
 //    private DomIU domIU;
 //    private DomITV domITV;
 //    private DomOP domOP;
 //    private DomITVP domITVP;
 
-    private final ProgramRel relMPentry = new ProgramRel();
+    private final ProgramRel relMPentry = AnalysesUtil.createProgramRel("MPentry", new ProgramDom<?>[]{domM, domP});
 
 
     public CParser() {
@@ -41,22 +39,12 @@ public class CParser extends JavaAnalysis {
 
     @Override
     protected void setProducerMap() {
-        // TODO: move this into builder method
-        domM.setName("M");
-        domP.setName("P");
         // generate basic facts
         ProgramDom[] producedDoms = new ProgramDom[]{domM, domP};
         for (ProgramDom dom : producedDoms) {
-            TrgtInfo domInfo = new TrgtInfo(dom.getClass(), name, null);
-            producerMap.put(dom.getName(), new Pair<>(domInfo, () -> dom));
+            registerProducedDom(dom);
         }
-        // TODO: move this into builder method
-        relMPentry.setName("MPentry");
-        relMPentry.setSign("M0,P0", "M0_P0");
-        relMPentry.setDoms(new ProgramDom[]{domM, domP});
-        TrgtInfo relInfo = new TrgtInfo(relMPentry.getClass(), name, relMPentry.getSign());
-        // TODO: Rel.save erases bdd; do some refactering
-        producerMap.put(relMPentry.getName(), new Pair<>(relInfo, () -> { relMPentry.load(); return relMPentry; } ));
+        registerProducedRel(relMPentry);
     }
 
 

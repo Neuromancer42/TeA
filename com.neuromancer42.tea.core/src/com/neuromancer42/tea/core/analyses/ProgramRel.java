@@ -47,7 +47,7 @@ public class ProgramRel extends Rel implements ITask {
     public String toString() {
         return name;
     }
-    public void skip(Object elem, ProgramDom dom) {
+    public void skip(Object elem, ProgramDom<?> dom) {
         Messages.log(SKIP_TUPLE, getClass().getName(), elem, dom.getClass().getName());
     }
 }
