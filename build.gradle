@@ -3,10 +3,6 @@ plugins {
     id 'org.jetbrains.gradle.plugin.idea-ext'
 }
 
-idea.project.settings {
-    doNotDetectFrameworks("OSGi", "bnd")
-}
-
 gradle.taskGraph.whenReady {
     subprojects { sub ->
         if (sub.tasks.findByName("genSWIG")) {
