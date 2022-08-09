@@ -9,6 +9,6 @@
     ${junit}
 
 -includeresource:\
-    resources/=resources\
+    resources/=resources/
 
 Test-Cases:${classes;NAMED;*Test}

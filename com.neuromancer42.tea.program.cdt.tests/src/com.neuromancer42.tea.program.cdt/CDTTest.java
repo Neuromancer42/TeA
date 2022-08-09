@@ -15,12 +15,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.net.URL;
 
-public class ParseTest {
+public class CDTTest {
     @Test
     @DisplayName("CDT core process C header correctly")
     public void test() {
         URL fileURL = this.getClass().getResource("/resources/example.h");
-        String filename = System.getProperty("sourcefile", fileURL.toString());
+        String filename = System.getProperty("headerfile", fileURL.toString());
         System.err.println("Opening " + filename);
         FileContent fileContent = FileContent.createForExternalFileLocation(filename);
         Map definedSymbols = new HashMap();

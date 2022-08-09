@@ -76,7 +76,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 domTrgtMap.put(domName, domTrgt);
                 registerConsumer(domTrgt);
             }
-            RelSign relSign = AnalysesUtil.genDefaultRelSign(relAttrs);
+            RelSign relSign = ProgramRel.genDefaultRelSign(relAttrs);
             relSignMap.put(relName, relSign);
         }
         inputRelTrgts = new HashMap<>();

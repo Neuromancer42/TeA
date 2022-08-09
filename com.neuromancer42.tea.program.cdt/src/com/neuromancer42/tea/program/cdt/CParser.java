@@ -1,9 +1,8 @@
 package com.neuromancer42.tea.program.cdt;
 
-import com.neuromancer42.tea.core.analyses.*;
-import com.neuromancer42.tea.core.bddbddb.Dom;
+import com.neuromancer42.tea.core.analyses.ProgramRel;
+import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.project.Trgt;
 import org.eclipse.cdt.core.dom.ast.IASTFunctionDefinition;
 import org.eclipse.cdt.core.dom.ast.IASTNode;
 import org.eclipse.cdt.core.dom.ast.IASTStatement;
@@ -16,33 +15,27 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CParser extends JavaAnalysis {
+public class CParser {
 
-    private final Trgt<ProgramDom<IASTFunctionDefinition>> domM;
-    private final Trgt<ProgramDom<IASTStatement>> domP;
+    public final ProgramDom<IASTFunctionDefinition> domM;
+    public final ProgramDom<IASTStatement> domP;
 //    private DomIU domIU;
 //    private DomITV domITV;
 //    private DomOP domOP;
 //    private DomITVP domITVP;
 
-    private final Trgt<ProgramRel> relMPentry;
+    public final ProgramRel relMPentry;
+    private final String fileName;
 
-    public CParser() {
-        name = "CParser";
-        domM = AnalysesUtil.createInitializedDomTrgt("M", IASTFunctionDefinition.class, name);
-        registerProducer(domM);
-        domP = AnalysesUtil.createInitializedDomTrgt("P", IASTStatement.class, name);
-        registerProducer(domP);
-        relMPentry = AnalysesUtil.createInitializedRelTrgt("MPentry", new ProgramDom<?>[]{domM.g(), domP.g()}, name);
-        registerProducer(relMPentry);
+    public CParser(String fileName) {
+        this.fileName = fileName;
+        domM = ProgramDom.createDom("M", IASTFunctionDefinition.class);
+        domP = ProgramDom.createDom("P", IASTStatement.class);
+        relMPentry = ProgramRel.createRel("MPentry", new ProgramDom<?>[]{domM, domP});
     }
 
 
     public void run() {
-        String fileName = System.getProperty("chord.source.path");
-        if (fileName == null) {
-            Messages.fatal("CParser: no source file is given. Use -Dchord.source.path=<path> to set.");
-        }
         File sourceFile = new File(fileName);
         if (!sourceFile.isFile()) {
             Messages.fatal("CParser: the referenced path %s is not a source file", sourceFile.toString());
@@ -74,20 +67,20 @@ public class CParser extends JavaAnalysis {
     }
 
     private void openDomains() {
-        domM.g().init();
-        domP.g().init();
+        domM.init();
+        domP.init();
     }
     private void saveDomains() {
-        domM.g().save();
-        domP.g().save();
+        domM.save();
+        domP.save();
     }
 
     private void openRelations() {
-        relMPentry.g().init();
+        relMPentry.init();
     }
     private void saveRelations() {
-        relMPentry.g().save();
-        relMPentry.g().close();
+        relMPentry.save();
+        relMPentry.close();
     }
 
     private void collectDomains(IASTNode node, int index) {
@@ -96,8 +89,8 @@ public class CParser extends JavaAnalysis {
         if (node instanceof IASTFunctionDefinition) {
             var func = (IASTFunctionDefinition) node;
             Messages.log("CParser: found function <%s>, entry point: %s", func.getRawSignature(), func.getBody().toString());
-            domM.g().add(func);
-            domP.g().add(func.getBody());
+            domM.add(func);
+            domP.add(func.getBody());
         }
         for (IASTNode child : children) {
             collectDomains(child, index + 1);
@@ -109,9 +102,9 @@ public class CParser extends JavaAnalysis {
         //Messages.log("CParser: collection relations in node %s", node);
         if (node instanceof IASTFunctionDefinition) {
             var func = (IASTFunctionDefinition) node;
-            assert (domM.g().contains(func));
-            assert (domP.g().contains(func.getBody()));
-            relMPentry.g().add(func, func.getBody());
+            assert (domM.contains(func));
+            assert (domP.contains(func.getBody()));
+            relMPentry.add(func, func.getBody());
             Messages.log("CParser: add relation MPentry(%s,%s).", func, func.getBody());
         }
         for (IASTNode child : children) {

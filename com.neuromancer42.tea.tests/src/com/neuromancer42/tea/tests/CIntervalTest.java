@@ -6,9 +6,8 @@ import com.neuromancer42.tea.core.inference.Categorical01;
 import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.Provenance;
-import com.neuromancer42.tea.libdai.DAIRuntime;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
-import com.neuromancer42.tea.program.cdt.CParser;
+import com.neuromancer42.tea.program.cdt.CParserAnalysis;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
@@ -24,7 +23,7 @@ public class CIntervalTest {
     @BeforeAll
     public static void registerAnalyses() {
         Messages.log("Registering CParser");
-        CParser cparser = new CParser();
+        CParserAnalysis cparser = new CParserAnalysis();
         AnalysesUtil.registerAnalysis(context, cparser);
 
         Messages.log("Registering Interval");

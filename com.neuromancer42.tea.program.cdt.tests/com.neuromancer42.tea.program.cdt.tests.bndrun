@@ -16,4 +16,4 @@
     bnd.identity;id='org.apache.felix.scr'
 
 -runproperties.sourcefile:\
-    sourcefile="example.h"
+    headerfile="example.h", sourcefile="aplusb.c"

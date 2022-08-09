@@ -24,7 +24,20 @@ import com.neuromancer42.tea.core.bddbddb.Dom;
 
 // TODO: T should extends from Program Elements
 public class ProgramDom<T> extends Dom<T> implements ITask {
+    private final Class<T> contentType;
     protected Object[] consumes;
+
+    public ProgramDom(Class<T> domType) {
+        super();
+        this.contentType = domType;
+    }
+
+    public static <T> ProgramDom<T> createDom(String domName, Class<T> domType) {
+        ProgramDom<T> dom = new ProgramDom<>(domType);
+        dom.setName(domName);
+        return dom;
+    }
+
     @Override
     public void run() {
         clear();
@@ -98,5 +111,9 @@ public class ProgramDom<T> extends Dom<T> implements ITask {
     @Override
     public String toString() {
         return name;
+    }
+
+    public Class<T> getContentType() {
+        return contentType;
     }
 }

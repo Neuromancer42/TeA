@@ -1,6 +1,7 @@
 -buildpath: \
     osgi.core;version:=8.0.0,\
     com.neuromancer42.tea.program.cdt;version:=latest,\
+    com.neuromancer42.tea.core;version:=latest,\
     org.eclipse.cdt.core,\
     org.eclipse.equinox.common,\
     ${junit}
