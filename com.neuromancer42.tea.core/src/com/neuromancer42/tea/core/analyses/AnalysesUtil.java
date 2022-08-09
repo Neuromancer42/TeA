@@ -2,29 +2,34 @@ package com.neuromancer42.tea.core.analyses;
 
 import com.neuromancer42.tea.core.bddbddb.RelSign;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.core.project.Trgt;
 import org.osgi.framework.BundleContext;
 
 import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.Map;
 
 public final class AnalysesUtil {
-    private static Dictionary<String, Object> genAnalysisProperties(JavaAnalysis task) {
-        Dictionary<String, Object> props = new Hashtable<>();
-        props.put("name", task.name);
-        props.put("input", task.consumerMap);
-        props.put("output", task.producerMap);
-        return props;
-    }
 
     // register an analysis instance to Osgi Runtime
     public static void registerAnalysis(BundleContext context, JavaAnalysis task) {
-        task.setConsumerMap();
-        task.setProducerMap();
-        Dictionary<String, Object> props = genAnalysisProperties(task);
+        Dictionary<String, Object> props = task.genAnalysisProperties();
         context.registerService(JavaAnalysis.class, task, props);
     }
+
+    public static <T> Trgt<ProgramDom<T>> createDomTrgt(String domName, Class<T> domType, String location) {
+        DomInfo domInfo = new DomInfo(location, domType);
+        return new Trgt<>(domName, domInfo);
+    }
+
+    public static <T> Trgt<ProgramDom<T>> createInitializedDomTrgt(String domName, Class<T> domType, String location) {
+        Trgt<ProgramDom<T>> domTrgt = createDomTrgt(domName, domType, location);
+        ProgramDom<T> dom = new ProgramDom<>();
+        dom.setName(domName);
+        domTrgt.accept(dom);
+        return domTrgt;
+    }
+
 
     // generate default RelSign
     // example: Souffle relation: Reach(a1:A,b:B,a2:A) ==> RelSign: [A0,B0,A1]:"A0xB0xA1"
@@ -57,30 +62,38 @@ public final class AnalysesUtil {
         return new RelSign(domNames, domOrder.toString());
     }
 
-    public static <T> ProgramDom<T> createProgramDom(String name) {
-        ProgramDom<T> dom = new ProgramDom<>();
-        dom.setName(name);
-        return dom;
+    public static Trgt<ProgramRel> createRelTrgt(String relName, RelSign relSign, String location) {
+        RelInfo relInfo = new RelInfo(location, relSign);
+        return new Trgt<>(relName, relInfo);
     }
 
-    public static ProgramRel createProgramRel(String name, ProgramDom<?>[] doms, String[] domNames, String domOrder) {
+    public static Trgt<ProgramRel> createInitializedRelTrgt(String relName, ProgramDom<?>[] doms, String[] domNames, String domOrder, String location) {
+        RelSign relSign = new RelSign(domNames, domOrder);
+        Trgt<ProgramRel> relTrgt = createRelTrgt(relName, relSign, location);
+
         ProgramRel rel = new ProgramRel();
-        rel.setName(name);
+        rel.setName(relName);
         rel.setSign(domNames, domOrder);
         rel.setDoms(doms);
-        return rel;
+
+        relTrgt.accept(rel);
+        return relTrgt;
     }
 
-    public static ProgramRel createProgramRel(String name, ProgramDom<?>[] doms) {
-        ProgramRel rel = new ProgramRel();
-        rel.setName(name);
+    public static Trgt<ProgramRel> createInitializedRelTrgt(String relName, ProgramDom<?>[] doms, String location) {
         String[] rawDomNames = new String[doms.length];
         for (int i = 0; i < doms.length; ++i) {
             rawDomNames[i] = doms[i].getName();
         }
-        RelSign defaultRelSign = genDefaultRelSign(rawDomNames);
+        RelSign defaultRelSign = AnalysesUtil.genDefaultRelSign(rawDomNames);
+        Trgt<ProgramRel> relTrgt = createRelTrgt(relName, defaultRelSign, location);
+
+        ProgramRel rel = new ProgramRel();
+        rel.setName(relName);
         rel.setSign(defaultRelSign);
         rel.setDoms(doms);
-        return rel;
+
+        relTrgt.accept(rel);
+        return relTrgt;
     }
 }

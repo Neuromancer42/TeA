@@ -2,12 +2,9 @@ package com.neuromancer42.tea.core.analyses;
 
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.project.ITask;
-import com.neuromancer42.tea.core.util.tuple.object.Pair;
+import com.neuromancer42.tea.core.project.Trgt;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.*;
 
 /**
  * Generic implementation of a Java task (a program analysis
@@ -18,9 +15,10 @@ import java.util.function.Supplier;
 public abstract class JavaAnalysis implements ITask {
     private static final String UNDEFINED_RUN = "ERRROR: Analysis '%s' must override method 'run()'";
     protected String name;
-    protected Map<String, Pair<TrgtInfo, Consumer<Object>>> consumerMap = new HashMap<>();
-    protected Map<String, Pair<TrgtInfo, Supplier<Object>>> producerMap = new HashMap<>();
-    protected Object[] controls;
+
+    private final Map<String, Trgt<?>> consumerMap = new HashMap<>();
+    private final Map<String, Trgt<?>> producerMap = new HashMap<>();
+    //private final List<Object> controls = new ArrayList<>();
     @Override
     public void setName(String name) {
         assert (name != null);
@@ -32,17 +30,6 @@ public abstract class JavaAnalysis implements ITask {
         return name;
     }
 
-    protected final <T> void registerProducedDom(ProgramDom<T> dom) {
-        TrgtInfo domInfo = new TrgtInfo(dom.getClass(), name, null);
-        producerMap.put(dom.getName(), new Pair<>(domInfo, () -> dom));
-    }
-
-    protected final void registerProducedRel(ProgramRel rel) {
-        TrgtInfo relInfo = new TrgtInfo(rel.getClass(), name, rel.getSign());
-        // TODO: Rel.save erases bdd; do some refactering
-        producerMap.put(rel.getName(), new Pair<>(relInfo, () -> { rel.load(); return rel; } ));
-    }
-
     @Override
     public void run() {
         Messages.fatal(UNDEFINED_RUN, name);
@@ -52,6 +39,19 @@ public abstract class JavaAnalysis implements ITask {
         return name;
     }
 
-    protected abstract void setConsumerMap();
-    protected abstract void setProducerMap();
+    protected final void registerConsumer(Trgt<?> trgt) {
+        consumerMap.put(trgt.getName(), trgt);
+    }
+
+    protected final void registerProducer(Trgt<?> trgt) {
+        producerMap.put(trgt.getName(), trgt);
+    }
+
+    public Dictionary<String, Object> genAnalysisProperties() {
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put("name", this.name);
+        props.put("input", this.consumerMap);
+        props.put("output", this.producerMap);
+        return props;
+    }
 }

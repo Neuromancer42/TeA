@@ -64,11 +64,11 @@ public class IndexMap<T> implements Iterable<T> {
         Integer idx = hmap.get(val);
         if (idx == null) {
             int i = list.size();
-            idx = new Integer(i);
+            idx = i;
             list.add(val);
             hmap.put(val, idx);
         }
-        return idx.intValue();
+        return idx;
     }
     /**
      * Adds and indexes a given object, unless it already exists, in O(1) time.
@@ -82,7 +82,7 @@ public class IndexMap<T> implements Iterable<T> {
         if (idx == null) {
             int i = list.size();
             list.add(val);
-            idx = new Integer(i);
+            idx = i;
             hmap.put(val, idx);
             return true;
         }

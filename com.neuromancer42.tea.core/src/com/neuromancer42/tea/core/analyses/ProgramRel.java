@@ -21,17 +21,21 @@ public class ProgramRel extends Rel implements ITask {
     protected Object[] consumes;
     @Override
     public void run() {
-        zero();
         init();
         fill();
         save();
+        close();
     }
-    public void init() { }
+    public void init() {
+        zero();
+    }
+
     public void save() {
         if (Config.v().verbose >= 1)
             System.out.println("SAVING rel " + name + " size: " + size());
         super.save(Config.v().bddbddbWorkDirName);
     }
+
     public void load() {
         super.load(Config.v().bddbddbWorkDirName);
     }

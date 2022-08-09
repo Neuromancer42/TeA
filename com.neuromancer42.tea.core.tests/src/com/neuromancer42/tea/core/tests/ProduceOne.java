@@ -1,35 +1,33 @@
 package com.neuromancer42.tea.core.tests;
 
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
-import com.neuromancer42.tea.core.analyses.TrgtInfo;
-import com.neuromancer42.tea.core.util.tuple.object.Pair;
-
-import java.util.HashMap;
+import com.neuromancer42.tea.core.project.Trgt;
 
 public class ProduceOne extends JavaAnalysis {
 	
 	private boolean done = false;
 
-	public Integer one = 0;
+	private final Trgt<Integer> oneTrgt;
 	
 	public ProduceOne() {
 		this.name = "ProduceOne";
+		oneTrgt = Trgt.createTrgt("O", Integer.class, name);
+		registerProducer(oneTrgt);
 	}
 	
 	@Override
 	public void run() {
-		one = 1;
+		oneTrgt.accept(1);
 		System.out.println("test: one produced");
 		done = true;
 	}
 
-	@Override
-	protected void setProducerMap() {
-		TrgtInfo oneInfo = new TrgtInfo(Integer.class, name, null);
-		producerMap.put("O", new Pair<>(oneInfo, () -> one));
-	}
 
-	@Override
-	protected void setConsumerMap() {
+	public Integer getOne() {
+		if (!done) {
+			return null;
+		} else {
+			return oneTrgt.g();
+		}
 	}
 }

@@ -13,11 +13,4 @@ public class Empty extends JavaAnalysis {
 		System.out.println("test: running empty task");
 	}
 
-	@Override
-	protected void setProducerMap() {
-	}
-
-	@Override
-	protected void setConsumerMap() {
-	}
 }

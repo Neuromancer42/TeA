@@ -237,11 +237,34 @@ public final class SouffleRuntime {
             Messages.fatal("SouffleRuntime: the analysis %s has not been loaded yet!");
         }
         SWIGSouffleProgram program = SwigInterface.newInstance(analysis);
+        if (program == null) {
+            Messages.fatal("SouffleRuntime: failed to create instance of analysis %s", analysis);
+        }
         SWIGSouffleProgram provProgram = null;
         String provName = hasLoadedProvenance(analysis);
         if (provName != null) {
             provProgram = SwigInterface.newInstance(provName);
         }
         return new SouffleAnalysis(name, analysis, program, provProgram);
+    }
+
+    static List<int[]> loadTableFromFile(Path outPath) {
+        List<int[]> table = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(outPath);
+            for (String line : lines) {
+                String[] tuple = line.split("\t");
+                int width = tuple.length;
+                int[] indexes = new int[width];
+                for (int i = 0; i < width; ++i) {
+                    indexes[i] = Integer.parseInt(tuple[i]);
+                }
+                table.add(indexes);
+            }
+        } catch (IOException e) {
+            Messages.error("SouffleAnalysis: failed to read table from %s", outPath.toString());
+            Messages.fatal(e);
+        }
+        return table;
     }
 }

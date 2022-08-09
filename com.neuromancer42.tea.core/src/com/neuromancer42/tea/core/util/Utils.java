@@ -209,7 +209,7 @@ public final class Utils {
      *
      * @return {@code true} iff class {@code subclass} is a subclass of class <tt>superclass</tt>.
      */
-    public static boolean isSubclass(final Class subclass, final Class superclass) {
+    public static boolean isSubclass(final Class<?> subclass, final Class<?> superclass) {
         try {
             subclass.asSubclass(superclass);
         } catch (final ClassCastException ex) {
