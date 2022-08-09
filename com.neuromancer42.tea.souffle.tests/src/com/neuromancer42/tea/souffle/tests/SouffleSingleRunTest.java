@@ -1,6 +1,5 @@
 package com.neuromancer42.tea.souffle.tests;
 
-import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
@@ -33,7 +32,8 @@ public class SouffleSingleRunTest {
     @Order(1)
     @DisplayName("SouffleSolver processes dlog file correctly")
     public void singleRunTest() throws IOException {
-        analysis.run();
+        analysis.activate();
+        analysis.close();
         List<String> outputLines = Files.readAllLines(analysis.getOutDir().resolve("PPP.csv"));
         Assertions.assertEquals(outputLines.size(), 1);
         Assertions.assertEquals(outputLines.get(0), "1\t3");

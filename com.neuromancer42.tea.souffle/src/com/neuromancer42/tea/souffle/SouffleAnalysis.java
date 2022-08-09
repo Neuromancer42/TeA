@@ -19,8 +19,9 @@ import java.nio.file.Path;
 import java.util.*;
 
 public final class SouffleAnalysis extends JavaAnalysis {
-    private final SWIGSouffleProgram souffleProgram;
-    private final SWIGSouffleProgram provenanceProgram;
+    private SWIGSouffleProgram souffleProgram;
+
+    private final SouffleProvenanceBuilder provBuilder;
 
     private final String analysis; // field for debug; different analysis instance may refer to the same analysis program
     private final Path analysisDir;
@@ -39,7 +40,6 @@ public final class SouffleAnalysis extends JavaAnalysis {
         this.name = name;
         this.analysis = analysis;
         souffleProgram = program;
-        provenanceProgram = provProgram;
         // TODO: change analysis directory?
         analysisDir = SouffleRuntime.g().getWorkDir().resolve(name);
         Path tmpFactDir = null;
@@ -92,6 +92,12 @@ public final class SouffleAnalysis extends JavaAnalysis {
             SouffleRelTrgt relTrgt = createSouffleRelTrgt(relName, relSign, name);
             outputRelTrgts.put(relName, relTrgt);registerProducer(relTrgt);
         }
+
+        if (provProgram != null) {
+            provBuilder = new SouffleProvenanceBuilder(provProgram);
+        } else {
+            provBuilder = null;
+        }
     }
 
     private SouffleRelTrgt createSouffleRelTrgt(String relName, RelSign relSign, String location) {
@@ -116,13 +122,17 @@ public final class SouffleAnalysis extends JavaAnalysis {
         return outDir;
     }
 
-
     public void run() {
-        if (souffleProgram == null) {
-            Messages.fatal("SouffleAnalysis %s: souffle analysis should be loaded before running", name);
-        }
+        activate();
+        close();
+    }
+
+    public void activate() {
         if (activated) {
             Messages.warn("SouffleAnalysis %s: the analysis has been activated before, are you sure to re-run?", name);
+        }
+        if (souffleProgram == null) {
+            Messages.fatal("SouffleAnalysis %s: souffle analysis has been closed", name);
         }
         souffleProgram.loadAll(factDir.toString());
         souffleProgram.run();
@@ -131,34 +141,50 @@ public final class SouffleAnalysis extends JavaAnalysis {
         activated = true;
     }
 
-    private SouffleProvenanceBuilder provBuilder;
-
-    private Path provenanceDir;
-
-    public Path getProvenanceDir() {
-        return provenanceDir;
+    public void close() {
+        if (!activated) {
+            Messages.warn("SouffleAnalysis %s: close souffle analysis before running it", name);
+        }
+        if (souffleProgram == null) {
+            Messages.warn("SouffleAnalysis %s: re-close the souffle analysis", name);
+        } else {
+            Messages.log("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
+            souffleProgram.delete();
+            souffleProgram = null;
+        }
     }
 
     public Provenance getProvenance() {
         if (provBuilder == null) {
-            try {
-                provenanceDir = Files.createDirectories(analysisDir.resolve("provenance"));
-            } catch(IOException e){
-                Messages.error("SouffleAnalysis %s: failed to create provenance directory", name);
-                Messages.fatal(e);
-            }
-            provBuilder = new SouffleProvenanceBuilder();
+            Messages.fatal("SouffeProvenanceBuilder %s: provenance program has not been built for this analysis", name);
         }
         return provBuilder.getProvenance();
     }
 
     private class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
+        private SWIGSouffleProgram provenanceProgram;
+        private final Path provenanceDir;
+
         private boolean provActivated;
 
         private List<String> ruleInfos;
         private List<ConstraintItem> constraintItems;
         private List<Tuple> inputTuples;
         private List<Tuple> outputTuples;
+
+        public SouffleProvenanceBuilder(SWIGSouffleProgram provProgram) {
+            // Souffle's provenance has been pruned, not need to use prune in AbstractProvenanceBuilder again
+            super(SouffleAnalysis.this.name, false);
+            provenanceProgram = provProgram;
+            Path tmpProvDir = null;
+            try {
+                tmpProvDir = Files.createDirectories(analysisDir.resolve("provenance"));
+            } catch(IOException e){
+                Messages.error("SouffleProvenanceBuilder %s: failed to create provenance directory", name);
+                Messages.fatal(e);
+            }
+            provenanceDir = tmpProvDir;
+        }
 
         private void activate() {
             if (!activated) {
@@ -210,6 +236,10 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 constraintItems.add(constraintItem);
             }
             provActivated = true;
+
+            Messages.log("SouffleProvenanceBuilder %s: freeing souffle program %s", name, provenanceProgram);
+            provenanceProgram.delete();
+            provenanceProgram = null;
         }
 
         private ConstraintItem decodeConstraintItem(String line) {
@@ -243,15 +273,6 @@ public final class SouffleAnalysis extends JavaAnalysis {
             int ruleId = ruleInfos.indexOf(ruleInfo);
             return new ConstraintItem(ruleId, headTuple, bodyTuples, headSign, bodySigns);
         }
-
-        public SouffleProvenanceBuilder() {
-            // Souffle's provenance has been pruned, not need to use prune in AbstractProvenanceBuilder again
-            super(SouffleAnalysis.this.name, false);
-            if (provenanceProgram == null) {
-                Messages.fatal("SouffeProvenanceBuilder %s: provenance program has not been built for this analysis", name);
-            }
-        }
-
 
         @Override
         public List<String> getRuleInfos() {
