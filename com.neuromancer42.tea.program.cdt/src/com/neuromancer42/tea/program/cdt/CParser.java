@@ -3,7 +3,6 @@ package com.neuromancer42.tea.program.cdt;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.util.StringUtil;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.c.ICASTVisitor;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
@@ -18,14 +17,13 @@ public class CParser {
     public final ProgramDom<IASTFunctionDeclarator> domM;
     public final ProgramDom<IASTStatement> domP;
     public final ProgramDom<IASTDeclarator> domV;
-//    private DomIU domIU;
-//    private DomITV domITV;
-//    private DomOP domOP;
-//    private DomITVP domITVP;
+    public final ProgramDom<IASTExpression> domE;
 
     public final ProgramRel relMPentry;
     public final ProgramRel relMPexit;
     public final ProgramRel relPPdirect;
+    public final ProgramRel relPPtrue;
+    public final ProgramRel relPPfalse;
     public final ProgramRel relMV;
     public final ProgramRel relGlobalV;
     private final String fileName;
@@ -35,9 +33,12 @@ public class CParser {
         domM = ProgramDom.createDom("M", IASTFunctionDeclarator.class);
         domP = ProgramDom.createDom("P", IASTStatement.class);
         domV = ProgramDom.createDom("V", IASTDeclarator.class);
+        domE = ProgramDom.createDom("E", IASTExpression.class);
         relMPentry = ProgramRel.createRel("MPentry", new ProgramDom[]{domM, domP});
         relMPexit = ProgramRel.createRel("MPexit", new ProgramDom[]{domM, domP});
         relPPdirect = ProgramRel.createRel("PPdirect", new ProgramDom[]{domP, domP});
+        relPPtrue = ProgramRel.createRel("PPtrue", new ProgramDom[]{domP, domP, domE});
+        relPPfalse = ProgramRel.createRel("PPfalse", new ProgramDom[]{domP, domP, domE});
         relMV = ProgramRel.createRel("MV", new ProgramDom[]{domM, domV});
         relGlobalV = ProgramRel.createRel("GlobalV", new ProgramDom[]{domV});
     }
@@ -65,6 +66,7 @@ public class CParser {
             assert false;
         }
 
+        translationUnit.getDeclarations();
         // TODO: move this into function template
         openDomains();
         translationUnit.accept(new DomainCollector());
@@ -79,17 +81,21 @@ public class CParser {
         domM.init();
         domP.init();
         domV.init();
+        domE.init();
     }
     private void saveDomains() {
         domM.save();
         domP.save();
-        domV.init();
+        domV.save();
+        domE.save();
     }
 
     private void openRelations() {
         relMPentry.init();
         relMPexit.init();
         relPPdirect.init();
+        relPPtrue.init();
+        relPPfalse.init();
         relMV.init();
         relGlobalV.init();
     }
@@ -100,6 +106,10 @@ public class CParser {
         relMPexit.close();
         relPPdirect.save();
         relPPdirect.close();
+        relPPtrue.save();
+        relPPtrue.close();
+        relPPfalse.save();
+        relPPfalse.close();
         relMV.save();
         relMV.close();
         relGlobalV.save();
@@ -110,6 +120,7 @@ public class CParser {
         public DomainCollector() {
             shouldVisitStatements = true;
             shouldVisitDeclarators = true;
+            shouldVisitExpressions = true;
         }
 
         @Override
@@ -133,12 +144,23 @@ public class CParser {
             return super.visit(statement);
         }
 
+        @Override
+        public int visit(IASTExpression expression) {
+            Messages.log("CParser: found expression %s, %s <%s>:\n%s", expression.getExpressionType(), expression.getValueCategory(), expression, expression.getRawSignature());
+            domE.add(expression);
+            return super.visit(expression);
+        }
     }
 
     private class RelationCollector extends ASTVisitor implements ICASTVisitor {
-        private IASTFunctionDeclarator curFunc = null;
-        private IASTStatement[] prevStats = null;
-        private final Deque<Map<IASTName, IASTDeclarator>> varScope = new ArrayDeque<>();
+        private IASTFunctionDefinition curFunc = null;
+
+        private Set<IASTStatement> openDirectEdges = new HashSet<>();
+        private Map<IASTStatement, IASTExpression> openTrueEdges = new HashMap<>();
+        private Map<IASTStatement, IASTExpression> openFalseEdges = new HashMap<>();
+        private final Map<IASTStatement, Set<IASTStatement>> cachedOpenDirectEdges = new HashMap<>();
+        private final Map<IASTStatement, Map<IASTStatement, IASTExpression>> cachedOpenTrueEdges = new HashMap<>();
+        private final Map<IASTStatement, Map<IASTStatement, IASTExpression>> cachedOpenFalseEdges = new HashMap<>();
 
         public RelationCollector() {
             shouldVisitTranslationUnit = true;
@@ -149,17 +171,14 @@ public class CParser {
 
         @Override
         public int visit(IASTTranslationUnit transUnit) {
-            assert varScope.isEmpty();
-            Messages.log("CParser: creating global variable scope @%s:\n%s", transUnit, transUnit.getRawSignature());
-            varScope.push(new HashMap<>());
+            IScope scope = transUnit.getScope();
+            Messages.log("CParser: creating global variable scope %s (%s)", scope.getScopeName(), scope.getKind());
             return super.visit(transUnit);
         }
 
         @Override
         public int leave(IASTTranslationUnit transUnit) {
-            Map<IASTName, IASTDeclarator> globalVarScope = varScope.pop();
-            Messages.log("CParser: declared %d global variables: %s", globalVarScope.size(), StringUtil.join(globalVarScope.keySet(), ", "));
-            assert varScope.isEmpty();
+            assert curFunc == null;
             return super.leave(transUnit);
         }
 
@@ -171,9 +190,9 @@ public class CParser {
                 }
                 IASTFunctionDefinition funcDef = (IASTFunctionDefinition) declaration;
                 if (funcDef.getBody() != null) {
-                    curFunc = funcDef.getDeclarator();
-                    Messages.log("CParser: entering function %s scope\n%s", domM.indexOf(curFunc), declaration.getRawSignature());
-                    varScope.push(new HashMap<>());
+                    curFunc = funcDef;
+                    var scope = funcDef.getScope();
+                    Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc.getDeclarator()), scope, scope.getKind());
                 } else {
                     Messages.log("CParser: skip declaration-only function %s", domM.indexOf(((IASTFunctionDefinition) declaration).getDeclarator()));
                     return ASTVisitor.PROCESS_SKIP;
@@ -181,14 +200,12 @@ public class CParser {
             } else if (declaration instanceof IASTSimpleDeclaration) {
                 var simpDecl = (IASTSimpleDeclaration) declaration;
                 for (var decl : simpDecl.getDeclarators()) {
-                    var varName = decl.getName();
-                    registerVariable(varName, decl);
                     if (curFunc != null) {
-                        Messages.log("CParser: declare local var %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc));
-                        relMV.add(curFunc, decl);
+                        Messages.log("CParser: declare local var %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc.getDeclarator()));
+                        relMV.add(curFunc.getDeclarator(), decl);
                     } else {
-                        Messages.log("CParser: global var %s:", domV.indexOf(decl), decl.getRawSignature());
-                        relGlobalV.add(varName);
+                        Messages.log("CParser: global var %s: %s", domV.indexOf(decl), decl.getRawSignature());
+                        relGlobalV.add(decl);
                     }
                 }
             } else {
@@ -204,89 +221,142 @@ public class CParser {
                 if (decl == null) {
                     Messages.warn("CParser: anonymous parameter unhandled @%s", parameterDeclaration.getFileLocation());
                 } else {
-                    var varName = decl.getName();
-                    registerVariable(varName, decl);
-                    Messages.log("CParser: declare parameter %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc));
-                    relMV.add(curFunc, decl);
+                    Messages.log("CParser: declare parameter %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc.getDeclarator()));
+                    relMV.add(curFunc.getDeclarator(), decl);
                 }
             }
             return super.visit(parameterDeclaration);
         }
         @Override
         public int visit(IASTStatement statement) {
+            Messages.log("CParser: entering %s statement %s: \n%s", statement.getClass(), domP.indexOf(statement), statement.getRawSignature());
             if (statement instanceof IASTCompoundStatement) {
                 // Compound statements are used to represent the post-state of its block
                 // so the program point is added when leaving this statement
-                if (!(statement.getParent() instanceof IASTFunctionDefinition)) {
-                    // the outermost scope of a function body shares the same scope of the function
-                    Messages.log("CParser: entering block scope\n%s", statement.getRawSignature());
-                    varScope.push(new HashMap<>());
-                } else {
-                    assert curFunc.equals(((IASTFunctionDefinition) statement.getParent()).getDeclarator());
-                    Messages.log("CParser: outermost block shares the same scope with function %s", domM.indexOf(curFunc));
-                }
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTDeclarationStatement) {
+                connectOpenEdges(statement);
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTExpressionStatement) {
+                connectOpenEdges(statement);
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTIfStatement) {
+                connectOpenEdges(statement);
+                // prepare open edge for its then clause
+                var cIf = (IASTIfStatement) statement;
+                openTrueEdges.put(cIf, cIf.getConditionExpression());
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTWhileStatement) {
+                connectOpenEdges(statement);
+                // prepare open edge to its loop-body
+                var cWhile = (IASTWhileStatement) statement;
+                openTrueEdges.put(cWhile, cWhile.getCondition());
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTReturnStatement) {
+                return ASTVisitor.PROCESS_SKIP;
             } else {
-                addProgramPoint(statement);
-                if (statement instanceof IASTDeclarationStatement) {
-                    Messages.warn("CParser: visiting declaration statement %s", statement.getRawSignature());
-                }
+                Messages.warn("CParser: skip unhandled statement %s: \n%s", statement, statement.getRawSignature());
+                return ASTVisitor.PROCESS_SKIP;
             }
-            return super.visit(statement);
         }
 
         @Override
         public int leave(IASTStatement statement) {
             if (statement instanceof IASTCompoundStatement) {
-                var curScope = varScope.pop();
-                Messages.log("CParser: invalidating %d declarations: %s", curScope.size(), StringUtil.join(curScope.keySet(), ", "));
-                addProgramPoint(statement);
-                prevStats = new IASTStatement[]{statement};
+                // connect block node as the last state of current block
+                connectOpenEdges(statement);
+                openDirectEdges.add(statement);
+            } else if (statement instanceof IASTDeclarationStatement) {
+                openDirectEdges.add(statement);
+            } else if (statement instanceof IASTExpressionStatement) {
+                openDirectEdges.add(statement);
+            } else if (statement instanceof IASTIfStatement) {
+                // the open edges are the end-edges of else-clause
+                // or false edge of if-clause if it has no else-clause
+                var ifCls = (IASTIfStatement) statement;
+                var thenCls = ifCls.getThenClause();
+                mergeCachedOpenEdges(thenCls);
+            } else if (statement instanceof IASTWhileStatement) {
+                var whileCls = (IASTWhileStatement) statement;
+                // the open edges are the end-edges of its body, which should go back to while head
+                connectOpenEdges(whileCls);
+                // leave the false edge to following edges
+                openFalseEdges.put(whileCls, whileCls.getCondition());
             } else {
-                assert !(statement.getParent() instanceof IASTFunctionDefinition);
-                prevStats = new IASTStatement[]{statement};
+                Messages.fatal("CParser: unhandled statement type %s", statement.getClass());
             }
+            // prepare open edges for peering clauses if it exists
+            var parent = statement.getParent();
+            if (parent instanceof IASTIfStatement) {
+                var pIf = (IASTIfStatement) parent;
+                if (statement.equals(pIf.getThenClause()) && pIf.getElseClause() != null) {
+                    cachingOpenEdges(statement);
+                    openFalseEdges.put(pIf, pIf.getConditionExpression());
+                }
+            }
+            Messages.log("CParser: leaving %s statement %s", statement.getClass(), domP.indexOf(statement));
             return super.leave(statement);
+        }
+
+        private void mergeCachedOpenEdges(IASTStatement thenCls) {
+            openDirectEdges.addAll(cachedOpenDirectEdges.remove(thenCls));
+            openTrueEdges.putAll(cachedOpenTrueEdges.remove(thenCls));
+            openFalseEdges.putAll(cachedOpenFalseEdges.remove(thenCls));
+        }
+
+        private void cachingOpenEdges(IASTStatement statement) {
+            cachedOpenDirectEdges.put(statement, openDirectEdges);
+            cachedOpenTrueEdges.put(statement, openTrueEdges);
+            cachedOpenFalseEdges.put(statement, openFalseEdges);
+            openDirectEdges = new HashSet<>();
+            openTrueEdges = new HashMap<>();
+            openFalseEdges = new HashMap<>();
+        }
+
+        private void clearOpenEdges() {
+            openDirectEdges.clear();
+            openTrueEdges.clear();
+            openFalseEdges.clear();
+        }
+
+        private void connectOpenEdges(IASTStatement state) {
+            if (openDirectEdges.isEmpty() && openTrueEdges.isEmpty() && openFalseEdges.isEmpty()) {
+                Messages.log("CParser: add entry node %s of function %s", domP.indexOf(state), domM.indexOf(curFunc.getDeclarator()));
+                relMPentry.add(curFunc.getDeclarator(), state);
+            }
+            for (var prev : openDirectEdges) {
+                Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(prev), domP.indexOf(state));
+                relPPdirect.add(prev, state);
+            }
+            for (var trueEdge : openTrueEdges.entrySet()) {
+                var prev = trueEdge.getKey();
+                var cond = trueEdge.getValue();
+                Messages.log("CParser: add cond-true CFG edge (%d,%d)-<%s>", domP.indexOf(prev), domP.indexOf(state), cond.getRawSignature());
+                relPPtrue.add(prev, state, cond);
+            }
+            for (var falseEdge : openFalseEdges.entrySet()) {
+                var prev = falseEdge.getKey();
+                var cond = falseEdge.getValue();
+                Messages.log("CParser: add cond-false CFG edge (%d,%d)-!<%s>", domP.indexOf(prev), domP.indexOf(state), cond.getRawSignature());
+                relPPfalse.add(prev, state, cond);
+            }
+            // Note: every open edge should have only one target, so they are useless after connected
+            clearOpenEdges();
         }
 
         @Override
         public int leave(IASTDeclaration declaration) {
             if (declaration instanceof IASTFunctionDefinition) {
-                assert curFunc != null;
-                assert prevStats.length == 1;
-                var prevStat = prevStats[0];
-                Messages.log("CParser: leaving function %s, adding exit point %s", domM.indexOf(curFunc), domP.indexOf(prevStat));
-                relMPexit.add(curFunc, prevStat);
-                prevStats = null;
+                assert curFunc.equals(declaration);
+                assert cachedOpenDirectEdges.isEmpty() && cachedOpenTrueEdges.isEmpty() && cachedOpenFalseEdges.isEmpty();
+                assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
+                assert openDirectEdges.size() == 1 && openDirectEdges.contains(curFunc.getBody());
+                openDirectEdges.remove(curFunc.getBody());
+                relMPexit.add(curFunc.getDeclarator(), curFunc.getBody());
+                Messages.log("CParser: leaving function %s, exit node %s", domM.indexOf(curFunc.getDeclarator()), domP.indexOf(curFunc.getBody()));
                 curFunc = null;
             }
             return super.leave(declaration);
-        }
-
-        private void registerVariable(IASTName varName, IASTDeclarator decl) {
-            var curScope = varScope.peek();
-            assert curScope != null;
-            if (curScope.containsKey(varName)) {
-                Messages.warn("CParser: conflicting declaration for variable %s", varName);
-            }
-            curScope.put(varName, decl);
-        }
-
-        private void addProgramPoint(IASTStatement statement) {
-            if (prevStats != null) {
-                for (var prevStat : prevStats) {
-                    Messages.log("CParser: add control flow edge (%s, %s)", domP.indexOf(prevStat), domP.indexOf(statement));
-                    relPPdirect.add(prevStat, statement);
-                }
-            } else {
-                var funcDefNode = statement.getParent();
-                while (!(funcDefNode instanceof IASTFunctionDefinition)) {
-                    assert funcDefNode instanceof IASTCompoundStatement;
-                    funcDefNode = funcDefNode.getParent();
-                }
-                assert ((IASTFunctionDefinition) funcDefNode).getDeclarator().equals(curFunc);
-                Messages.log("CParser: entering function %s, adding entry point %s.", domM.indexOf(curFunc), domP.indexOf(statement));
-                relMPentry.add(curFunc, statement);
-            }
         }
     }
 }
