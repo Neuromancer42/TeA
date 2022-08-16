@@ -180,7 +180,6 @@ public class CParser {
     private class RelationCollector extends ASTVisitor implements ICASTVisitor {
         private IASTFunctionDefinition curFunc = null;
         private IASTStatement funcEntry = null;
-        private IASTStatement funcExit = null;
 
         private Set<IASTStatement> openDirectEdges = new HashSet<>();
         private Map<IASTStatement, IASTExpression> openTrueEdges = new HashMap<>();
@@ -188,6 +187,9 @@ public class CParser {
         private final Map<IASTStatement, Set<IASTStatement>> cachedOpenDirectEdges = new HashMap<>();
         private final Map<IASTStatement, Map<IASTStatement, IASTExpression>> cachedOpenTrueEdges = new HashMap<>();
         private final Map<IASTStatement, Map<IASTStatement, IASTExpression>> cachedOpenFalseEdges = new HashMap<>();
+
+        private final Deque<IASTStatement> loopStack = new ArrayDeque<>();
+        private final Map<IASTStatement, Set<IASTStatement>> loopOpenBreaks = new HashMap<>();
 
         public RelationCollector() {
             shouldVisitTranslationUnit = true;
@@ -218,9 +220,7 @@ public class CParser {
                 IASTFunctionDefinition funcDef = (IASTFunctionDefinition) declaration;
                 if (funcDef.getBody() != null) {
                     curFunc = funcDef;
-                    assert funcEntry == null && funcExit == null;
-                    assert funcDef.getBody() instanceof IASTCompoundStatement;
-                    funcExit = funcDef.getBody();
+                    assert funcEntry == null;
                     var scope = funcDef.getScope();
                     Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc), scope.getClass().getSimpleName(), scope.getKind());
                 } else {
@@ -302,6 +302,24 @@ public class CParser {
                 // prepare open edge to its loop-body
                 var cWhile = (IASTWhileStatement) statement;
                 openTrueEdges.put(cWhile, cWhile.getCondition());
+                loopStack.push(statement);
+                loopOpenBreaks.put(statement, new HashSet<>());
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTDoStatement) {
+                Messages.log("CParser: entering do-while statement %s: do-while(%s)", domP.indexOf(statement), ((IASTDoStatement) statement).getCondition().getRawSignature());
+                // previous open edges are left for body statement, and do-cls are added into open edges
+                var cDo = (IASTDoStatement) statement;
+                openTrueEdges.put(cDo, cDo.getCondition());
+                loopStack.push(statement);
+                loopOpenBreaks.put(statement, new HashSet<>());
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTContinueStatement) {
+                Messages.log("CParser: entering continue statement %s", domP.indexOf(statement));
+                connectOpenEdges(statement);
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTBreakStatement) {
+                Messages.log("CParser: entering break statement %s", domP.indexOf(statement));
+                connectOpenEdges(statement);
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTReturnStatement) {
                 Messages.log("CParser: entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
@@ -328,17 +346,48 @@ public class CParser {
                 // the open edges are the end-edges of else-clause
                 // or false edge of if-clause if it has no else-clause
                 var ifCls = (IASTIfStatement) statement;
-                var thenCls = ifCls.getThenClause();
-                mergeCachedOpenEdges(thenCls);
+                if (ifCls.getElseClause() != null)
+                    mergeCachedOpenEdges(ifCls.getThenClause());
+                else
+                    openFalseEdges.put(ifCls, ifCls.getConditionExpression());
             } else if (statement instanceof IASTWhileStatement) {
                 var whileCls = (IASTWhileStatement) statement;
                 // the open edges are the end-edges of its body, which should go back to while head
                 connectOpenEdges(whileCls);
-                // leave the false edge to following edges
+                // leave the false edge to following statements
                 openFalseEdges.put(whileCls, whileCls.getCondition());
+                // leave the break statements to following statements
+                assert statement.equals(loopStack.pop());
+                var cBreaks = loopOpenBreaks.remove(statement);
+                openDirectEdges.addAll(cBreaks);
+            } else if (statement instanceof IASTDoStatement) {
+                var doCls = (IASTDoStatement) statement;
+                // the open edges are the end-edges of its body, which should go to do-while statement
+                connectOpenEdges(doCls);
+                // leave the false edge to following statements
+                openFalseEdges.put(doCls, doCls.getCondition());
+                // leave the break statements to following statements
+                assert statement.equals(loopStack.pop());
+                var cBreaks = loopOpenBreaks.remove(statement);
+                openDirectEdges.addAll(cBreaks);
+            } else if (statement instanceof IASTContinueStatement) {
+                var loop = loopStack.peek();
+                if (loop != null) {
+                    Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(statement), domP.indexOf(loop));
+                    relPPdirect.add(statement, loop);
+                } else {
+                    Messages.fatal("CParser: continue statement outside of a loop @%s", statement.getFileLocation());
+                }
+            } else if (statement instanceof IASTBreakStatement) {
+                var loop = loopStack.peek();
+                if (loop != null) {
+                    loopOpenBreaks.get(loop).add(statement);
+                } else {
+                    Messages.fatal("CParser: break statement outside of a loop @%s", statement.getFileLocation());
+                }
             } else if (statement instanceof IASTReturnStatement) {
                 // no open edge is added, just connect to func Exit
-                assert funcExit != null;
+                var funcExit = curFunc.getBody();
                 Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(statement), domP.indexOf(funcExit));
                 relPPdirect.add(statement, funcExit);
             } else {
@@ -406,13 +455,14 @@ public class CParser {
                 assert curFunc.equals(declaration);
                 assert cachedOpenDirectEdges.isEmpty() && cachedOpenTrueEdges.isEmpty() && cachedOpenFalseEdges.isEmpty();
                 assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
+                var funcExit = curFunc.getBody();
                 assert openDirectEdges.size() == 1 && openDirectEdges.contains(funcExit);
+                assert loopStack.isEmpty() && loopOpenBreaks.isEmpty();
                 openDirectEdges.remove(funcExit);
                 relMPexit.add(curFunc, funcExit);
                 Messages.log("CParser: leaving function %s, exit node %s", domM.indexOf(curFunc), domP.indexOf(curFunc.getBody()));
                 curFunc = null;
                 funcEntry = null;
-                funcExit = null;
             }
             return super.leave(declaration);
         }

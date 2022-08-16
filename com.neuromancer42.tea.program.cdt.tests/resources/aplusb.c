@@ -1,6 +1,12 @@
 void assign(int *p, int v) {
-    *p = v;
-    return;
+    *p = 0;
+    do {
+        if (v < 0)
+            break;
+        if (v == 0) continue;
+        v = v - 1;
+        *p += 1;
+    } while (v > 0);
 }
 
 int plus(int a, int b) {
