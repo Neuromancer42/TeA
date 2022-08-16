@@ -319,8 +319,7 @@ public class CParser {
                 Messages.log("CParser: entering for statement %s: for()", domP.indexOf(statement));
                 var cFor = (IASTForStatement) statement;
                 // leave all open edges for initializer statement if it exits, otherwise directly connect to loop
-                // TODO: how to handle iteration expression?
-                // TODO: separate cond and iter into two statements
+                // empty initializers are recorded as NullStatement
                 assert (cFor.getInitializerStatement() != null);
                 // loop control routine
                 loopStack.push(statement);
@@ -338,6 +337,10 @@ public class CParser {
                 Messages.log("CParser: entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
                 connectOpenEdges(statement);
                 var cRet = (IASTReturnStatement) statement;
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTNullStatement) {
+                Messages.log("CParser: entering null statement %s @%s", domP.indexOf(statement), statement.getFileLocation());
+                connectOpenEdges(statement);
                 return ASTVisitor.PROCESS_CONTINUE;
             } else {
                 Messages.log("CParser: TODO skip %s statement %s: \n%s", statement.getClass().getSimpleName(), domP.indexOf(statement), statement.getRawSignature());
@@ -419,6 +422,8 @@ public class CParser {
                 var funcExit = curFunc.getBody();
                 Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(statement), domP.indexOf(funcExit));
                 relPPdirect.add(statement, funcExit);
+            } else if (statement instanceof IASTNullStatement) {
+                openDirectEdges.add(statement);
             } else {
                 Messages.fatal("CParser: unhandled statement type %s", statement.getClass().getSimpleName());
             }
@@ -434,7 +439,7 @@ public class CParser {
                 // prepare open edges for loop-body
                 var pFor = (IASTForStatement) parent;
                 if (statement.equals(pFor.getInitializerStatement())) {
-                    assert statement instanceof IASTExpressionStatement || statement instanceof IASTDeclarationStatement;
+                    assert statement instanceof IASTExpressionStatement || statement instanceof IASTDeclarationStatement || statement instanceof IASTNullStatement;
                     assert openDirectEdges.size() == 1 && openDirectEdges.contains(statement);
                     assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
                     var cond = pFor.getConditionExpression();

@@ -16,13 +16,14 @@ int plus(int a, int b) {
     asgn = &assign;
     pasgn = &asgn;
     (*asgn)(&c, a);
-    if (c == 0)
-        for (int i = 0; i >= 0; i++) {
+    if (c == 0) {
+        int i = 0;
+        for (; i >= 0; i++) {
             if (i == b)
                 break;
             c++;
         }
-    else
+    } else
         if (b == 0) {
         } else
             while (b > 0) {
