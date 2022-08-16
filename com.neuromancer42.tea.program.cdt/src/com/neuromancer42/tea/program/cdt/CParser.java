@@ -318,17 +318,10 @@ public class CParser {
             } else if (statement instanceof IASTForStatement) {
                 Messages.log("CParser: entering for statement %s: for()", domP.indexOf(statement));
                 var cFor = (IASTForStatement) statement;
-                // leave all open edges for initializer statement if it exits, otherwise directly connect to loop-body
+                // leave all open edges for initializer statement if it exits, otherwise directly connect to loop
                 // TODO: how to handle iteration expression?
-                if (cFor.getInitializerStatement() == null) {
-                    var cond = cFor.getConditionExpression();
-                    if (cond != null)
-                        openTrueEdges.put(cFor, cond);
-                    else
-                        openDirectEdges.add(cFor);
-                } else {
-                    connectOpenEdges(cFor);
-                }
+                // TODO: separate cond and iter into two statements
+                assert (cFor.getInitializerStatement() != null);
                 // loop control routine
                 loopStack.push(statement);
                 loopOpenBreaks.put(statement, new HashSet<>());
@@ -394,12 +387,14 @@ public class CParser {
                 var forCls = (IASTForStatement) statement;
                 // the open edges arethe end-edges of its body, which should go back to for statement
                 var itrExpr = forCls.getIterationExpression();
-                // TODO how to handle iteration expression
                 connectOpenEdges(forCls);
                 // leave the false edge to following statements, or not out-of-loop edge if no condition is provided
                 var cond = forCls.getConditionExpression();
-                if (cond != null)
+                if (cond != null) {
                     openFalseEdges.put(forCls, cond);
+                    assert forCls.getInitializerStatement() != null;
+                    openFalseEdges.put(forCls.getInitializerStatement(), cond);
+                }
                 // leave the break statements to following statements
                 assert statement.equals(loopStack.pop());
                 var cBreaks = loopOpenBreaks.remove(statement);
@@ -439,12 +434,17 @@ public class CParser {
                 // prepare open edges for loop-body
                 var pFor = (IASTForStatement) parent;
                 if (statement.equals(pFor.getInitializerStatement())) {
-                    connectOpenEdges(pFor);
+                    assert statement instanceof IASTExpressionStatement || statement instanceof IASTDeclarationStatement;
+                    assert openDirectEdges.size() == 1 && openDirectEdges.contains(statement);
+                    assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
                     var cond = pFor.getConditionExpression();
-                    if (cond != null)
+                    if (cond != null) {
                         openTrueEdges.put(pFor, cond);
-                    else
+                        openDirectEdges.remove(statement);
+                        openTrueEdges.put(statement, cond);
+                    } else {
                         openDirectEdges.add(pFor);
+                    }
                 }
             }
             Messages.log("CParser: leaving %s statement %s", statement.getClass().getSimpleName(), domP.indexOf(statement));
