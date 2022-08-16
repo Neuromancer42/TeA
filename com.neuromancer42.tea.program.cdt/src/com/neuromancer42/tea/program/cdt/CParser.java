@@ -14,7 +14,7 @@ import java.util.*;
 
 public class CParser {
 
-    public final ProgramDom<IASTFunctionDeclarator> domM;
+    public final ProgramDom<IASTFunctionDefinition> domM;
     public final ProgramDom<IASTStatement> domP;
     public final ProgramDom<IASTDeclarator> domV;
     public final ProgramDom<IASTExpression> domE;
@@ -30,7 +30,7 @@ public class CParser {
 
     public CParser(String fileName) {
         this.fileName = fileName;
-        domM = ProgramDom.createDom("M", IASTFunctionDeclarator.class);
+        domM = ProgramDom.createDom("M", IASTFunctionDefinition.class);
         domP = ProgramDom.createDom("P", IASTStatement.class);
         domV = ProgramDom.createDom("V", IASTDeclarator.class);
         domE = ProgramDom.createDom("E", IASTExpression.class);
@@ -118,21 +118,46 @@ public class CParser {
 
     private class DomainCollector extends ASTVisitor implements ICASTVisitor{
         public DomainCollector() {
+            shouldVisitDeclarations = true;
             shouldVisitStatements = true;
             shouldVisitDeclarators = true;
             shouldVisitExpressions = true;
         }
 
         @Override
+        public int visit(IASTDeclaration declaration) {
+            if (declaration instanceof IASTFunctionDefinition) {
+                var fDef = (IASTFunctionDefinition) declaration;
+                if (domM.add(fDef))
+                    Messages.log("CParser: found function definition <%s>@%s\n%s", fDef.getClass().getSimpleName(), fDef.getFileLocation(), fDef.getRawSignature());
+            }
+            return super.visit(declaration);
+        }
+
+        @Override
         public int visit(IASTDeclarator declarator) {
             if (declarator instanceof IASTFunctionDeclarator) {
-                var func = (IASTFunctionDeclarator) declarator;
-                Messages.log("CParser: found function <%s>@%s\n%s", func, func.getFileLocation(), func.getRawSignature());
-                domM.add(func);
-            } else {
-                var varName = declarator.getName();
-                Messages.log("CParser: found declared var <%s>@%s\n%s", varName, declarator.getFileLocation(), declarator.getRawSignature());
-                domV.add(declarator);
+                var nested = declarator.getNestedDeclarator();
+                if (nested != null) {
+                    while (nested.getNestedDeclarator() != null) {
+                        nested = nested.getNestedDeclarator();
+                    }
+                    if (domV.add(nested))
+                        Messages.log("CParser: declared function pointer %s [%s] in [%s], and skip parameter decls", nested.getName(), nested.getRawSignature(), declarator.getRawSignature());
+                    return ASTVisitor.PROCESS_SKIP;
+                } else {
+                    if (domV.add(declarator)) {
+                        if (declarator.getParent() instanceof IASTFunctionDefinition) {
+                            Messages.log("CParser: function declared as %s [%s] <%s>@%s", declarator.getName(), declarator.getRawSignature(), declarator.getClass().getSimpleName(), declarator.getFileLocation());
+                        } else {
+                            Messages.log("CParser: skip parameter declarations of declaration-only function %s [%s] <%s>@%s", declarator.getName(), declarator.getRawSignature(), declarator.getClass().getSimpleName(), declarator.getFileLocation());
+                            return ASTVisitor.PROCESS_SKIP;
+                        }
+                    }
+                }
+            }
+            if (domV.add(declarator)) {
+                Messages.log("CParser: found declared var %s [%s] <%s>@%s", declarator.getName(), declarator.getRawSignature(), declarator.getClass().getSimpleName(), declarator.getFileLocation());
             }
             return super.visit(declarator);
         }
@@ -146,8 +171,8 @@ public class CParser {
 
         @Override
         public int visit(IASTExpression expression) {
-            Messages.log("CParser: found expression %s, %s <%s>:\n%s", expression.getExpressionType(), expression.getValueCategory(), expression, expression.getRawSignature());
-            domE.add(expression);
+            if (domE.add(expression))
+                Messages.log("CParser: found expression %s, %s (%s) <%s>", expression.getExpressionType().toString(), expression.getValueCategory(), expression.getRawSignature(), expression.getClass().getSimpleName());
             return super.visit(expression);
         }
     }
@@ -166,7 +191,7 @@ public class CParser {
             shouldVisitTranslationUnit = true;
             shouldVisitStatements = true;
             shouldVisitDeclarations = true;
-            shouldVisitParameterDeclarations = true;
+            shouldVisitDeclarators = true;
         }
 
         @Override
@@ -186,76 +211,98 @@ public class CParser {
         public int visit(IASTDeclaration declaration) {
             if (declaration instanceof IASTFunctionDefinition) {
                 if (curFunc != null) {
-                    Messages.fatal("CParser: nested function definition unhandled @%s", declaration.getFileLocation());
+                    Messages.fatal("CParser: nested function definition not supported @%s", declaration.getFileLocation());
                 }
                 IASTFunctionDefinition funcDef = (IASTFunctionDefinition) declaration;
                 if (funcDef.getBody() != null) {
                     curFunc = funcDef;
                     var scope = funcDef.getScope();
-                    Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc.getDeclarator()), scope, scope.getKind());
+                    Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc), scope.getClass().getSimpleName(), scope.getKind());
                 } else {
-                    Messages.log("CParser: skip declaration-only function %s", domM.indexOf(((IASTFunctionDefinition) declaration).getDeclarator()));
+                    Messages.fatal("CParser: function %s has no body", domM.indexOf(((IASTFunctionDefinition) declaration).getDeclarator()));
                     return ASTVisitor.PROCESS_SKIP;
                 }
             } else if (declaration instanceof IASTSimpleDeclaration) {
                 var simpDecl = (IASTSimpleDeclaration) declaration;
-                for (var decl : simpDecl.getDeclarators()) {
-                    if (curFunc != null) {
-                        Messages.log("CParser: declare local var %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc.getDeclarator()));
-                        relMV.add(curFunc.getDeclarator(), decl);
-                    } else {
-                        Messages.log("CParser: global var %s: %s", domV.indexOf(decl), decl.getRawSignature());
-                        relGlobalV.add(decl);
-                    }
-                }
             } else {
-                Messages.warn("CParser: unhandled declaration %s", declaration);
+                Messages.warn("CParser: skip unhandled declaration %s: \n%s", declaration.getClass().getSimpleName(), declaration.getRawSignature());
+                return ASTVisitor.PROCESS_SKIP;
             }
             return super.visit(declaration);
         }
 
         @Override
-        public int visit(IASTParameterDeclaration parameterDeclaration) {
-            if (curFunc != null) {
-                var decl = parameterDeclaration.getDeclarator();
-                if (decl == null) {
-                    Messages.warn("CParser: anonymous parameter unhandled @%s", parameterDeclaration.getFileLocation());
+        public int visit(IASTDeclarator declarator) {
+            if (declarator instanceof IASTFunctionDeclarator) {
+                var nested = declarator.getNestedDeclarator();
+                if (nested != null) {
+                    while (nested.getNestedDeclarator() != null)
+                        nested = nested.getNestedDeclarator();
+                    if (curFunc != null) {
+                        Messages.log("CParser: declare local function pointer %s:%s [%s] at func %s, skip its parameters", domV.indexOf(nested), nested.getName(), declarator.getRawSignature(), domM.indexOf(curFunc));
+                        relMV.add(curFunc, nested);
+                        return ASTVisitor.PROCESS_SKIP;
+                    } else {
+                        Messages.log("CParser: declare global function pointer %s:%s [%s], skip its parameters", domV.indexOf(nested), nested.getName(), declarator.getRawSignature());
+                        relGlobalV.add(nested);
+                        return ASTVisitor.PROCESS_SKIP;
+                    }
                 } else {
-                    Messages.log("CParser: declare parameter %s: %s at func %s", domV.indexOf(decl), decl.getRawSignature(), domM.indexOf(curFunc.getDeclarator()));
-                    relMV.add(curFunc.getDeclarator(), decl);
+                    if (declarator.getParent().equals(curFunc)) {
+                        Messages.log("CParser: add %s:%s [%s] to declared functions",  domV.indexOf(declarator), declarator.getName(), declarator.getRawSignature());
+                        relGlobalV.add(declarator);
+                        return ASTVisitor.PROCESS_CONTINUE;
+                    } else {
+                        Messages.log("CParser: add %s:%s [%s] to local declared functions", domV.indexOf(declarator), declarator.getName(), declarator.getRawSignature());
+                        relGlobalV.add(declarator);
+                        return ASTVisitor.PROCESS_SKIP;
+                    }
                 }
             }
-            return super.visit(parameterDeclaration);
+            if (curFunc != null) {
+                Messages.log("CParser: declare local var %s:%s [%s] at func %s", domV.indexOf(declarator), declarator.getName(), declarator.getRawSignature(), domM.indexOf(curFunc));
+                relMV.add(curFunc, declarator);
+            } else {
+                Messages.log("CParser: global var %s:%s [%s]", domV.indexOf(declarator), declarator.getName(), declarator.getRawSignature());
+                relGlobalV.add(declarator);
+            }
+            return super.visit(declarator);
         }
+
         @Override
         public int visit(IASTStatement statement) {
-            Messages.log("CParser: entering %s statement %s: \n%s", statement.getClass(), domP.indexOf(statement), statement.getRawSignature());
             if (statement instanceof IASTCompoundStatement) {
+                Messages.log("CParser: entering statement block %s @%s", domP.indexOf(statement), statement.getFileLocation());
                 // Compound statements are used to represent the post-state of its block
                 // so the program point is added when leaving this statement
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTDeclarationStatement) {
+                Messages.log("CParser: entering declaration statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
                 connectOpenEdges(statement);
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTExpressionStatement) {
+                Messages.log("CParser: entering expression statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
                 connectOpenEdges(statement);
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTIfStatement) {
+                Messages.log("CParser: entering if statement %s: if(%s)",domP.indexOf(statement), ((IASTIfStatement) statement).getConditionExpression().getRawSignature());
                 connectOpenEdges(statement);
                 // prepare open edge for its then clause
                 var cIf = (IASTIfStatement) statement;
                 openTrueEdges.put(cIf, cIf.getConditionExpression());
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTWhileStatement) {
+                Messages.log("CParser: entering while statement %s: while(%s)", domP.indexOf(statement), ((IASTWhileStatement) statement).getCondition().getRawSignature());
                 connectOpenEdges(statement);
                 // prepare open edge to its loop-body
                 var cWhile = (IASTWhileStatement) statement;
                 openTrueEdges.put(cWhile, cWhile.getCondition());
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTReturnStatement) {
+                Messages.log("CParser: TODO entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
                 return ASTVisitor.PROCESS_SKIP;
             } else {
-                Messages.warn("CParser: skip unhandled statement %s: \n%s", statement, statement.getRawSignature());
+                Messages.log("CParser: TODO skip %s statement %s: \n%s", statement.getClass().getSimpleName(), domP.indexOf(statement), statement.getRawSignature());
                 return ASTVisitor.PROCESS_SKIP;
             }
         }
@@ -283,7 +330,7 @@ public class CParser {
                 // leave the false edge to following edges
                 openFalseEdges.put(whileCls, whileCls.getCondition());
             } else {
-                Messages.fatal("CParser: unhandled statement type %s", statement.getClass());
+                Messages.fatal("CParser: unhandled statement type %s", statement.getClass().getSimpleName());
             }
             // prepare open edges for peering clauses if it exists
             var parent = statement.getParent();
@@ -294,7 +341,7 @@ public class CParser {
                     openFalseEdges.put(pIf, pIf.getConditionExpression());
                 }
             }
-            Messages.log("CParser: leaving %s statement %s", statement.getClass(), domP.indexOf(statement));
+            Messages.log("CParser: leaving %s statement %s", statement.getClass().getSimpleName(), domP.indexOf(statement));
             return super.leave(statement);
         }
 
@@ -313,16 +360,10 @@ public class CParser {
             openFalseEdges = new HashMap<>();
         }
 
-        private void clearOpenEdges() {
-            openDirectEdges.clear();
-            openTrueEdges.clear();
-            openFalseEdges.clear();
-        }
-
         private void connectOpenEdges(IASTStatement state) {
             if (openDirectEdges.isEmpty() && openTrueEdges.isEmpty() && openFalseEdges.isEmpty()) {
-                Messages.log("CParser: add entry node %s of function %s", domP.indexOf(state), domM.indexOf(curFunc.getDeclarator()));
-                relMPentry.add(curFunc.getDeclarator(), state);
+                Messages.log("CParser: add entry node %s of function %s", domP.indexOf(state), domM.indexOf(curFunc));
+                relMPentry.add(curFunc, state);
             }
             for (var prev : openDirectEdges) {
                 Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(prev), domP.indexOf(state));
@@ -341,7 +382,9 @@ public class CParser {
                 relPPfalse.add(prev, state, cond);
             }
             // Note: every open edge should have only one target, so they are useless after connected
-            clearOpenEdges();
+            openDirectEdges.clear();
+            openTrueEdges.clear();
+            openFalseEdges.clear();
         }
 
         @Override
@@ -352,8 +395,8 @@ public class CParser {
                 assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
                 assert openDirectEdges.size() == 1 && openDirectEdges.contains(curFunc.getBody());
                 openDirectEdges.remove(curFunc.getBody());
-                relMPexit.add(curFunc.getDeclarator(), curFunc.getBody());
-                Messages.log("CParser: leaving function %s, exit node %s", domM.indexOf(curFunc.getDeclarator()), domP.indexOf(curFunc.getBody()));
+                relMPexit.add(curFunc, curFunc.getBody());
+                Messages.log("CParser: leaving function %s, exit node %s", domM.indexOf(curFunc), domP.indexOf(curFunc.getBody()));
                 curFunc = null;
             }
             return super.leave(declaration);
