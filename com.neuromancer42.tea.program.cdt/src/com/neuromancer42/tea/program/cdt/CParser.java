@@ -179,6 +179,8 @@ public class CParser {
 
     private class RelationCollector extends ASTVisitor implements ICASTVisitor {
         private IASTFunctionDefinition curFunc = null;
+        private IASTStatement funcEntry = null;
+        private IASTStatement funcExit = null;
 
         private Set<IASTStatement> openDirectEdges = new HashSet<>();
         private Map<IASTStatement, IASTExpression> openTrueEdges = new HashMap<>();
@@ -216,6 +218,9 @@ public class CParser {
                 IASTFunctionDefinition funcDef = (IASTFunctionDefinition) declaration;
                 if (funcDef.getBody() != null) {
                     curFunc = funcDef;
+                    assert funcEntry == null && funcExit == null;
+                    assert funcDef.getBody() instanceof IASTCompoundStatement;
+                    funcExit = funcDef.getBody();
                     var scope = funcDef.getScope();
                     Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc), scope.getClass().getSimpleName(), scope.getKind());
                 } else {
@@ -299,8 +304,10 @@ public class CParser {
                 openTrueEdges.put(cWhile, cWhile.getCondition());
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTReturnStatement) {
-                Messages.log("CParser: TODO entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
-                return ASTVisitor.PROCESS_SKIP;
+                Messages.log("CParser: entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
+                connectOpenEdges(statement);
+                var cRet = (IASTReturnStatement) statement;
+                return ASTVisitor.PROCESS_CONTINUE;
             } else {
                 Messages.log("CParser: TODO skip %s statement %s: \n%s", statement.getClass().getSimpleName(), domP.indexOf(statement), statement.getRawSignature());
                 return ASTVisitor.PROCESS_SKIP;
@@ -329,6 +336,11 @@ public class CParser {
                 connectOpenEdges(whileCls);
                 // leave the false edge to following edges
                 openFalseEdges.put(whileCls, whileCls.getCondition());
+            } else if (statement instanceof IASTReturnStatement) {
+                // no open edge is added, just connect to func Exit
+                assert funcExit != null;
+                Messages.log("CParser: add direct CFG edge (%s,%s)", domP.indexOf(statement), domP.indexOf(funcExit));
+                relPPdirect.add(statement, funcExit);
             } else {
                 Messages.fatal("CParser: unhandled statement type %s", statement.getClass().getSimpleName());
             }
@@ -361,8 +373,9 @@ public class CParser {
         }
 
         private void connectOpenEdges(IASTStatement state) {
-            if (openDirectEdges.isEmpty() && openTrueEdges.isEmpty() && openFalseEdges.isEmpty()) {
+            if (funcEntry == null) {
                 Messages.log("CParser: add entry node %s of function %s", domP.indexOf(state), domM.indexOf(curFunc));
+                funcEntry = state;
                 relMPentry.add(curFunc, state);
             }
             for (var prev : openDirectEdges) {
@@ -393,11 +406,13 @@ public class CParser {
                 assert curFunc.equals(declaration);
                 assert cachedOpenDirectEdges.isEmpty() && cachedOpenTrueEdges.isEmpty() && cachedOpenFalseEdges.isEmpty();
                 assert openTrueEdges.isEmpty() && openFalseEdges.isEmpty();
-                assert openDirectEdges.size() == 1 && openDirectEdges.contains(curFunc.getBody());
-                openDirectEdges.remove(curFunc.getBody());
-                relMPexit.add(curFunc, curFunc.getBody());
+                assert openDirectEdges.size() == 1 && openDirectEdges.contains(funcExit);
+                openDirectEdges.remove(funcExit);
+                relMPexit.add(curFunc, funcExit);
                 Messages.log("CParser: leaving function %s, exit node %s", domM.indexOf(curFunc), domP.indexOf(curFunc.getBody()));
                 curFunc = null;
+                funcEntry = null;
+                funcExit = null;
             }
             return super.leave(declaration);
         }
