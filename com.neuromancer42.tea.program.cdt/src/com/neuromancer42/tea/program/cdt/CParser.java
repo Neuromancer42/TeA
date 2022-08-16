@@ -302,6 +302,7 @@ public class CParser {
                 // prepare open edge to its loop-body
                 var cWhile = (IASTWhileStatement) statement;
                 openTrueEdges.put(cWhile, cWhile.getCondition());
+                // loop control routine
                 loopStack.push(statement);
                 loopOpenBreaks.put(statement, new HashSet<>());
                 return ASTVisitor.PROCESS_CONTINUE;
@@ -310,6 +311,22 @@ public class CParser {
                 // previous open edges are left for body statement, and do-cls are added into open edges
                 var cDo = (IASTDoStatement) statement;
                 openTrueEdges.put(cDo, cDo.getCondition());
+                // loop control routine
+                loopStack.push(statement);
+                loopOpenBreaks.put(statement, new HashSet<>());
+                return ASTVisitor.PROCESS_CONTINUE;
+            } else if (statement instanceof IASTForStatement) {
+                Messages.log("CParser: entering for statement %s: for()", domP.indexOf(statement));
+                var cFor = (IASTForStatement) statement;
+                // leave all open edges for initializer statement if it exits, otherwise directly connect to loop-body
+                if (cFor.getInitializerStatement() == null) {
+                    var cond = cFor.getConditionExpression();
+                    if (cond != null)
+                        openTrueEdges.put(cFor, cond);
+                    else
+                        openDirectEdges.add(cFor);
+                }
+                // loop control routine
                 loopStack.push(statement);
                 loopOpenBreaks.put(statement, new HashSet<>());
                 return ASTVisitor.PROCESS_CONTINUE;
@@ -370,6 +387,20 @@ public class CParser {
                 assert statement.equals(loopStack.pop());
                 var cBreaks = loopOpenBreaks.remove(statement);
                 openDirectEdges.addAll(cBreaks);
+            } else if (statement instanceof IASTForStatement) {
+                var forCls = (IASTForStatement) statement;
+                // the open edges arethe end-edges of its body, which should go back to for statement
+                var itrExpr = forCls.getIterationExpression();
+                // TODO handling iteration expression
+                connectOpenEdges(forCls);
+                // leave the false edge to following statements, or not out-of-loop edge if no condition is provided
+                var cond = forCls.getConditionExpression();
+                if (cond != null)
+                    openFalseEdges.put(forCls, cond);
+                // leave the break statements to following statements
+                assert statement.equals(loopStack.pop());
+                var cBreaks = loopOpenBreaks.remove(statement);
+                openDirectEdges.addAll(cBreaks);
             } else if (statement instanceof IASTContinueStatement) {
                 var loop = loopStack.peek();
                 if (loop != null) {
@@ -393,23 +424,33 @@ public class CParser {
             } else {
                 Messages.fatal("CParser: unhandled statement type %s", statement.getClass().getSimpleName());
             }
-            // prepare open edges for peering clauses if it exists
             var parent = statement.getParent();
             if (parent instanceof IASTIfStatement) {
+                // prepare open edges for peering else-clause if it exists
                 var pIf = (IASTIfStatement) parent;
                 if (statement.equals(pIf.getThenClause()) && pIf.getElseClause() != null) {
                     cachingOpenEdges(statement);
                     openFalseEdges.put(pIf, pIf.getConditionExpression());
+                }
+            } else if (parent instanceof IASTForStatement) {
+                // prepare open edges for loop-body
+                var pFor = (IASTForStatement) parent;
+                if (statement.equals(pFor.getInitializerStatement())) {
+                    var cond = pFor.getConditionExpression();
+                    if (cond != null)
+                        openTrueEdges.put(pFor, cond);
+                    else
+                        openDirectEdges.add(pFor);
                 }
             }
             Messages.log("CParser: leaving %s statement %s", statement.getClass().getSimpleName(), domP.indexOf(statement));
             return super.leave(statement);
         }
 
-        private void mergeCachedOpenEdges(IASTStatement thenCls) {
-            openDirectEdges.addAll(cachedOpenDirectEdges.remove(thenCls));
-            openTrueEdges.putAll(cachedOpenTrueEdges.remove(thenCls));
-            openFalseEdges.putAll(cachedOpenFalseEdges.remove(thenCls));
+        private void mergeCachedOpenEdges(IASTStatement cls) {
+            openDirectEdges.addAll(cachedOpenDirectEdges.remove(cls));
+            openTrueEdges.putAll(cachedOpenTrueEdges.remove(cls));
+            openFalseEdges.putAll(cachedOpenFalseEdges.remove(cls));
         }
 
         private void cachingOpenEdges(IASTStatement statement) {
