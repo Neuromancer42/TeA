@@ -319,12 +319,15 @@ public class CParser {
                 Messages.log("CParser: entering for statement %s: for()", domP.indexOf(statement));
                 var cFor = (IASTForStatement) statement;
                 // leave all open edges for initializer statement if it exits, otherwise directly connect to loop-body
+                // TODO: how to handle iteration expression?
                 if (cFor.getInitializerStatement() == null) {
                     var cond = cFor.getConditionExpression();
                     if (cond != null)
                         openTrueEdges.put(cFor, cond);
                     else
                         openDirectEdges.add(cFor);
+                } else {
+                    connectOpenEdges(cFor);
                 }
                 // loop control routine
                 loopStack.push(statement);
@@ -391,7 +394,7 @@ public class CParser {
                 var forCls = (IASTForStatement) statement;
                 // the open edges arethe end-edges of its body, which should go back to for statement
                 var itrExpr = forCls.getIterationExpression();
-                // TODO handling iteration expression
+                // TODO how to handle iteration expression
                 connectOpenEdges(forCls);
                 // leave the false edge to following statements, or not out-of-loop edge if no condition is provided
                 var cond = forCls.getConditionExpression();
@@ -436,6 +439,7 @@ public class CParser {
                 // prepare open edges for loop-body
                 var pFor = (IASTForStatement) parent;
                 if (statement.equals(pFor.getInitializerStatement())) {
+                    connectOpenEdges(pFor);
                     var cond = pFor.getConditionExpression();
                     if (cond != null)
                         openTrueEdges.put(pFor, cond);

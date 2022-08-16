@@ -17,7 +17,7 @@ int plus(int a, int b) {
     pasgn = &asgn;
     (*asgn)(&c, a);
     if (c == 0)
-        for (int i = 0; ; i++) {
+        for (int i = 0; i >= 0; i++) {
             if (i == b)
                 break;
             c++;
