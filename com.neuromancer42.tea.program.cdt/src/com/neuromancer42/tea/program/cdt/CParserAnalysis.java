@@ -3,6 +3,7 @@ package com.neuromancer42.tea.program.cdt;
 import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.program.cdt.internal.CParser;
 
 public class CParserAnalysis extends JavaAnalysis {
     private final CParser cParser;

@@ -1,8 +1,9 @@
-package com.neuromancer42.tea.program.cdt;
+package com.neuromancer42.tea.program.cdt.internal;
 
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.program.cdt.internal.cfg.IntraCFGBuilder;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.c.ICASTVisitor;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
@@ -16,6 +17,8 @@ public class CParser {
 
     public final ProgramDom<IASTFunctionDefinition> domM;
     public final ProgramDom<IASTStatement> domP;
+    // TODO: change domP's domain type from IASTStatement to abstract SequencePoints
+    public final ProgramDom<CSequencePoint> domS;
     public final ProgramDom<IASTDeclarator> domV;
     public final ProgramDom<IASTExpression> domE;
 
@@ -26,6 +29,10 @@ public class CParser {
     public final ProgramRel relPPfalse;
     public final ProgramRel relMV;
     public final ProgramRel relGlobalV;
+    public final ProgramRel relPret;
+    public final ProgramRel relPskip;
+    public final ProgramRel relPexpr;
+    public final ProgramRel relPVinit;
     private final String fileName;
 
     public CParser(String fileName) {
@@ -34,13 +41,21 @@ public class CParser {
         domP = ProgramDom.createDom("P", IASTStatement.class);
         domV = ProgramDom.createDom("V", IASTDeclarator.class);
         domE = ProgramDom.createDom("E", IASTExpression.class);
+        domS = ProgramDom.createDom("S", CSequencePoint.class);
+        // control flow relations
         relMPentry = ProgramRel.createRel("MPentry", new ProgramDom[]{domM, domP});
         relMPexit = ProgramRel.createRel("MPexit", new ProgramDom[]{domM, domP});
         relPPdirect = ProgramRel.createRel("PPdirect", new ProgramDom[]{domP, domP});
         relPPtrue = ProgramRel.createRel("PPtrue", new ProgramDom[]{domP, domP, domE});
         relPPfalse = ProgramRel.createRel("PPfalse", new ProgramDom[]{domP, domP, domE});
+        // variable records
         relMV = ProgramRel.createRel("MV", new ProgramDom[]{domM, domV});
         relGlobalV = ProgramRel.createRel("GlobalV", new ProgramDom[]{domV});
+        // statements
+        relPret = ProgramRel.createRel("Pret", new ProgramDom[]{domP, domE});
+        relPskip = ProgramRel.createRel("Pskip", new ProgramDom[]{domP});
+        relPexpr = ProgramRel.createRel("Pexpr", new ProgramDom[]{domP, domE});
+        relPVinit = ProgramRel.createRel("PVinit", new ProgramDom[]{domP, domV, domE});
     }
 
 
@@ -66,7 +81,17 @@ public class CParser {
             assert false;
         }
 
-        translationUnit.getDeclarations();
+        IntraCFGBuilder builder = new IntraCFGBuilder(translationUnit);
+        for (var decl: translationUnit.getDeclarations()) {
+            if (decl instanceof IASTFunctionDefinition) {
+                var fDef = (IASTFunctionDefinition) decl;
+                domM.add(fDef);
+                builder.build(fDef);
+            }
+        }
+        if (builder != null) {
+            return;
+        }
         // TODO: move this into function template
         openDomains();
         translationUnit.accept(new DomainCollector());
@@ -82,12 +107,14 @@ public class CParser {
         domP.init();
         domV.init();
         domE.init();
+        domS.init();
     }
     private void saveDomains() {
         domM.save();
         domP.save();
         domV.save();
         domE.save();
+        domS.save();
     }
 
     private void openRelations() {
@@ -98,6 +125,9 @@ public class CParser {
         relPPfalse.init();
         relMV.init();
         relGlobalV.init();
+        relPret.init();
+        relPskip.init();
+        relPexpr.init();
     }
     private void saveRelations() {
         relMPentry.save();
@@ -114,13 +144,19 @@ public class CParser {
         relMV.close();
         relGlobalV.save();
         relGlobalV.close();
+        relPret.save();
+        relPret.close();
+        relPskip.save();
+        relPskip.close();
+        relPexpr.save();
+        relPexpr.close();
     }
 
     private class DomainCollector extends ASTVisitor implements ICASTVisitor{
         public DomainCollector() {
             shouldVisitDeclarations = true;
-            shouldVisitStatements = true;
             shouldVisitDeclarators = true;
+            shouldVisitStatements = true;
             shouldVisitExpressions = true;
         }
 
@@ -158,6 +194,10 @@ public class CParser {
             }
             if (domV.add(declarator)) {
                 Messages.log("CParser: found declared var %s [%s] <%s>@%s", declarator.getName(), declarator.getRawSignature(), declarator.getClass().getSimpleName(), declarator.getFileLocation());
+                if (declarator.getInitializer() != null) {
+                    var init = declarator.getInitializer();
+                    Messages.log("CParser: initialized with [%s] <%s>", init.getRawSignature(), init.getFileLocation());
+                }
             }
             return super.visit(declarator);
         }
@@ -174,6 +214,38 @@ public class CParser {
             if (domE.add(expression))
                 Messages.log("CParser: found expression %s, %s (%s) <%s>", expression.getExpressionType().toString(), expression.getValueCategory(), expression.getRawSignature(), expression.getClass().getSimpleName());
             return super.visit(expression);
+        }
+
+        @Override
+        public int leave(IASTExpression expression) {
+            if (expression instanceof IASTFunctionCallExpression) {
+                var invkExpr = (IASTFunctionCallExpression) expression;
+                var seqPoint = new CSequencePoint("PreInvk");
+                domS.add(seqPoint);
+            } else if (expression instanceof IASTBinaryExpression) {
+                var binaryExpr = (IASTBinaryExpression) expression;
+                var binop = binaryExpr.getOperator();
+                if (binop == IASTBinaryExpression.op_logicalAnd) {
+                    var seqPoint = new CSequencePoint("LeftAnd");
+                    domS.add(seqPoint);
+                } else if (binop == IASTBinaryExpression.op_logicalOr) {
+                    var seqPoint = new CSequencePoint("LeftOr");
+                    domS.add(seqPoint);
+                }
+            } else if (expression instanceof IASTExpressionList) {
+                var exprList = ((IASTExpressionList) expression).getExpressions();
+                for (int i = 0; i < exprList.length - 1; ++ i) {
+                    var subExpr = exprList[i];
+                    var seqPoint = new CSequencePoint("LeftComma");
+                    domS.add(seqPoint);
+                }
+            } else if (expression instanceof IASTConditionalExpression) {
+                var ternary = (IASTConditionalExpression) expression;
+                var condExpr = ternary.getLogicalConditionExpression();
+                var seqPoint = new CSequencePoint("TernaryCond");
+                domS.add(seqPoint);
+            }
+            return super.leave(expression);
         }
     }
 
@@ -224,11 +296,12 @@ public class CParser {
                     var scope = funcDef.getScope();
                     Messages.log("CParser: entering function %s scope %s (%s)", domM.indexOf(curFunc), scope.getClass().getSimpleName(), scope.getKind());
                 } else {
-                    Messages.fatal("CParser: function %s has no body", domM.indexOf(((IASTFunctionDefinition) declaration).getDeclarator()));
+                    Messages.fatal("CParser: function %s has no body", domM.indexOf(funcDef));
                     return ASTVisitor.PROCESS_SKIP;
                 }
             } else if (declaration instanceof IASTSimpleDeclaration) {
                 var simpDecl = (IASTSimpleDeclaration) declaration;
+                Messages.log("CParser: simple declaration of signature [%s]", simpDecl.getDeclSpecifier().getRawSignature());
             } else {
                 Messages.warn("CParser: skip unhandled declaration %s: \n%s", declaration.getClass().getSimpleName(), declaration.getRawSignature());
                 return ASTVisitor.PROCESS_SKIP;
@@ -246,12 +319,11 @@ public class CParser {
                     if (curFunc != null) {
                         Messages.log("CParser: declare local function pointer %s:%s [%s] at func %s, skip its parameters", domV.indexOf(nested), nested.getName(), declarator.getRawSignature(), domM.indexOf(curFunc));
                         relMV.add(curFunc, nested);
-                        return ASTVisitor.PROCESS_SKIP;
                     } else {
                         Messages.log("CParser: declare global function pointer %s:%s [%s], skip its parameters", domV.indexOf(nested), nested.getName(), declarator.getRawSignature());
                         relGlobalV.add(nested);
-                        return ASTVisitor.PROCESS_SKIP;
                     }
+                    return ASTVisitor.PROCESS_SKIP;
                 } else {
                     if (declarator.getParent().equals(curFunc)) {
                         Messages.log("CParser: add %s:%s [%s] to declared functions",  domV.indexOf(declarator), declarator.getName(), declarator.getRawSignature());
@@ -336,7 +408,6 @@ public class CParser {
             } else if (statement instanceof IASTReturnStatement) {
                 Messages.log("CParser: entering return statement %s: %s", domP.indexOf(statement), statement.getRawSignature());
                 connectOpenEdges(statement);
-                var cRet = (IASTReturnStatement) statement;
                 return ASTVisitor.PROCESS_CONTINUE;
             } else if (statement instanceof IASTNullStatement) {
                 Messages.log("CParser: entering null statement %s @%s", domP.indexOf(statement), statement.getFileLocation());
@@ -472,6 +543,61 @@ public class CParser {
         }
 
         private void connectOpenEdges(IASTStatement state) {
+            // TODO: how to handle branch conditions?
+            if (state instanceof IASTNullStatement
+                    || state instanceof IASTCompoundStatement
+                    || state instanceof IASTBreakStatement
+                    || state instanceof IASTContinueStatement
+            ) {
+                relPskip.add(state);
+            } else if (state instanceof IASTExpressionStatement) {
+                IASTExpressionStatement epxrStmt = (IASTExpressionStatement) state;
+                relPexpr.add(state, epxrStmt.getExpression());
+            } else if (state instanceof IASTIfStatement) {
+                IASTExpression condExpr = ((IASTIfStatement) state).getConditionExpression();
+                relPexpr.add(state, condExpr);
+            } else if (state instanceof IASTWhileStatement) {
+                IASTExpression condExpr = ((IASTWhileStatement) state).getCondition();
+                relPexpr.add(state, condExpr);
+            } else if (state instanceof IASTDoStatement) {
+                IASTExpression condExpr = ((IASTDoStatement) state).getCondition();
+                relPexpr.add(state, condExpr);
+            } else if (state instanceof IASTReturnStatement) {
+                IASTExpression retExpr = ((IASTReturnStatement) state).getReturnValue();
+                if (retExpr == null) {
+                    relPskip.add(state);
+                } else {
+                    relPret.add(state, retExpr);
+                }
+            } else if (state instanceof IASTDeclarationStatement) {
+                IASTDeclaration decl = ((IASTDeclarationStatement) state).getDeclaration();
+                if (decl instanceof IASTSimpleDeclaration) {
+                    var dtors = ((IASTSimpleDeclaration) decl).getDeclarators();
+                    for (var dtor : dtors) {
+                        var initializer = dtor.getInitializer();
+                        if (initializer == null) {
+                            // TODO: init with UnInit
+                        } else if (initializer instanceof IASTEqualsInitializer) {
+                            var initCls = ((IASTEqualsInitializer) initializer).getInitializerClause();
+                            if (initCls instanceof IASTExpression) {
+                                var initExpr = (IASTExpression) initCls;
+                                // TODO: the evaluated value of initExpr is stored into declared register 'dtor'
+                            }
+                        }
+                    }
+                }
+            } else if (state instanceof IASTForStatement) {
+                IASTForStatement cFor = (IASTForStatement) state;
+                IASTExpression iterExpr = cFor.getIterationExpression();
+                if (iterExpr == null) {
+                    relPskip.add(state);
+                } else {
+                    relPexpr.add(state, iterExpr);
+                }
+            } else {
+                Messages.warn("CParser: unhandled statement type %s, No. %s, mark as skip: %s", state.getClass().getSimpleName(), domP.indexOf((state)), state.getRawSignature());
+                relPskip.add(state);
+            }
             if (funcEntry == null) {
                 Messages.log("CParser: add entry node %s of function %s", domP.indexOf(state), domM.indexOf(curFunc));
                 funcEntry = state;

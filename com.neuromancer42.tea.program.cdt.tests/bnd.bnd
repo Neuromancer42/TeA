@@ -3,6 +3,7 @@
     com.neuromancer42.tea.program.cdt;version:=latest,\
     com.neuromancer42.tea.core;version:=latest,\
     org.eclipse.cdt.core,\
+    org.eclipse.cdt.codan.core,\
     org.eclipse.equinox.common,\
     ${junit}
 
