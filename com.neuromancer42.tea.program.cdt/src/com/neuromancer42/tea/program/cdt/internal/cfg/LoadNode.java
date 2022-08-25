@@ -1,21 +1,21 @@
 package com.neuromancer42.tea.program.cdt.internal.cfg;
 
+import com.neuromancer42.tea.program.cdt.internal.memory.IStorage;
 import org.eclipse.cdt.codan.internal.core.cfg.PlainNode;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
 
-// Load the stored value referenced in object according to previous state, and store it in register i
+// Load the stored value in storage and store it in register i
 public class LoadNode extends PlainNode {
-    private final IASTExpression object;
+    private final IStorage location;
     private final int registerId;
 
-    public LoadNode(IASTExpression expr, int i) {
-        this.object = expr;
+    public LoadNode(int i, IStorage loc) {
+        this.location = loc;
         this.registerId = i;
-        super.setData(expr);
     }
 
-    public IASTExpression getObject() {
-        return object;
+    public IStorage getStorage() {
+        return location;
     }
 
     public int getRegister() {

@@ -11,12 +11,14 @@ void assign(int *p, int v) {
 }
 
 int plus(int a, int b) {
-    int c;
-    void (*asgn)(int*, int);
-    void (**pasgn)(int*, int);
-    asgn = &assign;
+    int c = 0;
+    int *d = &c;
+    d = &c;
+    (*d)++;
+    void (*asgn)(int*, int) = assign;
+    void (**pasgn)(int*, int) = &asgn;
     pasgn = &asgn;
-    (*asgn)(&c, a);
+    (*pasgn)(d, a);
     if (c == 0) {
         int i = 0;
         for (; i >= 0; i++) {
@@ -39,5 +41,7 @@ int main() {
     assign(&x, 0);
     y = 1;
     z = plus(x, y);
+    int c;
+    c = 1;
     return z;
 }
