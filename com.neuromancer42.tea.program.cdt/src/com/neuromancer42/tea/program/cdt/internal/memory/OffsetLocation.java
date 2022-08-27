@@ -4,18 +4,18 @@ import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IType;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 
-public class OffsetStorage implements IStorage {
-    private final IStorage base;
+public class OffsetLocation implements ILocation {
+    private final ILocation base;
     private final IASTExpression offsetExpr;
     private final int offsetReg;
 
-    public OffsetStorage(IStorage base, IASTExpression offsetExpr, int offsetReg) {
+    public OffsetLocation(ILocation base, IASTExpression offsetExpr, int offsetReg) {
         this.base = base;
         this.offsetExpr = offsetExpr;
         this.offsetReg = offsetReg;
     }
 
-    public IStorage getBaseLocation() {
+    public ILocation getBaseLocation() {
         return base;
     }
 

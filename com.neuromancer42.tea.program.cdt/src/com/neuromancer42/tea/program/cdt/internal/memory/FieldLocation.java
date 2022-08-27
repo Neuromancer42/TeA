@@ -4,16 +4,16 @@ import org.eclipse.cdt.core.dom.ast.IField;
 import org.eclipse.cdt.core.dom.ast.IType;
 
 // a memory location that lie along base location with offset indicated by field
-public class FieldStorage implements IStorage {
-    private final IStorage base;
+public class FieldLocation implements ILocation {
+    private final ILocation base;
     private final IField field;
 
-    public FieldStorage(IStorage base, IField field) {
+    public FieldLocation(ILocation base, IField field) {
         this.base = base;
         this.field = field;
     }
 
-    public IStorage getBaseLocation() {
+    public ILocation getBaseLocation() {
         return base;
     }
 

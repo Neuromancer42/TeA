@@ -4,10 +4,10 @@ import org.eclipse.cdt.core.dom.ast.IType;
 import org.eclipse.cdt.core.dom.ast.IVariable;
 
 // A memory storage location referenced by a variable (i.e. its target is known)
-public class VariableStorage implements IStorage {
+public class VariableLocation implements ILocation {
     private final IVariable variable;
 
-    public VariableStorage(IVariable variable) {
+    public VariableLocation(IVariable variable) {
         this.variable = variable;
     }
 

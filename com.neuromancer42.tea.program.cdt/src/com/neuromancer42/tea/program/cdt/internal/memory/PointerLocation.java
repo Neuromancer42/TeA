@@ -5,11 +5,11 @@ import org.eclipse.cdt.core.dom.ast.IType;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 
 // a memory location referenced by a pointer
-public class PointerStorage implements IStorage {
+public class PointerLocation implements ILocation {
     private final IASTExpression ptrExpr;
     private final int ptrReg;
 
-    public PointerStorage(IASTExpression ptrExpr, int ptrReg) {
+    public PointerLocation(IASTExpression ptrExpr, int ptrReg) {
         this.ptrExpr = ptrExpr;
         this.ptrReg = ptrReg;
     }

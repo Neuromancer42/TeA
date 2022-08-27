@@ -1,22 +1,27 @@
 package com.neuromancer42.tea.program.cdt.internal.cfg;
 
-import com.neuromancer42.tea.program.cdt.internal.memory.IStorage;
+import com.neuromancer42.tea.program.cdt.internal.memory.ILocation;
 import org.eclipse.cdt.codan.internal.core.cfg.PlainNode;
 
 // Store the value in register to target (variable/pointer/array/field)
-public class StoreNode extends PlainNode {
+public class StoreNode extends PlainNode implements ICFGNode {
     private final int registerId;
-    private final IStorage location;
-    public StoreNode(IStorage location, int register) {
+    private final ILocation location;
+    public StoreNode(ILocation location, int register) {
         this.registerId = register;
         this.location = location;
     }
 
-    public IStorage getStorage() {
+    public ILocation getStorage() {
         return location;
     }
 
     public int getRegister() {
         return registerId;
+    }
+
+    @Override
+    public String toDebugString() {
+        return "store:" + location.toDebugString() + "<-" + location.getType() + "@" + registerId;
     }
 }

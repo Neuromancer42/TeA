@@ -3,10 +3,10 @@ package com.neuromancer42.tea.program.cdt.internal.memory;
 import org.eclipse.cdt.core.dom.ast.IFunction;
 import org.eclipse.cdt.core.dom.ast.IType;
 
-public class FunctionStorage implements IStorage {
+public class FunctionLocation implements ILocation {
     private final IFunction func;
 
-    public FunctionStorage(IFunction func) {
+    public FunctionLocation(IFunction func) {
         this.func = func;
     }
 

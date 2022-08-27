@@ -7,7 +7,6 @@ void assign(int *p, int v) {
         v = v - 1;
         *p += 1;
     } while (v > 0);
-    return;
 }
 
 int plus(int a, int b) {
