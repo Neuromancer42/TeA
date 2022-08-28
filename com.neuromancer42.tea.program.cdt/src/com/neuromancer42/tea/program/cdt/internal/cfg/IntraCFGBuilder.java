@@ -2,6 +2,7 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.IndexMap;
+import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
 import com.neuromancer42.tea.program.cdt.internal.memory.*;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
@@ -219,7 +220,7 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, rhs);
 
                 int rReg = fetchRegister(rhs);
-                ILocation lhsLoc = createStorage(lhs);
+                ILocation lhsLoc = createLocation(lhs);
                 Messages.log("CParser: assign to location %s <- @%d (%s)", lhsLoc.toDebugString(), rReg, expression.getRawSignature());
                 IBasicBlock storeNode = new StoreNode(lhsLoc, rReg);
                 connect(prevNode, storeNode);
@@ -229,7 +230,7 @@ public class IntraCFGBuilder {
             } else if (binExpr.isLValue()) { // equivalent to op is all compound assignment operators (except op_assign)
                 IASTExpression lval = unparenthesize(binExpr.getOperand1());
                 prevNode = handleLvalue(prevNode, lval);
-                ILocation lhsLoc = createStorage(lval);
+                ILocation lhsLoc = createLocation(lval);
 
                 int prevReg = createRegister(lval);
                 Messages.log("CParser: read from location %s -> @%d (%s)", lhsLoc.toDebugString(), prevReg, expression.getRawSignature());
@@ -241,11 +242,13 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, rval);
 
                 int postReg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, postReg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute updated value in %s#%d := %s", eval.getType(), postReg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, postReg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
-                Messages.log("CParser: update location %s <- @%d (%s)", lhsLoc.toDebugString(), postReg, expression.getRawSignature());
+                Messages.log("CParser: update location #%s <- @%d (%s)", lhsLoc.toDebugString(), postReg, expression.getRawSignature());
                 IBasicBlock storeNode = new StoreNode(lhsLoc, postReg);
                 connect(prevNode, storeNode);
                 prevNode = storeNode;
@@ -267,7 +270,7 @@ public class IntraCFGBuilder {
             ) {
                 IASTExpression obj = unparenthesize(unaryExpr.getOperand());
                 prevNode = handleLvalue(prevNode, obj);
-                ILocation loc = createStorage(obj);
+                ILocation loc = createLocation(obj);
 
                 int prevReg = createRegister(obj);
                 Messages.log("CParser: read from location %s -> @%d (%s)", loc.toDebugString(), prevReg, expression.getRawSignature());
@@ -276,7 +279,9 @@ public class IntraCFGBuilder {
                 prevNode = loadNode;
 
                 int postReg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, postReg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute incr/decr value in %s#%d := %s", eval.getType(), postReg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, postReg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
@@ -355,7 +360,7 @@ public class IntraCFGBuilder {
             return prevNode;
         } else if (expression instanceof IASTIdExpression) {
             int reg = createRegister(expression);
-            ILocation loc = createStorage(expression);
+            ILocation loc = createLocation(expression);
             Messages.log("CParser: read from location %s -> @%d (%s)", loc.toDebugString(), reg, expression.getRawSignature());
             IBasicBlock loadNode = new LoadNode(reg, loc);
             connect(prevNode, loadNode);
@@ -372,7 +377,7 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, inner);
 
                 int reg = createRegister(expression);
-                ILocation loc = createStorage(expression);
+                ILocation loc = createLocation(expression);
                 Messages.log("CParser: read from location %s -> @%d (%s)", loc.toDebugString(), reg, expression.getRawSignature());
                 IBasicBlock loadNode = new LoadNode(reg, loc);
                 connect(prevNode, loadNode);
@@ -383,7 +388,9 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, inner);
 
                 int reg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, reg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute unary expr in %s#%d := %s", eval.getType(), reg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, reg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
@@ -399,7 +406,9 @@ public class IntraCFGBuilder {
                 prevNode = handleLvalue(prevNode, inner);
 
                 int reg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, reg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute address in %s#%d := %s", eval.getType(), reg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, reg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
@@ -418,7 +427,7 @@ public class IntraCFGBuilder {
                 prevNode = handleLvalue(prevNode, base);
 
                 int reg = createRegister(expression);
-                ILocation loc = createStorage(expression);
+                ILocation loc = createLocation(expression);
                 Messages.log("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
                 IBasicBlock loadNode = new LoadNode(reg, loc);
                 connect(prevNode, loadNode);
@@ -430,7 +439,7 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, ptr);
 
                 int reg = createRegister(expression);
-                ILocation loc = createStorage(expression);
+                ILocation loc = createLocation(expression);
                 Messages.log("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
                 IBasicBlock loadNode = new LoadNode(reg, loc);
                 connect(prevNode, loadNode);
@@ -441,7 +450,9 @@ public class IntraCFGBuilder {
                 prevNode = handleShortcircuitExpression(prevNode, binExpr);
 
                 int reg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, reg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute result of and/or in %s#%d := %s", eval.getType(), reg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, reg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
@@ -455,7 +466,9 @@ public class IntraCFGBuilder {
                 prevNode = handleRvalue(prevNode, op2);
 
                 int reg = createRegister(expression);
-                IBasicBlock evalNode = new EvalNode(expression, reg);
+                IEval eval = createEvaluation(expression);
+                Messages.log("CParser: compute binary expr in %s#%d := %s", eval.getType(), reg, eval.toDebugString());
+                IBasicBlock evalNode = new EvalNode(eval, reg);
                 connect(prevNode, evalNode);
                 prevNode = evalNode;
 
@@ -471,7 +484,7 @@ public class IntraCFGBuilder {
             prevNode = handleRvalue(prevNode, subscript);
 
             int reg = createRegister(expression);
-            ILocation loc = createStorage(expression);
+            ILocation loc = createLocation(expression);
             Messages.log("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
             IBasicBlock loadNode = new LoadNode(reg, loc);
             connect(prevNode, loadNode);
@@ -495,7 +508,9 @@ public class IntraCFGBuilder {
             }
 
             int reg = createRegister(expression);
-            IBasicBlock evalNode = new EvalNode(expression, reg);
+            IEval eval = createEvaluation(expression);
+            Messages.log("CParser: compute invocation in %s#%d := %s", eval.getType(), reg, eval.toDebugString());
+            IBasicBlock evalNode = new EvalNode(eval, reg);
             connect(prevNode, evalNode);
             prevNode = evalNode;
 
@@ -747,8 +762,9 @@ public class IntraCFGBuilder {
             if (allocate) {
                 registers.add(expression);
                 id = registers.indexOf(expression);
-            } else
+            } else {
                 Messages.fatal("CParser: uncomputed expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            }
         }
         return id;
     }
@@ -762,7 +778,7 @@ public class IntraCFGBuilder {
         return getRegister(expression, true);
     }
 
-    private ILocation createStorage(IASTExpression lhs) {
+    private ILocation createLocation(IASTExpression lhs) {
         if (lhs instanceof IASTIdExpression) {
             IASTName varName = ((IASTIdExpression) lhs).getName();
             IBinding binding =  varName.resolveBinding();
@@ -789,11 +805,11 @@ public class IntraCFGBuilder {
                 return new PointerLocation(ptrExpr, ptrReg);
             } else if (op == IASTUnaryExpression.op_bracketedPrimary) {
                 Messages.warn("CParser: brackets should have been parenthesised for [%s]", lhs.getRawSignature());
-                return createStorage(unparenthesize(lhs));
+                return createLocation(unparenthesize(lhs));
             }
         } else if (lhs instanceof IASTArraySubscriptExpression) {
             IASTExpression arrayExpr = unparenthesize(((IASTArraySubscriptExpression) lhs).getArrayExpression());
-            ILocation baseStorage = createStorage(arrayExpr);
+            ILocation baseStorage = createLocation(arrayExpr);
 
             IASTExpression subscriptExpr = unparenthesize((IASTExpression) ((IASTArraySubscriptExpression) lhs).getArgument());
             int subscriptReg = fetchRegister(subscriptExpr);
@@ -802,7 +818,7 @@ public class IntraCFGBuilder {
             int op = ((IASTBinaryExpression) lhs).getOperator();
             if (op == IASTBinaryExpression.op_pmdot) {
                 IASTExpression baseExpr = unparenthesize(((IASTBinaryExpression) lhs).getOperand1());
-                ILocation baseStorage = createStorage(baseExpr);
+                ILocation baseStorage = createLocation(baseExpr);
 
                 IASTExpression fieldExpr = unparenthesize(((IASTBinaryExpression) lhs).getOperand2());
                 IASTName fieldName = ((IASTIdExpression) fieldExpr).getName();
@@ -819,7 +835,158 @@ public class IntraCFGBuilder {
                 return new FieldLocation(baseStorage, field);
             }
         }
-        Messages.error("CParser: treat unhandled storage object as anonymous variable %s[%s]", lhs.getClass().getSimpleName(), lhs.getRawSignature());
+        Messages.error("CParser: treat unhandled location object as anonymous variable %s[%s]", lhs.getClass().getSimpleName(), lhs.getRawSignature());
         return new VariableLocation(null);
+    }
+
+    private IEval createEvaluation(IASTExpression rhs) {
+        if (rhs instanceof IASTBinaryExpression) {
+            IASTBinaryExpression binExpr = (IASTBinaryExpression) rhs;
+            int op = binExpr.getOperator();
+            switch (op) {
+                case IASTBinaryExpression.op_plus:
+                case IASTBinaryExpression.op_plusAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_plus, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_minus:
+                case IASTBinaryExpression.op_minusAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_minus, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_multiply:
+                case IASTBinaryExpression.op_multiplyAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_multiply, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_divide:
+                case IASTBinaryExpression.op_divideAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_divide, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_modulo:
+                case IASTBinaryExpression.op_moduloAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_modulo, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_equals: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_eq, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_notequals: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_ne, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_lessThan: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_lt, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_greaterThan: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_lt, reg2, reg1);
+                }
+                case IASTBinaryExpression.op_lessEqual: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_le, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_greaterEqual: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_le, reg2, reg1);
+                }
+                case IASTBinaryExpression.op_logicalAnd: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_and, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_logicalOr: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_or, reg1, reg2);
+                }
+                case IASTBinaryExpression.op_shiftLeft:
+                case IASTBinaryExpression.op_shiftLeftAssign:
+                case IASTBinaryExpression.op_shiftRight:
+                case IASTBinaryExpression.op_shiftRightAssign:
+                case IASTBinaryExpression.op_binaryAnd:
+                case IASTBinaryExpression.op_binaryAndAssign:
+                case IASTBinaryExpression.op_binaryOr:
+                case IASTBinaryExpression.op_binaryOrAssign:
+                case IASTBinaryExpression.op_binaryXor:
+                case IASTBinaryExpression.op_binaryXorAssign: {
+                    int reg1 = fetchRegister(unparenthesize(binExpr.getOperand1()));
+                    int reg2 = fetchRegister(unparenthesize(binExpr.getOperand2()));
+                    return new BinaryEval(rhs, BinaryEval.op_bit, reg1, reg2);
+                }
+            }
+        } else if (rhs instanceof IASTUnaryExpression) {
+            IASTUnaryExpression unaryExpr = (IASTUnaryExpression) rhs;
+            int op = unaryExpr.getOperator();
+            switch (op) {
+                case IASTUnaryExpression.op_bracketedPrimary:
+                    Messages.warn("CParser: brackets should have been parenthesised for [%s]", rhs.getRawSignature());
+                    return createEvaluation(unparenthesize(rhs));
+                case IASTUnaryExpression.op_amper: {
+                    IASTExpression inner = unparenthesize(unaryExpr.getOperand());
+                    if (inner instanceof IASTUnaryExpression && ((IASTUnaryExpression) inner).getOperator() == IASTUnaryExpression.op_star) {
+                        IASTExpression cancelledExpr = unparenthesize(((IASTUnaryExpression) inner).getOperand());
+                        return createEvaluation(cancelledExpr);
+                    } else if (inner instanceof IASTArraySubscriptExpression) {
+                        IASTArraySubscriptExpression arraySubExpr = (IASTArraySubscriptExpression) inner;
+                        IASTExpression arrayExpr = unparenthesize(arraySubExpr.getArrayExpression());
+                        int arrayReg = fetchRegister(arrayExpr);
+                        IASTExpression subExpr = unparenthesize((IASTExpression) arraySubExpr.getArgument());
+                        int subReg = fetchRegister(subExpr);
+                        return new BinaryEval(rhs, BinaryEval.op_plus, arrayReg, subReg);
+                    }
+                    ILocation loc = createLocation(inner);
+                    return new AddressEval(rhs, loc);
+                }
+                case IASTUnaryExpression.op_prefixIncr:
+                case IASTUnaryExpression.op_postFixIncr: {
+                    int reg = fetchRegister(unparenthesize(unaryExpr.getOperand()));
+                    return new UnaryEval(rhs, UnaryEval.op_incr, reg);
+                }
+                case IASTUnaryExpression.op_prefixDecr:
+                case IASTUnaryExpression.op_postFixDecr: {
+                    int reg = fetchRegister(unparenthesize(unaryExpr.getOperand()));
+                    return new UnaryEval(rhs, UnaryEval.op_decr, reg);
+                }
+                case IASTUnaryExpression.op_plus: {
+                    int reg = fetchRegister(unparenthesize(unaryExpr.getOperand()));
+                    return new UnaryEval(rhs, UnaryEval.op_plus, reg);
+                }
+                case IASTUnaryExpression.op_minus: {
+                    int reg = fetchRegister(unparenthesize(unaryExpr.getOperand()));
+                    return new UnaryEval(rhs, UnaryEval.op_minus, reg);
+                }
+                case IASTUnaryExpression.op_not: {
+                    int reg = fetchRegister(unparenthesize(unaryExpr.getOperand()));
+                    return new UnaryEval(rhs, UnaryEval.op_not, reg);
+                }
+            }
+        } else if (rhs instanceof IASTFunctionCallExpression) {
+            IASTFunctionCallExpression invk = (IASTFunctionCallExpression) rhs;
+            int fReg = fetchRegister(unparenthesize(invk.getFunctionNameExpression()));
+            IASTInitializerClause[] args =  invk.getArguments();
+            int[] aRegs = new int[args.length];
+            for (int i = 0; i < args.length; i++) {
+                IASTExpression argExpr = (IASTExpression) args[i];
+                aRegs[i] = fetchRegister(unparenthesize(argExpr));
+            }
+            return new InvokeEval(rhs, fReg, aRegs);
+        }
+        Messages.error("CParser: treat unhandled evaluation object as black hole %s[%s]", rhs.getClass().getSimpleName(), rhs.getRawSignature());
+        return new BlackholeEval(rhs);
     }
 }

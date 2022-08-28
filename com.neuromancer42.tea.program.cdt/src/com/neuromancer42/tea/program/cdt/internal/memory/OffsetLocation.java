@@ -41,4 +41,14 @@ public class OffsetLocation implements ILocation {
     public IType getType() {
         return ((ITypeContainer) base.getType()).getType();
     }
+
+    @Override
+    public int[] getParameters() {
+        int[] baseParams = base.getParameters();
+        int[] params = new int[baseParams.length + 1];
+        params[0] = offsetReg;
+        System.arraycopy(baseParams, 0, params, 1, baseParams.length);
+        return params;
+    }
+
 }

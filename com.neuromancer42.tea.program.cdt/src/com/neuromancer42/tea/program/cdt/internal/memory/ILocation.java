@@ -6,4 +6,5 @@ public interface ILocation {
     boolean isStatic();
     String toDebugString();
     IType getType();
+    int[] getParameters();
 }

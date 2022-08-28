@@ -35,4 +35,9 @@ public class FieldLocation implements ILocation {
     public String toDebugString() {
         return base.toDebugString() + "_" +field.getName();
     }
+
+    @Override
+    public int[] getParameters() {
+        return base.getParameters();
+    }
 }

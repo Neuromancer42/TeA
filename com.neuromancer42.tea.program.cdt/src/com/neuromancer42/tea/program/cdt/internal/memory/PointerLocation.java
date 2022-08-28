@@ -36,4 +36,10 @@ public class PointerLocation implements ILocation {
     public String toDebugString() {
         return "*" + ptrExpr.getClass().getSimpleName() + "[" + ptrExpr.getRawSignature() + "]@" + ptrReg;
     }
+
+    @Override
+    public int[] getParameters() {
+        return new int[]{ptrReg};
+    }
+
 }

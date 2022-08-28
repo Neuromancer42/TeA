@@ -28,4 +28,10 @@ public class VariableLocation implements ILocation {
             return "Unknown@" + this.hashCode();
         }
     }
+
+    @Override
+    public int[] getParameters() {
+        return new int[0];
+    }
+
 }

@@ -2,6 +2,8 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.program.cdt.internal.evaluation.IEval;
+import com.neuromancer42.tea.program.cdt.internal.memory.ILocation;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.ControlFlowGraph;
 import org.eclipse.cdt.core.dom.ast.IASTFunctionDefinition;
@@ -50,6 +52,28 @@ public class IntraCFG extends ControlFlowGraph {
                 writer.print(";color=green");
             }
             writer.println("]");
+
+            ILocation loc = null;
+            Integer reg = null;
+            if (node instanceof StoreNode) {
+                loc = ((StoreNode) node).getStorage();
+                reg = ((StoreNode) node).getRegister();
+            } else if (node instanceof LoadNode) {
+                loc = ((LoadNode) node).getStorage();
+                reg = ((LoadNode) node).getRegister();
+            } else if (node instanceof EvalNode) {
+                reg = ((EvalNode) node).getRegister();
+            }
+            if (loc != null) {
+                writer.print("m" + loc.hashCode() + " ");
+                writer.print("[label=\"" + loc.toDebugString() + "\"");
+                writer.println(";shape=hexagon]");
+            }
+            if (reg != null) {
+                writer.print("r" + reg + " ");
+                writer.print("[label=\"#" + reg + "\"");
+                writer.print(";shape=egg]");
+            }
         }
         writer.println("}");
         for (IBasicBlock p : getNodes()) {
@@ -69,6 +93,38 @@ public class IntraCFG extends ControlFlowGraph {
                     writer.print(";style=dashed");
                 }
                 writer.println("]");
+            }
+            if (p instanceof StoreNode) {
+                ILocation loc = ((StoreNode) p).getStorage();
+                int reg = ((StoreNode) p).getRegister();
+                writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
+                writer.println(" [arrowhead=diamond;color=red]");
+                writer.print("r" + reg + " -> n" + p.hashCode());
+                writer.println(" [arrowhead=open;color=red;style=dotted]");
+                for (int param : loc.getParameters()) {
+                    writer.print("r" + param + " -> m" + loc.hashCode());
+                    writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                }
+            } else if (p instanceof LoadNode) {
+                ILocation loc = ((LoadNode) p).getStorage();
+                int reg = ((LoadNode) p).getRegister();
+                writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
+                writer.println(" [arrowhead=box;color=green]");
+                writer.print("n" + p.hashCode() + " -> r" + reg);
+                writer.println(" [arrowhead=open;color=green;style=dotted]");
+                for (int param : loc.getParameters()) {
+                    writer.print("r" + param + " -> m" + loc.hashCode());
+                    writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                }
+            } else if (p instanceof EvalNode) {
+                IEval eval = ((EvalNode) p).getEvaluation();
+                int reg = ((EvalNode) p).getRegister();
+                writer.print("n" + p.hashCode() + " -> r" + reg);
+                writer.println(" [arrowhead=none;style=bold;color=blue]");
+                for (int param : eval.getOperands()) {
+                    writer.print("r" + param + " -> r" + reg);
+                    writer.println(" [arrowhead=open;style=dotted;color=aqua]");
+                }
             }
         }
         writer.println();

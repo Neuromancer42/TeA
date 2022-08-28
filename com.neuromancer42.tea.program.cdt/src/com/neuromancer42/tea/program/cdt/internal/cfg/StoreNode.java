@@ -2,6 +2,7 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import com.neuromancer42.tea.program.cdt.internal.memory.ILocation;
 import org.eclipse.cdt.codan.internal.core.cfg.PlainNode;
+import org.eclipse.cdt.core.dom.ast.IType;
 
 // Store the value in register to target (variable/pointer/array/field)
 public class StoreNode extends PlainNode implements ICFGNode {
@@ -18,6 +19,10 @@ public class StoreNode extends PlainNode implements ICFGNode {
 
     public int getRegister() {
         return registerId;
+    }
+
+    public IType getType() {
+        return location.getType();
     }
 
     @Override

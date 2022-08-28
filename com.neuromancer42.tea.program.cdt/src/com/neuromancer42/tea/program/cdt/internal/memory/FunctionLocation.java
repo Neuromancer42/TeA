@@ -28,4 +28,9 @@ public class FunctionLocation implements ILocation {
     public IType getType() {
         return func.getType();
     }
+
+    @Override
+    public int[] getParameters() {
+        return new int[0];
+    }
 }
