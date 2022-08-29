@@ -1,0 +1,15 @@
+-buildpath: \
+    osgi.core;version:=8.0.0,\
+    com.neuromancer42.tea.core;version:=latest,\
+    com.neuromancer42.tea.program.llvm;version:=latest,\
+    ${junit}
+
+Fragment-Host: com.neuromancer42.tea.program.llvm
+
+-dependson: com.neuromancer42.tea.program.llvm
+
+-includeresource:\
+    resources/=resources/
+
+Test-Cases:${classes;NAMED;*Test}
+

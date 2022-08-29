@@ -3,3 +3,8 @@
 	url = https://github.com/Neuromancer42/libdai
 	branch = master
 	update = rebase
+[submodule "com.neuromancer42.tea.program.llvm/llvm-wrapper"]
+	path = com.neuromancer42.tea.program.llvm/llvm-wrapper
+	url = https://github.com/Neuromancer42/llvm_wrapper.git
+	branch = master
+	update = rebase

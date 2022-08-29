@@ -17,11 +17,13 @@ include 'com.neuromancer42.tea.core'
 include 'com.neuromancer42.tea.program.cdt'
 include 'com.neuromancer42.tea.souffle'
 include 'com.neuromancer42.tea.libdai'
+include 'com.neuromancer42.tea.program.llvm'
 
 include 'com.neuromancer42.tea.bddbddb.tests'
 include 'com.neuromancer42.tea.core.tests'
 include 'com.neuromancer42.tea.program.cdt.tests'
 include 'com.neuromancer42.tea.souffle.tests'
 include 'com.neuromancer42.tea.libdai.tests'
+include 'com.neuromancer42.tea.program.llvm.tests'
 
 include 'com.neuromancer42.tea.tests'

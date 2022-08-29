@@ -1,0 +1,18 @@
+-tester: biz.aQute.tester.junit-platform
+
+-runee: JavaSE-11
+-runvm: ${def;argLine}
+
+-resolve.effective: active
+
+-runfw: org.eclipse.osgi
+-runproperties.equinox: \
+    osgi.console=, osgi.console.enable.builtin=false
+
+-runrequires: \
+	bnd.identity;id='${basename;${.}}',\
+	bnd.identity;id='org.junit.jupiter.engine',\
+	bnd.identity;id='org.junit.platform.launcher'
+
+-runproperties.llvm: \
+    chord.work.dir=test-out

@@ -1,0 +1,12 @@
+def resolveTask = tasks.named("resolve.com.neuromancer42.tea.program.llvm.tests") {
+    outputBndrun = layout.buildDirectory.file("com.neuromancer42.tea.program.llvm.tests.bndrun")
+}
+tasks.named("testOSGi") {
+    it.doFirst {
+        copy {
+            from 'resources/'
+            into temporaryDir
+        }
+    }
+    bndrun = resolveTask.flatMap { it.outputBndrun }
+}
