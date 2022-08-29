@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.program.cdt;
+package com.neuromancer42.tea.program.cdt.tests;
 
 import org.eclipse.cdt.core.dom.ast.ExpansionOverlapsBoundaryException;
 import org.eclipse.cdt.core.dom.ast.IASTNode;
@@ -20,10 +20,11 @@ public class CDTTest {
     @DisplayName("CDT core process C header correctly")
     public void test() {
         URL fileURL = this.getClass().getResource("/resources/example.h");
+        assert fileURL != null;
         String filename = System.getProperty("headerfile", fileURL.toString());
         System.err.println("Opening " + filename);
         FileContent fileContent = FileContent.createForExternalFileLocation(filename);
-        Map definedSymbols = new HashMap();
+        Map<String, String> definedSymbols = new HashMap<>();
         String[] includePaths = new String[0];
         IScannerInfo info = new ScannerInfo(definedSymbols, includePaths);
         IParserLogService log = new DefaultLogService();
@@ -47,11 +48,7 @@ public class CDTTest {
     private static void printTree(IASTNode node, int index) {
         IASTNode[] children = node.getChildren();
 
-        boolean printContents = true;
-
-        if ((node instanceof CPPASTTranslationUnit)) {
-            printContents = false;
-        }
+        boolean printContents = !(node instanceof CPPASTTranslationUnit);
 
         String offset = "";
         try {
@@ -63,7 +60,7 @@ public class CDTTest {
             offset = "UnsupportedOperationException";
         }
 
-        System.out.println(String.format(new StringBuilder("%1$").append(index * 2).append("s").toString(), new Object[]{"-"}) + node.getClass().getSimpleName() + offset + " -> " + (printContents ? node.getRawSignature().replaceAll("\n", " \\ ") : node.getRawSignature().subSequence(0, 5)));
+        System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + offset + " -> " + (printContents ? node.getRawSignature().replaceAll("\n", " \\ ") : node.getRawSignature().subSequence(0, 5)));
 
         for (IASTNode iastNode : children)
             printTree(iastNode, index + 1);

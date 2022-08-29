@@ -7,7 +7,7 @@
 
 -runfw: org.eclipse.osgi
 -runproperties.equinox: \
-    osgi.console=, osgi.console.enable.builtin=false,
+    osgi.console=, osgi.console.enable.builtin=false
 
 -runrequires: \
 	bnd.identity;id='${basename;${.}}',\
@@ -15,5 +15,5 @@
 	bnd.identity;id='org.junit.platform.launcher',\
     bnd.identity;id='org.apache.felix.scr'
 
--runproperties.sourcefile:\
+-runproperties.cdt:\
     headerfile="example.h", sourcefile="aplusb.c"

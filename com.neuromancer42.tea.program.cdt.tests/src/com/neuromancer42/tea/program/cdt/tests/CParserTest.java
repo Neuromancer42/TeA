@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.program.cdt;
+package com.neuromancer42.tea.program.cdt.tests;
 
 import com.neuromancer42.tea.program.cdt.internal.CParser;
 import org.junit.jupiter.api.Assertions;
@@ -12,6 +12,7 @@ public class CParserTest {
     @DisplayName("CParser generate rels and doms correctly")
     public void test() {
         URL fileURL = this.getClass().getResource("/resources/aplusb.c");
+        assert fileURL != null;
         String filename = System.getProperty("sourcefile", fileURL.toString());
         CParser cParser = new CParser(filename);
         cParser.run();

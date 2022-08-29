@@ -5,6 +5,7 @@
     com.neuromancer42.tea.souffle;version:=latest,\
     com.neuromancer42.tea.libdai;version:=latest,\
     org.eclipse.cdt.core,\
+    org.eclipse.cdt.codan.core,\
     org.eclipse.equinox.common,\
     ${junit}
 
