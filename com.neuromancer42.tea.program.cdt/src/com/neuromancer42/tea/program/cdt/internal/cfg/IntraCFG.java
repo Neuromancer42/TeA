@@ -3,26 +3,25 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.IEval;
+import com.neuromancer42.tea.program.cdt.internal.evaluation.LoadEval;
 import com.neuromancer42.tea.program.cdt.internal.memory.ILocation;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.ControlFlowGraph;
-import org.eclipse.cdt.core.dom.ast.IASTFunctionDefinition;
 import org.eclipse.cdt.core.dom.ast.IFunction;
 
 import java.io.PrintWriter;
 import java.util.Collection;
 
 public class IntraCFG extends ControlFlowGraph {
-    private final IASTFunctionDefinition func;
-    public IntraCFG(IASTFunctionDefinition func, IStartNode start, Collection<IExitNode> exitNodes) {
+    private final IFunction func;
+    public IntraCFG(IFunction func, IStartNode start, Collection<IExitNode> exitNodes) {
         super(start, exitNodes);
         this.func = func;
     }
 
     public void dumpDotString(PrintWriter writer) {
-        IFunction f = (IFunction) func.getDeclarator().getName().resolveBinding();
         writer.println("subgraph cluster_" + func.hashCode() + " {");
-        writer.println("label = \"" + f + "\"");
+        writer.println("label = \"" + func + "\"");
         for (IBasicBlock n: getNodes()) {
             ICFGNode node = (ICFGNode) n;
             writer.print("n" + node.hashCode() + " ");
@@ -48,7 +47,7 @@ public class IntraCFG extends ControlFlowGraph {
 
             if (node instanceof StoreNode) {
                 writer.print(";color=red");
-            } else if (node instanceof LoadNode) {
+            } else if (node instanceof EvalNode && ((EvalNode) node).getEvaluation() instanceof LoadEval) {
                 writer.print(";color=green");
             }
             writer.println("]");
@@ -56,11 +55,11 @@ public class IntraCFG extends ControlFlowGraph {
             ILocation loc = null;
             Integer reg = null;
             if (node instanceof StoreNode) {
-                loc = ((StoreNode) node).getStorage();
+                loc = ((StoreNode) node).getLocation();
                 reg = ((StoreNode) node).getRegister();
-            } else if (node instanceof LoadNode) {
-                loc = ((LoadNode) node).getStorage();
-                reg = ((LoadNode) node).getRegister();
+            } else if (node instanceof EvalNode && ((EvalNode) node).getEvaluation() instanceof LoadEval) {
+                loc = ((LoadEval) ((EvalNode) node).getEvaluation()).getLocation();
+                reg = ((EvalNode) node).getRegister();
             } else if (node instanceof EvalNode) {
                 reg = ((EvalNode) node).getRegister();
             }
@@ -95,7 +94,7 @@ public class IntraCFG extends ControlFlowGraph {
                 writer.println("]");
             }
             if (p instanceof StoreNode) {
-                ILocation loc = ((StoreNode) p).getStorage();
+                ILocation loc = ((StoreNode) p).getLocation();
                 int reg = ((StoreNode) p).getRegister();
                 writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
                 writer.println(" [arrowhead=diamond;color=red]");
@@ -105,9 +104,9 @@ public class IntraCFG extends ControlFlowGraph {
                     writer.print("r" + param + " -> m" + loc.hashCode());
                     writer.println(" [arrowhead=open;style=dotted;color=yellow]");
                 }
-            } else if (p instanceof LoadNode) {
-                ILocation loc = ((LoadNode) p).getStorage();
-                int reg = ((LoadNode) p).getRegister();
+            } else if (p instanceof EvalNode && ((EvalNode) p).getEvaluation() instanceof LoadEval) {
+                ILocation loc = ((LoadEval) ((EvalNode) p).getEvaluation()).getLocation();
+                int reg = ((EvalNode) p).getRegister();
                 writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
                 writer.println(" [arrowhead=box;color=green]");
                 writer.print("n" + p.hashCode() + " -> r" + reg);

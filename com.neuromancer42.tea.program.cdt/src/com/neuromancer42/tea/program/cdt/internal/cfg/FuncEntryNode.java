@@ -5,14 +5,14 @@ import org.eclipse.cdt.core.dom.ast.IASTFunctionDefinition;
 import org.eclipse.cdt.core.dom.ast.IFunction;
 
 public class FuncEntryNode extends StartNode implements ICFGNode {
-    private final IASTFunctionDefinition curFunc;
+    private final IFunction curFunc;
 
-    public FuncEntryNode(IASTFunctionDefinition fDef) {
+    public FuncEntryNode(IFunction fDef) {
         curFunc = fDef;
     }
 
     @Override
     public String toDebugString() {
-        return "entry:" + curFunc.getDeclarator().getName();
+        return "entry:" + curFunc.toString();
     }
 }

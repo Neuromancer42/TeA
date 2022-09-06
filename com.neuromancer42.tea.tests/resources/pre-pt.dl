@@ -1,0 +1,42 @@
+// generate flow-insensitive & path-insensitive facts
+.type M <: unsigned
+.type P <: unsigned
+.type E <: unsigned
+.type V <: unsigned
+.type I <: unsigned
+.type Z <: unsigned
+
+.decl MPentry(m:M,p:P)
+.input MPentry
+.decl PPdirect(p:P,q:P)
+.input PPdirect
+.decl PPtrue(p:P,q:P,v:V)
+.input PPtrue
+.decl PPfalse(p:P,q:P,v:V)
+.input PPfalse
+
+.decl Peval(p:P,v:V,e:E)
+.input Peval
+
+.decl Einvk(e:E,i:I)
+.input Einvk
+
+.decl MmethArg(m:M,z:Z,v:V)
+.input MmethArg
+
+.decl MP(m:M,p:P)
+.output MP
+.decl MI(m:M,i:I)
+.output MI
+.decl MV(m:M,v:V)
+.output MV
+
+MP(m,p) :- MPentry(m,p).
+MP(m,q) :- MP(m,p), PPdirect(p,q).
+MP(m,q) :- MP(m,p), PPtrue(p,q,_).
+MP(m,q) :- MP(m,p), PPfalse(p,q,_).
+
+MV(m,v) :- MP(m,p), Peval(p,v,_).
+MI(m,i) :- MP(m,p), Peval(p,_,e), Einvk(e,i).
+
+MV(m,v) :- MmethArg(m,_,v).

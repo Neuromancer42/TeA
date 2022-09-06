@@ -3,18 +3,18 @@ package com.neuromancer42.tea.program.cdt.internal.evaluation;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IType;
 
-public class InvokeEval implements IEval {
+public class IndirectCallEval implements IEval {
     private final int function;
     private final int[] arguments;
     private final IASTExpression debugExpr;
 
-    public InvokeEval(IASTExpression expr, int fReg, int[] aRegs) {
+    public IndirectCallEval(IASTExpression expr, int fReg, int[] aRegs) {
         this.function = fReg;
         this.arguments = aRegs;
         this.debugExpr = expr;
     }
 
-    public int getFunction() {
+    public int getFunctionReg() {
         return function;
     }
 
@@ -25,7 +25,7 @@ public class InvokeEval implements IEval {
     @Override
     public String toDebugString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("invoke(#").append(function);
+        sb.append("indCall(#").append(function);
         for (int arg : arguments) {
             sb.append(",#").append(arg);
         }

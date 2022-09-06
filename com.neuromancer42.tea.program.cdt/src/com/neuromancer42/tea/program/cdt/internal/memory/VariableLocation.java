@@ -15,6 +15,10 @@ public class VariableLocation implements ILocation {
         return variable.getType();
     }
 
+    public IVariable getVariable() {
+        return variable;
+    }
+
     @Override
     public boolean isStatic() {
         return true;
@@ -24,7 +28,7 @@ public class VariableLocation implements ILocation {
     public String toDebugString() {
         if (variable != null) {
             return variable.getClass().getSimpleName() + "[" + variable.getName() + "]";
-        }else {
+        } else {
             return "Unknown@" + this.hashCode();
         }
     }

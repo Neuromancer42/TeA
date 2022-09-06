@@ -13,7 +13,7 @@ public class StoreNode extends PlainNode implements ICFGNode {
         this.location = location;
     }
 
-    public ILocation getStorage() {
+    public ILocation getLocation() {
         return location;
     }
 

@@ -17,7 +17,8 @@ int plus(int a, int b) {
     void (*asgn)(int*, int) = assign;
     void (**pasgn)(int*, int) = &asgn;
     pasgn = &asgn;
-    (*pasgn)(d, a);
+    (****pasgn)(d, a);
+    (asgn)(d,a);
     if (c == 0) {
         int i = 0;
         for (; i >= 0; i++) {
@@ -37,9 +38,9 @@ int plus(int a, int b) {
 
 int main() {
     int x, y, z;
-    assign(&x, 0);
+    (&*assign)(&x, 0);
     y = 1;
-    z = plus(x, y);
+    z = (**&plus)(x, y);
     int c;
     c = 1;
     return z;
