@@ -2,6 +2,8 @@ package com.neuromancer42.tea.program.cdt;
 
 import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
+import com.neuromancer42.tea.core.analyses.ProgramDom;
+import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.program.cdt.internal.CParser;
 
@@ -15,9 +17,10 @@ public class CParserAnalysis extends JavaAnalysis {
         }
         this.cParser = new CParser(fileName);
         this.name = "CParser";
-        registerProducer(AnalysesUtil.createInitializedDomTrgt(cParser.domM, name));
-        registerProducer(AnalysesUtil.createInitializedDomTrgt(cParser.domP, name));
-        registerProducer(AnalysesUtil.createInitializedRelTrgt(cParser.relMPentry, name));
+        for (ProgramDom<?> dom : cParser.generatedDoms)
+            registerProducer(AnalysesUtil.createInitializedDomTrgt(dom, name));
+        for (ProgramRel rel : cParser.generatedRels)
+            registerProducer(AnalysesUtil.createInitializedRelTrgt(rel, name));
     }
 
     @Override

@@ -8,6 +8,7 @@ import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
+import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
 
 import java.util.*;
 
@@ -41,7 +42,6 @@ public class IntraCFGBuilder {
     private final Set<IField> fields;
     // TODO: use struct signatures rather than statement references to collect fields
 
-    private IFunction curFunc;
     private IStartNode start;
     private List<IExitNode> exits;
     private List<IBasicBlock> unreachable;
@@ -131,7 +131,7 @@ public class IntraCFGBuilder {
 
     public IntraCFG build(IASTFunctionDefinition fDef) {
         IASTFunctionDeclarator fDecl = fDef.getDeclarator();
-        curFunc = (IFunction) fDecl.getName().resolveBinding();
+        IFunction curFunc = (IFunction) fDecl.getName().resolveBinding();
         start = new FuncEntryNode(curFunc);
         exits = new ArrayList<>();
         outerContinueTarget = null;
@@ -411,8 +411,10 @@ public class IntraCFGBuilder {
                 return prevNode;
             }
         } else if (expression instanceof IASTFunctionCallExpression) {
-            int reg = createRegister(expression);
-            prevNode = handleRvalue(prevNode, expression, reg);
+            //int reg = createRegister(expression);
+            if (!expression.getExpressionType().isSameType(CBasicType.VOID))
+                Messages.log("CParser: discard ret-val of expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            prevNode = handleRvalue(prevNode, expression, -1);
             return prevNode;
         }
         Messages.error("CParser: skip unsupported %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
@@ -1084,6 +1086,10 @@ public class IntraCFGBuilder {
     }
 
     private int createRegister(IASTExpression expression) {
+        if (expression.getExpressionType().isSameType(CBasicType.VOID)) {
+            Messages.warn("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            return -1;
+        }
         return getRegister(expression, true);
     }
 }

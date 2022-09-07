@@ -42,7 +42,9 @@ public class CParser {
     public final ProgramRel relPPfalse;
 
     public final ProgramRel relPeval;
-    public final ProgramRel relEinvk;
+    public final ProgramRel relPload;
+    public final ProgramRel relPstore;
+    public final ProgramRel relPinvk;
 
     public final ProgramRel relAlloc;
     public final ProgramRel relGlobalAlloc;
@@ -60,7 +62,6 @@ public class CParser {
     public final ProgramRel relMmethRet;
     public final ProgramRel relFuncPtr;
     public final ProgramRel relEntryM;
-
 
     public final ProgramDom<?>[] generatedDoms;
     public final ProgramRel[] generatedRels;
@@ -89,7 +90,9 @@ public class CParser {
 
         // statements
         relPeval = ProgramRel.createRel("Peval", new ProgramDom[]{domP, domV, domE});
-        relEinvk = ProgramRel.createRel("Einvk", new ProgramDom[]{domE, domI});
+        relPload = ProgramRel.createRel("Pload", new ProgramDom[]{domP, domV});
+        relPstore = ProgramRel.createRel("Pstore", new ProgramDom[]{domP, domV});
+        relPinvk = ProgramRel.createRel("Pinvk", new ProgramDom[]{domP, domI});
         relAlloc = ProgramRel.createRel("Alloc", new ProgramDom[]{domV, domH});
         relGlobalAlloc = ProgramRel.createRel("GlobalAlloc", new ProgramDom[]{domV, domH});
         relLoadPtr = ProgramRel.createRel("LoadPtr", new ProgramDom[]{domV, domV});
@@ -111,7 +114,7 @@ public class CParser {
 
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
-                relPeval, relEinvk, relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
+                relPeval, relPload, relPstore, relPinvk, relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relMmethArg, relMmethRet, relFuncPtr, relEntryM
         };
@@ -232,6 +235,7 @@ public class CParser {
         for (var entry : methCFGMap.entrySet()) {
             IFunction meth = entry.getKey();
             if (meth.getName().contentEquals("main")) {
+                Messages.log("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
                 relEntryM.add(meth);
             }
             IntraCFG cfg = entry.getValue();
@@ -261,25 +265,34 @@ public class CParser {
                     relPPdirect.add(p, q);
                     IEval e = ((EvalNode) p).getEvaluation();
                     int v = ((EvalNode) p).getRegister();
-                    relPeval.add(p, v, e);
                     if (e instanceof StaticCallEval || e instanceof IndirectCallEval) {
                         IASTFunctionCallExpression invk = (IASTFunctionCallExpression) e.getExpression();
-                        relEinvk.add(e, invk);
-                        int retReg = builder.fetchRegister(invk);
-                        relIinvkRet.add(invk, retReg);
-                        IASTInitializerClause[] args = invk.getArguments();
-                        for (int i = 0; i < args.length; ++i) {
-                            int iArgReg = builder.fetchRegister((IASTExpression) args[i]);
-                            relIinvkArg.add(invk, i, iArgReg);
+                        relPinvk.add(p, invk);
+                        if (v >= 0) {
+                            assert v == builder.fetchRegister(invk);
+                            relIinvkRet.add(invk, v);
+                        } else {
+                            Messages.log("CParser: invocation has no ret-val [%s]", e.toDebugString());
                         }
+                        int[] iArgRegs;
                         if (e instanceof StaticCallEval) {
                             IFunction func = ((StaticCallEval) e).getFunction();
                             relStaticCall.add(invk, func);
+                            iArgRegs = ((StaticCallEval) e).getArguments();
                         } else {
                             int funcReg = ((IndirectCallEval) e).getFunctionReg();
                             relIndirectCall.add(invk, funcReg);
+                            iArgRegs = ((IndirectCallEval) e).getArguments();
+                        }
+
+                        IASTInitializerClause[] argExprs = invk.getArguments();
+                        assert iArgRegs.length == argExprs.length;
+                        for (int i = 0; i < iArgRegs.length; ++i) {
+                            assert iArgRegs[i] == builder.fetchRegister((IASTExpression) argExprs[i]);
+                            relIinvkArg.add(invk, i, iArgRegs[i]);
                         }
                     } else if (e instanceof LoadEval) {
+                        relPload.add(p, v);
                         ILocation loc = ((LoadEval) e).getLocation();
                         if (loc instanceof PointerLocation) {
                             int u = ((PointerLocation) loc).getRegister();
@@ -295,12 +308,15 @@ public class CParser {
                         } else {
                             Messages.warn("CParser: unhandled location type: %s", loc.toDebugString());
                         }
+                    } else {
+                        relPeval.add(p, v, e);
                     }
                 } else if (p instanceof StoreNode) {
                     IBasicBlock q = ((StoreNode) p).getOutgoing();
                     relPPdirect.add(p, q);
                     ILocation loc = ((StoreNode) p).getLocation();
                     int v = ((StoreNode) p).getRegister();
+                    relPstore.add(p, v);
                     if (loc instanceof PointerLocation) {
                         int u = ((PointerLocation) loc).getRegister();
                         relStorePtr.add(u, v);
