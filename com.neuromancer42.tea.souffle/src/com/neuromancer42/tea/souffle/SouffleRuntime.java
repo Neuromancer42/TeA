@@ -104,8 +104,10 @@ public final class SouffleRuntime {
         Process cmakeProcess = cmakeBuilder.start();
         int cmakeRetVal = cmakeProcess.waitFor();
         if (cmakeRetVal != 0) {
-            Messages.log(new String(cmakeProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-            String errString = new String(cmakeProcess.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            String outputStr = new String(cmakeProcess.getInputStream().readAllBytes());
+            outputStr = outputStr.replace("%", "%%");
+            Messages.error("CParser: " + outputStr);
+            String errString = new String(cmakeProcess.getErrorStream().readAllBytes());
             throw new RuntimeException(errString);
         }
     }

@@ -2,6 +2,7 @@ def resolveTask = tasks.named("resolve.com.neuromancer42.tea.tests") {
     outputBndrun = layout.buildDirectory.file("com.neuromancer42.tea.tests.bndrun")
 }
 tasks.named("testOSGi") {
+    it.inputs.dir('resources')
     it.doFirst {
         copy {
             from 'resources/'

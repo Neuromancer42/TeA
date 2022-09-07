@@ -15,14 +15,24 @@
 .decl PPfalse(p:P,q:P,v:V)
 .input PPfalse
 
-.decl Peval(p:P,v:V,e:E)
-.input Peval
-
-.decl Einvk(e:E,i:I)
-.input Einvk
-
 .decl MmethArg(m:M,z:Z,v:V)
 .input MmethArg
+.decl MmethRet(m:M,v:V)
+.input MmethRet
+
+.decl Peval(p:P,v:V,e:E)
+.input Peval
+.decl Pload(p:P,v:V)
+.input Pload
+.decl Pstore(p:P,v:V)
+.input Pstore
+.decl Pinvk(p:P,i:I)
+.input Pinvk
+
+.decl IinvkArg(i:I,z:Z,v:V)
+.input IinvkArg
+.decl IinvkRet(i:I,v:V)
+.input IinvkRet
 
 .decl MP(m:M,p:P)
 .output MP
@@ -36,7 +46,14 @@ MP(m,q) :- MP(m,p), PPdirect(p,q).
 MP(m,q) :- MP(m,p), PPtrue(p,q,_).
 MP(m,q) :- MP(m,p), PPfalse(p,q,_).
 
+MI(m,i) :- MP(m,p), Pinvk(p,i).
+
 MV(m,v) :- MP(m,p), Peval(p,v,_).
-MI(m,i) :- MP(m,p), Peval(p,_,e), Einvk(e,i).
+MV(m,v) :- MP(m,p), Pload(p,v).
+MV(m,v) :- MP(m,p), Pstore(p,v).
 
 MV(m,v) :- MmethArg(m,_,v).
+MV(m,v) :- MmethRet(m,v).
+
+MV(m,v) :- MI(m,i), IinvkArg(i,_,v).
+MV(m,v) :- MI(m,i), IinvkRet(i,v).

@@ -407,5 +407,8 @@ private:
  */
 SWIGSouffleProgram* newInstance(const std::string& name) {
     auto* prog = souffle::ProgramFactory::newInstance(name);
+    if (prog == nullptr) {
+        return nullptr;
+    }
     return new SWIGSouffleProgram(prog);
 }

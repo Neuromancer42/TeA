@@ -16,4 +16,4 @@
     bnd.identity;id='org.apache.felix.scr'
 
 -runproperties.dlogfile: \
-    dlog=interval.dl,chord.work.dir=test-out,chord.source.path=aplusb.c
+    dlog0=pre_pt.dl,dlog1=cipa_cg.dl,chord.work.dir=test-out,chord.source.path=aplusb.c

@@ -80,7 +80,7 @@ ci_IM(i,m) :- ci_reachableI(i), IndirectCall(i,f), ci_pt(f,h), funcPtr(h,m).
 ci_IM(i,m) :- ci_reachableI(i), StaticCall(i,m).
 
 ci_pt(u,o) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_pt(v,o).
-ci_pt(v,o) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_hpt(u,o).
+ci_pt(v,o) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_pt(u,o).
 
 ci_pt(v,h) :- GlobalAlloc(v,h).
 ci_pt(v,h) :- ci_reachableM(m), MV(m,v), Alloc(v,h).
