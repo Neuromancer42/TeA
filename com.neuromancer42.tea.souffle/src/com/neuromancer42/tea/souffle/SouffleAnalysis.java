@@ -90,7 +90,8 @@ public final class SouffleAnalysis extends JavaAnalysis {
         for (String relName: outputRelNames) {
             RelSign relSign = relSignMap.get(relName);
             SouffleRelTrgt relTrgt = createSouffleRelTrgt(relName, relSign, name);
-            outputRelTrgts.put(relName, relTrgt);registerProducer(relTrgt);
+            outputRelTrgts.put(relName, relTrgt);
+            registerProducer(relTrgt);
         }
 
         if (provProgram != null) {
@@ -157,6 +158,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
     public Provenance getProvenance() {
         if (provBuilder == null) {
             Messages.fatal("SouffeProvenanceBuilder %s: provenance program has not been built for this analysis", name);
+            assert false;
         }
         return provBuilder.getProvenance();
     }
@@ -336,7 +338,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             try {
                 List<String> lines = new ArrayList<>();
                 rel.load();
-                Rel.AryNIterable tuples = rel.getAryNValTuples();
+                Iterable<Object[]> tuples = rel.getTuples();
                 int domNum = rel.getDoms().length;
                 for (Object[] tuple: tuples) {
                     StringBuilder sb = new StringBuilder();
@@ -365,11 +367,9 @@ public final class SouffleAnalysis extends JavaAnalysis {
             if (!activated) {
                 Messages.fatal("SouffleAnalysis %s: souffle program has not been activated before loading <rel %s>", name, relName);
             }
-            rel = new ProgramRel();
-            rel.setName(relName);
 
             RelSign relSign = relSignMap.get(relName);
-            rel.setSign(relSign);
+
 
             String[] domNames = relSign.getDomNames();
             int domNum = domNames.length;
@@ -378,13 +378,19 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 String domKind = Utils.trimNumSuffix(domNames[i]);
                 doms[i] = domTrgtMap.get(domKind).get();
             }
-            rel.setDoms(doms);
+
+            rel = new ProgramRel(relName, doms, relSign);
 
             rel.init();
             Path outPath = outDir.resolve(relName+".csv");
+            Messages.log("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
             List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
             for (int[] row: table) {
-                rel.add(row);
+                Object[] tuple = new Object[row.length];
+                for (int i = 0; i < row.length; ++i) {
+                    tuple[i] = doms[i].get(row[i]);
+                }
+                rel.add(tuple);
             }
             rel.save();
             rel.close();

@@ -86,13 +86,6 @@ public class Rel {
     protected BDD iterBdd;
 
     /**
-     * Using a state-machine to control file cache
-     */
-    private enum Status {
-        UnInit, UnSync, Sync, Detach
-    }
-    private Status status = Status.UnInit;
-    /**
      * Sets the name of this relation.
      * 
      * The name must be set only once.
@@ -179,9 +172,6 @@ public class Rel {
         this.doms = doms;
     }
     protected void initialize() {
-        if (status != Status.UnInit) {
-            Messages.warn("Rel %s: Overriding initialized rel", name);
-        }
         if (doms == null)
             throw new RuntimeException("");
         int bddnodes = Integer.parseInt(
@@ -224,7 +214,6 @@ public class Rel {
             domIdxs[i] = domBdd.getIndex();
             iterBdd = iterBdd.andWith(domBdd.set());
         }
-        status = Status.UnSync;
     }
     /**
      * Sets this relation in memory to the full relation (containing all tuples).
@@ -295,66 +284,38 @@ public class Rel {
      * Frees this relation from memory.
      */
     public void close() {
-        switch (status) {
-            case UnInit:
-                Messages.fatal("Rel %s: closing uninitialized rel", name);
-                break;
-            case UnSync:
-                Messages.warn("Rel %s: discarding unsaved rel", name);
-                if (bdd == null)
-                    Messages.fatal("Rel %s: bdd is uninitialized", name);
-                factory.done();
-                bdd = null;
-                status = Status.UnInit;
-                break;
-            case Sync:
-                if (bdd == null)
-                    Messages.fatal("Rel %s: bdd is uninitialized", name);
-                factory.done();
-                bdd = null;
-                status = Status.Detach;
-                break;
-        }
+        if (bdd == null)
+            Messages.fatal("Rel %s: bdd is uninitialized", name);
+        factory.done();
+        bdd = null;
     }
     /**
      * Copies the relation from memory to disk and frees it from memory.
      */
     public void save(String dirName) {
-        switch (status) {
-            case UnSync:
-                if (bdd == null)
-                    throw new RuntimeException("");
-                try {
-                    File file = new File(dirName, name + ".bdd");
-                    BufferedWriter out = new BufferedWriter(new FileWriter(file));
-                    out.write('#');
-                    for (BDDDomain d : domBdds)
-                        out.write(" " + d + ":" + d.varNum());
-                    out.write('\n');
-                    for (BDDDomain d : domBdds) {
-                        out.write('#');
-                        for (int v : d.vars())
-                            out.write(" " + v);
-                        out.write('\n');
-                    }
-                    factory.save(out, bdd);
-                    out.close();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-                status = Status.Sync;
-                break;
-            case UnInit:
-                Messages.fatal("Rel %s: saving uninitialized rel", name);
+        if (bdd == null)
+            throw new RuntimeException("");
+        try {
+            File file = new File(dirName, name + ".bdd");
+            BufferedWriter out = new BufferedWriter(new FileWriter(file));
+            out.write('#');
+            for (BDDDomain d : domBdds)
+                out.write(" " + d + ":" + d.varNum());
+            out.write('\n');
+            for (BDDDomain d : domBdds) {
+                out.write('#');
+                for (int v : d.vars())
+                    out.write(" " + v);
+                out.write('\n');
+            }
+            factory.save(out, bdd);
+            out.close();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
     }
+
     public void print(String dirName) {
-        if (status == Status.UnInit) {
-            Messages.fatal("Rel %s: printing uninitialized rel", name);
-        }
-        if (status == Status.Detach) {
-            Messages.fatal("Rel %s: printing detached rel", name);
-        }
         if (bdd == null)
             Messages.fatal("Rel %s: bdd is uninitialized", name);
         try {
@@ -1401,7 +1362,6 @@ public class Rel {
             checkRange(val0, 0);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0) {
         if (bdd == null)
@@ -1412,7 +1372,6 @@ public class Rel {
             checkRange(idx0, 0);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0> void remove(T0 val0) {
         if (bdd == null)
@@ -1424,7 +1383,6 @@ public class Rel {
             checkRange(val0, 0);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void remove(int idx0) {
         if (bdd == null)
@@ -1435,7 +1393,6 @@ public class Rel {
             checkRange(idx0, 0);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0> boolean contains(T0 val0) {
         if (bdd == null)
@@ -1482,7 +1439,6 @@ public class Rel {
             checkRange(val1, 1);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0, int idx1) {
         if (bdd == null)
@@ -1496,7 +1452,6 @@ public class Rel {
             checkRange(idx1, 1);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0,T1> void remove(T0 val0, T1 val1) {
         if (bdd == null)
@@ -1512,7 +1467,6 @@ public class Rel {
             checkRange(val1, 1);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void remove(int idx0, int idx1) {
         if (bdd == null)
@@ -1526,7 +1480,6 @@ public class Rel {
             checkRange(idx1, 1);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0,T1> boolean contains(T0 val0, T1 val1) {
         if (bdd == null)
@@ -1588,7 +1541,6 @@ public class Rel {
             checkRange(val2, 2);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0, int idx1, int idx2) {
         if (bdd == null)
@@ -1604,7 +1556,6 @@ public class Rel {
             checkRange(idx2, 2);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0,T1,T2> boolean contains(T0 val0, T1 val1, T2 val2) {
         if (bdd == null)
@@ -1659,7 +1610,6 @@ public class Rel {
             checkRange(val3, 3);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0, int idx1, int idx2, int idx3) {
         if (bdd == null)
@@ -1677,7 +1627,6 @@ public class Rel {
             checkRange(idx3, 3);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public <T0,T1,T2,T3> boolean contains(T0 val0, T1 val1, T2 val2, T3 val3) {
         if (bdd == null)
@@ -1738,7 +1687,6 @@ public class Rel {
             checkRange(val4, 4);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0, int idx1, int idx2, int idx3, int idx4) {
         if (bdd == null)
@@ -1758,8 +1706,6 @@ public class Rel {
             checkRange(idx4, 4);
             throw new RuntimeException(ex);
         }
-
-        status = Status.UnSync;
     }
     public <T0,T1,T2,T3,T4> boolean contains(T0 val0, T1 val1, T2 val2, T3 val3, T4 val4) {
         if (bdd == null)
@@ -1826,7 +1772,6 @@ public class Rel {
             checkRange(val5, 5);
             throw new RuntimeException(ex);
         }
-        status = Status.UnSync;
     }
     public void add(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5) {
         if (bdd == null)
@@ -1847,7 +1792,6 @@ public class Rel {
             checkRange(idx4, 4);
             checkRange(idx5, 5);
         }
-        status = Status.UnSync;
     }
     public <T0,T1,T2,T3,T4,T5> boolean contains(T0 val0, T1 val1, T2 val2, T3 val3, T4 val4, T5 val5) {
         if (bdd == null)
@@ -1893,9 +1837,49 @@ public class Rel {
     public void add(Object[] vals) {
         if (bdd == null)
             throw new RuntimeException("");
-        status = Status.UnSync;
-        throw new UnsupportedOperationException();
+        int[] idxs = new int[vals.length];
+        for (int i  = 0; i < vals.length; ++i) {
+            idxs[i] = doms[i].indexOf(vals[i]);
+        }
+        try {
+            int i = vals.length - 1;
+            BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
+            while (i > 0) {
+                i--;
+                tupleBdd = domBdds[i].ithVar(idxs[i]).andWith(tupleBdd);
+            }
+            bdd.orWith(tupleBdd);
+        } catch (BDDException ex) {
+            for (int i = 0; i < vals.length; ++i) {
+                checkRange(idxs[i], i);
+            }
+            throw new RuntimeException(ex);
+        }
     }
+
+    public void remove(Object[] vals) {
+        if (bdd == null)
+            throw new RuntimeException("");
+        int[] idxs = new int[vals.length];
+        for (int i  = 0; i < vals.length; ++i) {
+            idxs[i] = doms[i].indexOf(vals[i]);
+        }
+        try {
+            int i = vals.length - 1;
+            BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
+            while (i > 0) {
+                i--;
+                tupleBdd = domBdds[i].ithVar(idxs[i]).andWith(tupleBdd);
+            }
+            bdd.andWith(tupleBdd.not());
+        } catch (BDDException ex) {
+            for (int i = 0; i < vals.length; ++i) {
+                checkRange(idxs[i], i);
+            }
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void add(int[] idxs) {
         if (bdd == null)
             throw new RuntimeException("");
@@ -1925,7 +1909,24 @@ public class Rel {
     public boolean contains(Object[] vals) {
         if (bdd == null)
             throw new RuntimeException("");
-        throw new UnsupportedOperationException();
+        int[] idxs = new int[vals.length];
+        for (int i  = 0; i < vals.length; ++i) {
+            idxs[i] = doms[i].indexOf(vals[i]);
+        }
+        try {
+            int i = vals.length - 1;
+            BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
+            while (i > 0) {
+                i--;
+                tupleBdd = domBdds[i].ithVar(idxs[i]).andWith(tupleBdd);
+            }
+            return !bdd.id().andWith(tupleBdd).isZero();
+        } catch (BDDException ex) {
+            for (int i = 0; i < vals.length; ++i) {
+                checkRange(idxs[i], i);
+            }
+            throw new RuntimeException(ex);
+        }
     }
     public AryNIterable getAryNValTuples() {
         if (bdd == null)

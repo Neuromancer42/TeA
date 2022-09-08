@@ -82,35 +82,35 @@ public class CParser {
         generatedDoms = new ProgramDom<?>[]{domM, domP, domE, domV, domH, domF, domI, domZ};
 
         // control flow relations
-        relMPentry = ProgramRel.createRel("MPentry", new ProgramDom[]{domM, domP});
-        relMPexit = ProgramRel.createRel("MPexit", new ProgramDom[]{domM, domP});
-        relPPdirect = ProgramRel.createRel("PPdirect", new ProgramDom[]{domP, domP});
-        relPPtrue = ProgramRel.createRel("PPtrue", new ProgramDom[]{domP, domP, domV});
-        relPPfalse = ProgramRel.createRel("PPfalse", new ProgramDom[]{domP, domP, domV});
+        relMPentry = new ProgramRel("MPentry", new ProgramDom[]{domM, domP});
+        relMPexit = new ProgramRel("MPexit", new ProgramDom[]{domM, domP});
+        relPPdirect = new ProgramRel("PPdirect", new ProgramDom[]{domP, domP});
+        relPPtrue = new ProgramRel("PPtrue", new ProgramDom[]{domP, domP, domV});
+        relPPfalse = new ProgramRel("PPfalse", new ProgramDom[]{domP, domP, domV});
 
         // statements
-        relPeval = ProgramRel.createRel("Peval", new ProgramDom[]{domP, domV, domE});
-        relPload = ProgramRel.createRel("Pload", new ProgramDom[]{domP, domV});
-        relPstore = ProgramRel.createRel("Pstore", new ProgramDom[]{domP, domV});
-        relPinvk = ProgramRel.createRel("Pinvk", new ProgramDom[]{domP, domI});
-        relAlloc = ProgramRel.createRel("Alloc", new ProgramDom[]{domV, domH});
-        relGlobalAlloc = ProgramRel.createRel("GlobalAlloc", new ProgramDom[]{domV, domH});
-        relLoadPtr = ProgramRel.createRel("LoadPtr", new ProgramDom[]{domV, domV});
-        relLoadFld = ProgramRel.createRel("LoadFld", new ProgramDom[]{domV, domV, domF});
-        relStorePtr = ProgramRel.createRel("StorePtr", new ProgramDom[]{domV, domV});
-        relStoreFld = ProgramRel.createRel("StoreFld", new ProgramDom[]{domV, domF, domV});
+        relPeval = new ProgramRel("Peval", new ProgramDom[]{domP, domV, domE});
+        relPload = new ProgramRel("Pload", new ProgramDom[]{domP, domV});
+        relPstore = new ProgramRel("Pstore", new ProgramDom[]{domP, domV});
+        relPinvk = new ProgramRel("Pinvk", new ProgramDom[]{domP, domI});
+        relAlloc = new ProgramRel("Alloc", new ProgramDom[]{domV, domH});
+        relGlobalAlloc = new ProgramRel("GlobalAlloc", new ProgramDom[]{domV, domH});
+        relLoadPtr = new ProgramRel("LoadPtr", new ProgramDom[]{domV, domV});
+        relLoadFld = new ProgramRel("LoadFld", new ProgramDom[]{domV, domV, domF});
+        relStorePtr = new ProgramRel("StorePtr", new ProgramDom[]{domV, domV});
+        relStoreFld = new ProgramRel("StoreFld", new ProgramDom[]{domV, domF, domV});
 
         // invocations
-        relIinvkArg = ProgramRel.createRel("IinvkArg", new ProgramDom[]{domI, domZ, domV});
-        relIinvkRet = ProgramRel.createRel("IinvkRet", new ProgramDom[]{domI, domV});
-        relIndirectCall = ProgramRel.createRel("IndirectCall", new ProgramDom[]{domI, domV});
-        relStaticCall = ProgramRel.createRel("StaticCall", new ProgramDom[]{domI, domM});
+        relIinvkArg = new ProgramRel("IinvkArg", new ProgramDom[]{domI, domZ, domV});
+        relIinvkRet = new ProgramRel("IinvkRet", new ProgramDom[]{domI, domV});
+        relIndirectCall = new ProgramRel("IndirectCall", new ProgramDom[]{domI, domV});
+        relStaticCall = new ProgramRel("StaticCall", new ProgramDom[]{domI, domM});
 
         // methods
-        relMmethArg = ProgramRel.createRel("MmethArg", new ProgramDom[]{domM, domZ, domV});
-        relMmethRet = ProgramRel.createRel("MmethRet", new ProgramDom[]{domM, domV});
-        relFuncPtr = ProgramRel.createRel("funcPtr", new ProgramDom[]{domH, domM});
-        relEntryM = ProgramRel.createRel("entryM", new ProgramDom[]{domM});
+        relMmethArg = new ProgramRel("MmethArg", new ProgramDom[]{domM, domZ, domV});
+        relMmethRet = new ProgramRel("MmethRet", new ProgramDom[]{domM, domV});
+        relFuncPtr = new ProgramRel("funcPtr", new ProgramDom[]{domH, domM});
+        relEntryM = new ProgramRel("entryM", new ProgramDom[]{domM});
 
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,

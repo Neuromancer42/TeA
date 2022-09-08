@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.core.analyses;
 
+import com.neuromancer42.tea.core.bddbddb.Dom;
 import com.neuromancer42.tea.core.bddbddb.RelSign;
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
@@ -18,32 +19,63 @@ import java.util.Map;
  *
  * @author Mayur Naik (mhn@cs.stanford.edu)
  * @author Saswat Anand
+ *
+ * It encapsultates a Rel with a state machine and shields unused methods
+ *
+ * @author Yifan Chen
  */
-public class ProgramRel extends Rel implements ITask {
+public class ProgramRel implements ITask {
     private static final String SKIP_TUPLE =
         "WARN: Skipping a tuple from relation '%s' as element '%s' was not found in domain '%s'.";
     protected Object[] consumes;
+    protected final Rel rel;
 
-    public static ProgramRel createRel(String relName, ProgramDom<?>[] doms, String[] domNames, String domOrder) {
-        ProgramRel rel = new ProgramRel();
+    public Iterable<Object[]> getTuples() {
+        return rel.getAryNValTuples();
+    }
+
+    public Dom<?>[] getDoms() {
+        return rel.getDoms();
+    }
+
+    public RelSign getSign() {
+        return rel.getSign();
+    }
+
+    /**
+     * Using a state-machine to control file cache
+     */
+    private enum Status {
+        UnInit, UnSync, Sync, Detach
+    }
+
+    private Status status = Status.UnInit;
+
+    public ProgramRel(String relName, Dom<?>[] doms, String[] domNames, String domOrder) {
+        rel = new Rel();
         rel.setName(relName);
         rel.setSign(domNames, domOrder);
         rel.setDoms(doms);
-        return rel;
     }
 
-    public static ProgramRel createRel(String relName, ProgramDom<?>[] doms) {
+    public ProgramRel(String relName, Dom<?>[] doms, RelSign relSign) {
+        rel = new Rel();
+        rel.setName(relName);
+        rel.setSign(relSign);
+        rel.setDoms(doms);
+    }
+
+    public ProgramRel(String relName, Dom<?>[] doms) {
         String[] rawDomNames = new String[doms.length];
         for (int i = 0; i < doms.length; ++i) {
             rawDomNames[i] = doms[i].getName();
         }
         RelSign defaultRelSign = genDefaultRelSign(rawDomNames);
 
-        ProgramRel rel = new ProgramRel();
+        rel = new Rel();
         rel.setName(relName);
         rel.setSign(defaultRelSign);
         rel.setDoms(doms);
-        return rel;
     }
 
     // generate default RelSign
@@ -77,6 +109,27 @@ public class ProgramRel extends Rel implements ITask {
         return new RelSign(domNames, domOrder.toString());
     }
 
+    /**
+     * Sets the name of this analysis.
+     *
+     * @param name A name unique across all analyses included
+     *             in a Chord project.
+     */
+    @Override
+    public void setName(String name) {
+        rel.setName(name);
+    }
+
+    /**
+     * Provides the name of this analysis.
+     *
+     * @return The name of this analysis.
+     */
+    @Override
+    public String getName() {
+        return rel.getName();
+    }
+
     @Override
     public void run() {
         init();
@@ -85,17 +138,54 @@ public class ProgramRel extends Rel implements ITask {
         close();
     }
     public void init() {
-        zero();
+        if (status != Status.UnInit) {
+            Messages.warn("ProgramRel %s: Overriding initialized rel", getName());
+        }
+        rel.zero();
+        status = Status.UnSync;
     }
 
     public void save() {
-        if (Config.v().verbose >= 1)
-            System.out.println("SAVING rel " + name + " size: " + size());
-        super.save(Config.v().bddbddbWorkDirName);
+        switch (status) {
+            case UnSync:
+                if (Config.v().verbose >= 1)
+                    System.out.println("SAVING rel " + rel.getName() + " size: " + rel.size());
+                rel.save(Config.v().bddbddbWorkDirName);
+                status = Status.Sync;
+                break;
+            case UnInit:
+                Messages.fatal("Rel %s: saving uninitialized rel", getName());
+        }
+    }
+
+    public void close() {
+        switch (status) {
+            case UnInit:
+                Messages.fatal("Rel %s: closing uninitialized rel", getName());
+                break;
+            case UnSync:
+                Messages.warn("Rel %s: discarding unsaved rel", getName());
+                rel.close();
+                status = Status.UnInit;
+                break;
+            case Sync:
+                rel.close();
+                status = Status.Detach;
+                break;
+            case Detach:
+                Messages.warn("Rel %s: already detached", getName());
+        }
     }
 
     public void load() {
-        super.load(Config.v().bddbddbWorkDirName);
+        if (status == Status.Sync) {
+            Messages.warn("Rel %s: loading already sync-ed rel", getName());
+        }
+        if (status == Status.UnSync) {
+            Messages.warn("ProgramRel %s: Overriding unsync-ed rel", getName());
+        }
+        rel.load(Config.v().bddbddbWorkDirName);
+        status = Status.Sync;
     }
 
     public void fill()
@@ -104,12 +194,49 @@ public class ProgramRel extends Rel implements ITask {
 	}
 
     public void print() {
-        super.print(Config.v().outDirName);
+        if (status == Status.UnInit) {
+            Messages.fatal("Rel %s: printing uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("Rel %s: printing detached rel", getName());
+        }
+        rel.print(Config.v().outDirName);
     }
     public String toString() {
-        return name;
+        return rel.getName();
     }
+
     public void skip(Object elem, ProgramDom<?> dom) {
         Messages.log(SKIP_TUPLE, getClass().getName(), elem, dom.getClass().getName());
+    }
+
+    public int size() {
+        return rel.size();
+    }
+
+    public <T0> void add(T0 val0) {
+        rel.add(val0);
+        status = Status.UnSync;
+    }
+    public <T0> void remove(T0 val0) {
+        rel.remove(val0);
+        status = Status.UnSync;
+    }
+    public <T0> boolean contains(T0 val0) {
+        return rel.contains(val0);
+    }
+
+    public void add(Object... vals) {
+        rel.add(vals);
+        status = Status.UnSync;
+    }
+
+    public void remove(Object... vals) {
+        rel.remove(vals);
+        status = Status.UnSync;
+    }
+
+    public boolean contains(Object... vals) {
+        return rel.contains(vals);
     }
 }
