@@ -3,6 +3,7 @@ package com.neuromancer42.tea.core.tests;
 import java.util.Set;
 
 import com.neuromancer42.tea.core.analyses.AnalysesUtil;
+import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.project.Project;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
@@ -21,7 +22,7 @@ public class ProjectBuilderTest {
 	@Test
 	@DisplayName("Correctly register and collect analysis")
 	public void test() {
-		System.out.println("Registerring Empty task!!");
+		Messages.log("Registerring Empty task!!");
 		Empty task = new Empty();
 		AnalysesUtil.registerAnalysis(context, task);
 		

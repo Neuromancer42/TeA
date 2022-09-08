@@ -119,8 +119,7 @@ public class OsgiProject extends Project {
                     trgtNameToProducingTasksMap.computeIfAbsent(trgtName, k -> new HashSet<>()).add(task);
 	        	}
         	} else {
-        		if (Config.v().verbose >= 2)
-        			Messages.log("OsgiProject: Task %s registers no output", location);
+        		Messages.debug("OsgiProject: Task %s registers no output", location);
         	}
         	taskToTrgtProducersMap.put(task, producerMap);
         	
@@ -141,8 +140,7 @@ public class OsgiProject extends Project {
 	        		consumerMap.put(trgtName, trgtConsumer);
 	        	}
         	} else {
-        		if (Config.v().verbose >= 2) 
-        			Messages.log("OsgiProject: Task %s registers no input", location);
+        		Messages.debug("OsgiProject: Task %s registers no input", location);
         	}
 	        taskToTrgtConsumersMap.put(task, consumerMap);
         }
@@ -303,8 +301,7 @@ public class OsgiProject extends Project {
             StringBuilder tasksStr = new StringBuilder();
             for (ITask task : tasks)
                 tasksStr.append(" ").append(task.getName());
-            if (Config.v().verbose >= 2)
-            	Messages.warn("OsgiProject: Multiple tasks produced target '%s'", tasksStr.substring(1), trgtName);
+            Messages.warn("OsgiProject: Multiple tasks produced target '%s'", tasksStr.substring(1), trgtName);
         }
         if (n == 0)
             Messages.fatal("OsgiProject: No task producing target '%s' found in project.", trgtName);
@@ -326,13 +323,11 @@ public class OsgiProject extends Project {
     
     public void runTask(ITask task) {
         if (isTaskDone(task)) {
-            if (Config.v().verbose >= 1)
-                Messages.log("OsgiProject: task %s already done.", task.getName());
+            Messages.log("OsgiProject: task %s already done.", task.getName());
             return;
         }
         Timer timer = new Timer(task.getName());
-        if (Config.v().verbose >= 1)
-            Messages.log("ENTER: " + task + " at " + (new Date()));
+        Messages.log("ENTER: " + task + " at " + (new Date()));
         timer.init();
         timer.pause();
         Map<String, Consumer<Object>> trgtConsumers = taskToTrgtConsumersMap.get(task);
@@ -351,10 +346,10 @@ public class OsgiProject extends Project {
         timer.resume();
         task.run();
         timer.done();
-        if (Config.v().verbose >= 1) {
-            System.out.println("LEAVE: " + task);
-            Timer.printTimer(timer);
-        }
+
+        Messages.log("LEAVE: " + task);
+        Timer.printTimer(timer);
+
         setTaskDone(task);
         Map<String, Supplier<Object>> newProduced = taskToTrgtProducersMap.get(task);
         for (String trgtName : newProduced.keySet()) {
@@ -448,26 +443,23 @@ public class OsgiProject extends Project {
     }
 
     private void undefinedTarget(String name, List<String> consumerTaskNames) {
-        if (Config.v().verbose >= 2) {
-            StringBuilder msg = new StringBuilder("'" + name + "' not declared as produced name of any task");
-            if (consumerTaskNames.isEmpty())
-                msg.append("\n");
-            else {
-                msg.append("; declared as consumed name of following tasks:\n");
-                for (String taskName : consumerTaskNames)
-                    msg.append("\t'").append(taskName).append("'\n");
-            }
-            Messages.warn("OsgiProject: " + msg);
+
+        StringBuilder msg = new StringBuilder("'" + name + "' not declared as produced name of any task");
+        if (consumerTaskNames.isEmpty())
+            msg.append("\n");
+        else {
+            msg.append("; declared as consumed name of following tasks:\n");
+            for (String taskName : consumerTaskNames)
+                msg.append("\t'").append(taskName).append("'\n");
         }
+        Messages.warn("OsgiProject: " + msg);
     }
     
     private void redefinedTarget(String name, List<String> producerTaskNames) {
-        if (Config.v().verbose >= 2) {
-            StringBuilder msg = new StringBuilder("'" + name + "' declared as produced name of multiple tasks:\n");
-            for (String taskName : producerTaskNames) 
-                msg.append("\t'").append(taskName).append("'\n");
-            Messages.warn("OsgiProject: " + msg);
-        }
+        StringBuilder msg = new StringBuilder("'" + name + "' declared as produced name of multiple tasks:\n");
+        for (String taskName : producerTaskNames)
+            msg.append("\t'").append(taskName).append("'\n");
+        Messages.warn("OsgiProject: " + msg);
     }
 
     public Set<ITask> getDoneTasks() {

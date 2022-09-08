@@ -148,8 +148,7 @@ public class ProgramRel implements ITask {
     public void save() {
         switch (status) {
             case UnSync:
-                if (Config.v().verbose >= 1)
-                    System.out.println("SAVING rel " + rel.getName() + " size: " + rel.size());
+                Messages.debug("SAVING rel " + rel.getName() + " size: " + rel.size());
                 rel.save(Config.v().bddbddbWorkDirName);
                 status = Status.Sync;
                 break;
@@ -212,18 +211,6 @@ public class ProgramRel implements ITask {
 
     public int size() {
         return rel.size();
-    }
-
-    public <T0> void add(T0 val0) {
-        rel.add(val0);
-        status = Status.UnSync;
-    }
-    public <T0> void remove(T0 val0) {
-        rel.remove(val0);
-        status = Status.UnSync;
-    }
-    public <T0> boolean contains(T0 val0) {
-        return rel.contains(val0);
     }
 
     public void add(Object... vals) {

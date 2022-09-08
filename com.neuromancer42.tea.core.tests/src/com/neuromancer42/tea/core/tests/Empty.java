@@ -1,6 +1,7 @@
 package com.neuromancer42.tea.core.tests;
 
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
+import com.neuromancer42.tea.core.project.Messages;
 
 public class Empty extends JavaAnalysis {
 	
@@ -10,7 +11,7 @@ public class Empty extends JavaAnalysis {
 	
 	@Override
 	public void run() {
-		System.out.println("test: running empty task");
+		Messages.log("test: running empty task");
 	}
 
 }

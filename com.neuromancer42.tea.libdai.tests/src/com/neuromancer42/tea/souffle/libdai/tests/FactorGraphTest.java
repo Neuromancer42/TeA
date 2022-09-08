@@ -83,22 +83,22 @@ public class FactorGraphTest {
         IteratingCausalDriver inferer = new IteratingCausalDriver("coin2", causalGraph);
         int distId1 = causalGraph.getNodesDistId(causalGraph.getNodeId("Coin1"));
         int distId2 = causalGraph.getNodesDistId(causalGraph.getNodeId("Coin1"));
-        System.err.println("Prior: \t" +
+        Messages.log("Prior: \t" +
                 Arrays.toString(inferer.queryFactorById(distId1)) + ", " +
                 Arrays.toString(inferer.queryFactorById(distId2)));
         double p_both0 = inferer.queryPossibilityById(causalGraph.getNodeId("And"));
         double p_either0 = inferer.queryPossibilityById(causalGraph.getNodeId("Or"));
-        System.err.println("Predict: \tboth - " + p_both0 + "\teither - " + p_either0);
+        Messages.log("Predict: \tboth - " + p_both0 + "\teither - " + p_either0);
 
         Map<String, Boolean> obs = new HashMap<>();
         obs.put("And", true); obs.put("Or", true);
         inferer.appendObservation(obs);
-        System.err.println("Posterior: \t" +
+        Messages.log("Posterior: \t" +
                 Arrays.toString(inferer.queryFactorById(distId1)) + ", " +
                 Arrays.toString(inferer.queryFactorById(distId2)));
         Double p_both1 = inferer.queryPossibilityById(causalGraph.getNodeId("And"));
         Double p_either1 = inferer.queryPossibilityById(causalGraph.getNodeId("Or"));
-        System.err.println("Predict: \tboth - " + p_both1 + "\teither - " + p_either1);
+        Messages.log("Predict: \tboth - " + p_both1 + "\teither - " + p_either1);
         Assertions.assertTrue(p_both1 > p_both0 && p_either1 > p_either0);
     }
 }

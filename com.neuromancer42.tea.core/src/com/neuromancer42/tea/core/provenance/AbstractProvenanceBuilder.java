@@ -30,8 +30,7 @@ public abstract class AbstractProvenanceBuilder {
 
     public void computeProvenance(Collection<Tuple> observeTuples) {
         Timer timer = new Timer("provenance-builder");
-        if (Config.v().verbose >= 1)
-            System.out.println("ENTER: provenance-builder at " + (new Date()));
+        Messages.log("ENTER: provenance-builder at " + (new Date()));
         timer.init();
 
         // fetch results and generate dicts
@@ -43,7 +42,7 @@ public abstract class AbstractProvenanceBuilder {
         }
         Collection<Tuple> inputTuples = getInputTuples();
         Collection<Tuple> outputTuples = getOutputTuples(); // output must have corresponding rules
-        Messages.log("ProvenanceBuilder recorded " + tuples.size() + " tuples.");
+        Messages.debug("ProvenanceBuilder recorded " + tuples.size() + " tuples.");
 
         // generate provenance structures
         Map<Tuple, Set<ConstraintItem>> tuple2AntecedentClauses = new HashMap<>();
@@ -91,11 +90,8 @@ public abstract class AbstractProvenanceBuilder {
         provenance = new Provenance(name, activeTuples, activeInputTuples, activeOutputTuples, activeClauses, getRuleInfos());
 
         timer.done();
-        if (Config.v().verbose >= 1) {
-            System.out.println("LEAVE: provenance-builder");
-            System.out.println("Exclusive time: " + timer.getExclusiveTimeStr());
-            System.out.println("Inclusive time: " + timer.getInclusiveTimeStr());
-        }
+        Messages.log("LEAVE: provenance-builder");
+        Timer.printTimer(timer);
     }
 
     public abstract List<String> getRuleInfos();
@@ -261,7 +257,7 @@ public abstract class AbstractProvenanceBuilder {
 
         private Set<ConstraintItem> getForwardClauses() {
             if (fwdClauses == null) computeFwdClauses();
-            Messages.log("Forward clauses found " + fwdClauses.size());
+            Messages.debug("Forward clauses found " + fwdClauses.size());
             return fwdClauses;
         }
 
@@ -273,15 +269,15 @@ public abstract class AbstractProvenanceBuilder {
                     if (!augClauses.contains(cons))
                         cands.add(cons);
                 }
-                Messages.log("Forward clauses augment candidates " + cands.size());
+                Messages.debug("Forward clauses augment candidates " + cands.size());
                 augmentFromCandidates(cands);
-                Messages.log("Forward clauses augmented by " + (augClauses.size() - fwdClauses.size()));
+                Messages.debug("Forward clauses augmented by " + (augClauses.size() - fwdClauses.size()));
             }
             return augClauses;
         }
 
         public Set<ConstraintItem> getActiveClauses(Collection<Tuple> observeTuples) {
-            Messages.log("Computing active clauses for " + observeTuples.size() + " tuples.");
+            Messages.debug("Computing active clauses for " + observeTuples.size() + " tuples.");
             Set<Tuple> coreachableTuples = getCoreachableTuples(observeTuples);
 
             Set<ConstraintItem> activeClauses = new HashSet<>();
@@ -296,7 +292,7 @@ public abstract class AbstractProvenanceBuilder {
                     activeClauses.add(clause);
                 }
             }
-            Messages.log("Found " + activeClauses.size() + " active clauses.");
+            Messages.debug("Found " + activeClauses.size() + " active clauses.");
             return activeClauses;
         }
     }

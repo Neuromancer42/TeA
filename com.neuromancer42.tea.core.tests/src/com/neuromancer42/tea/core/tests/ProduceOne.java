@@ -1,6 +1,7 @@
 package com.neuromancer42.tea.core.tests;
 
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
+import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.project.Trgt;
 
 public class ProduceOne extends JavaAnalysis {
@@ -18,7 +19,7 @@ public class ProduceOne extends JavaAnalysis {
 	@Override
 	public void run() {
 		oneTrgt.accept(1);
-		System.out.println("test: one produced");
+		Messages.log("test: one produced");
 		done = true;
 	}
 

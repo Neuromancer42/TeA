@@ -6,6 +6,7 @@ import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.ITask;
 
 import com.neuromancer42.tea.core.bddbddb.Dom;
+import com.neuromancer42.tea.core.project.Messages;
 
 /**
  * Generic implementation of a program domain (a specialized kind
@@ -47,8 +48,7 @@ public class ProgramDom<T> extends Dom<T> implements ITask {
     }
     public void init() { }
     public void save() {
-        if (Config.v().verbose >= 1)
-            System.out.println("SAVING dom " + name + " size: " + size());
+        Messages.debug("ProgramDom %s: SAVING dom size: %d", name, size());
         try {
             super.save(Config.v().bddbddbWorkDirName, Config.v().saveDomMaps);
         } catch (IOException ex) {

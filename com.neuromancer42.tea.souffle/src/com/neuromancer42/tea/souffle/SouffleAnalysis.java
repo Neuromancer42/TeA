@@ -149,7 +149,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
         if (souffleProgram == null) {
             Messages.warn("SouffleAnalysis %s: re-close the souffle analysis", name);
         } else {
-            Messages.log("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
+            Messages.debug("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
             souffleProgram.delete();
             souffleProgram = null;
         }
@@ -239,7 +239,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             }
             provActivated = true;
 
-            Messages.log("SouffleProvenanceBuilder %s: freeing souffle program %s", name, provenanceProgram);
+            Messages.debug("SouffleProvenanceBuilder %s: freeing souffle program %s", name, provenanceProgram);
             provenanceProgram.delete();
             provenanceProgram = null;
         }
@@ -334,7 +334,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
 
         private void dumpRel() {
             Path factPath = factDir.resolve(rel.getName()+".facts");
-            Messages.log("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
+            Messages.debug("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
             try {
                 List<String> lines = new ArrayList<>();
                 rel.load();
@@ -383,7 +383,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
 
             rel.init();
             Path outPath = outDir.resolve(relName+".csv");
-            Messages.log("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
+            Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
             List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
             for (int[] row: table) {
                 Object[] tuple = new Object[row.length];

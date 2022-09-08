@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.program.cdt.tests;
 
+import com.neuromancer42.tea.core.project.Messages;
 import org.eclipse.cdt.core.dom.ast.ExpansionOverlapsBoundaryException;
 import org.eclipse.cdt.core.dom.ast.IASTNode;
 import org.eclipse.cdt.core.dom.ast.IASTPreprocessorIncludeStatement;
@@ -22,7 +23,7 @@ public class CDTTest {
         URL fileURL = this.getClass().getResource("/resources/example.h");
         assert fileURL != null;
         String filename = System.getProperty("headerfile", fileURL.toString());
-        System.err.println("Opening " + filename);
+        Messages.log("Opening " + filename);
         FileContent fileContent = FileContent.createForExternalFileLocation(filename);
         Map<String, String> definedSymbols = new HashMap<>();
         String[] includePaths = new String[0];

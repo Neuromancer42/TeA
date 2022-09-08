@@ -91,7 +91,7 @@ public final class SouffleRuntime {
             // 3. load library
             Path souffleJNIPath = runtime.workDir.resolve("native").resolve(libraryFileName);
             System.load(souffleJNIPath.toAbsolutePath().toString());
-            Messages.log("SouffleRuntime: souffle runtime has been loaded");
+            Messages.debug("SouffleRuntime: souffle runtime has been loaded");
         } catch (IOException | RuntimeException | InterruptedException e) {
             Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
             Messages.fatal(e);
@@ -193,12 +193,12 @@ public final class SouffleRuntime {
             // 3. load library
             Path analysisLibPath = runtime.workDir.resolve("native").resolve(analysisLibName);
             System.load(analysisLibPath.toAbsolutePath().toString());
-            Messages.log("SouffleRuntime: analysis runtime %s has been loaded", analysisLibName);
+            Messages.debug("SouffleRuntime: analysis runtime %s has been loaded", analysisLibName);
             loadedLibraries.add(analysis);
             if (withProvenance) {
                 Path provLibPath = runtime.workDir.resolve("native").resolve(provLibName);
                 System.load(provLibPath.toAbsolutePath().toString());
-                Messages.log("SouffleRuntime: provenance runtime %s has been loaded", provLibName);
+                Messages.debug("SouffleRuntime: provenance runtime %s has been loaded", provLibName);
                 loadedProvenances.put(analysis, provenance);
             }
         } catch (IOException | InterruptedException e) {

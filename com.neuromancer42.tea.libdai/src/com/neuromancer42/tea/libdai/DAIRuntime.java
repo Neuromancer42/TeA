@@ -51,7 +51,7 @@ public class DAIRuntime {
                 throw new RuntimeException("Not supported yet!");
             }
             // 2. copy jnilib from bundles
-            Messages.log("DAIRuntime: loading libdai runtime file " + libraryFileName);
+            Messages.debug("DAIRuntime: loading libdai runtime file " + libraryFileName);
             InputStream daifgJNIStream = DAIRuntime.class.getResourceAsStream("swig/jnilib/" + libraryFileName);
             Path daifgJNIPath = runtime.workDir.resolve(libraryFileName);
             assert daifgJNIStream != null;
@@ -59,7 +59,7 @@ public class DAIRuntime {
 
             // 3. load library
             System.load(daifgJNIPath.toAbsolutePath().toString());
-            Messages.log("DAIRuntime: libdai runtime has been loaded");
+            Messages.debug("DAIRuntime: libdai runtime has been loaded");
         } catch (IOException | RuntimeException e ) {
             Messages.error("DAIRuntime: failed to initialize libdai runtime.");
             Messages.fatal(e);
@@ -128,7 +128,7 @@ public class DAIRuntime {
 
         pw.flush();
         pw.close();
-        Messages.log("FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + latentMap.size() + " latent nodes, " + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
+        Messages.debug("DAIRuntime: FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + latentMap.size() + " latent nodes, " + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
         return subSize;
     }
 
@@ -160,7 +160,7 @@ public class DAIRuntime {
             while (sumBody.size() > limit) {
                 Integer phonyHead = phonyId++;
                 List<Integer> phonyBody = sumBody.subList(sumBody.size() - clauseLimit, sumBody.size());
-                Messages.log("CausalGraph: Create sum phony node " + phonyHead);
+                Messages.debug("CausalGraph: Create sum phony node " + phonyHead);
                 pw.println();
                 dumpSumFactor(pw, phonyHead, phonyBody);
                 sumBody = sumBody.subList(0, sumBody.size() - clauseLimit);
@@ -189,7 +189,7 @@ public class DAIRuntime {
             while (prodBody.size() > limit) {
                 Integer phonyHead = phonyId++;
                 List<Integer> phonyBody = prodBody.subList(prodBody.size() - clauseLimit, prodBody.size());
-                Messages.log("CausalGraph: Create product phony node " + phonyHead);
+                Messages.debug("CausalGraph: Create product phony node " + phonyHead);
                 pw.println();
                 dumpProdFactor(pw, phonyHead, phonyBody);
                 prodBody = prodBody.subList(0, prodBody.size() - clauseLimit);

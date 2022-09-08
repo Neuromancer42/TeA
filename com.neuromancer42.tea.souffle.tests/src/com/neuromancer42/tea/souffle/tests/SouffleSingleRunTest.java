@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.souffle.tests;
 
+import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
@@ -20,7 +21,7 @@ public class SouffleSingleRunTest {
     @BeforeAll
     public static void setup() throws IOException {
         String dlogName = System.getProperty("dlog");
-        System.err.println("Opening " + dlogName);
+        Messages.log("Opening " + dlogName);
         analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple", "simple1", new File(dlogName));
         List<String> inputLines = new ArrayList<>();
         inputLines.add("1\t2");

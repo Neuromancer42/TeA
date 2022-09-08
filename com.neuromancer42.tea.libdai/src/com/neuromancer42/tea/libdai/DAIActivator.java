@@ -12,15 +12,12 @@ public class DAIActivator implements BundleActivator {
     @Override
     public void start(BundleContext bundleContext) throws Exception {
         Timer timer = new Timer("libdai");
-        if (Config.v().verbose >= 1)
-            Messages.log("ENTER: LibDAI Runtime Initialization started at " + (new Date()));
+        Messages.log("ENTER: LibDAI Runtime Initialization started at " + (new Date()));
         timer.init();
         DAIRuntime.init();
         timer.done();
-        if (Config.v().verbose >= 1) {
-            Messages.log("LEAVE: LibDAI Runtime Initialization finished");
-            Timer.printTimer(timer);
-        }
+        Messages.log("LEAVE: LibDAI Runtime Initialization finished");
+        Timer.printTimer(timer);
     }
 
     @Override

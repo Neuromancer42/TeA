@@ -235,7 +235,7 @@ public class CParser {
         for (var entry : methCFGMap.entrySet()) {
             IFunction meth = entry.getKey();
             if (meth.getName().contentEquals("main")) {
-                Messages.log("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
+                Messages.debug("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
                 relEntryM.add(meth);
             }
             IntraCFG cfg = entry.getValue();
@@ -272,7 +272,7 @@ public class CParser {
                             assert v == builder.fetchRegister(invk);
                             relIinvkRet.add(invk, v);
                         } else {
-                            Messages.log("CParser: invocation has no ret-val [%s]", e.toDebugString());
+                            Messages.debug("CParser: invocation has no ret-val [%s]", e.toDebugString());
                         }
                         int[] iArgRegs;
                         if (e instanceof StaticCallEval) {

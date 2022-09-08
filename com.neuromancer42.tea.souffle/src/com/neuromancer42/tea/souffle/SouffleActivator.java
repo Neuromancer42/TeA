@@ -12,15 +12,12 @@ public class SouffleActivator implements BundleActivator {
     @Override
     public void start(BundleContext bundleContext) throws Exception {
         Timer timer = new Timer("Souffle");
-        if (Config.v().verbose >= 1)
-            Messages.log("ENTER: Souffle Runtime Initialization started at " + (new Date()));
+        Messages.log("ENTER: Souffle Runtime Initialization started at " + (new Date()));
         timer.init();
         SouffleRuntime.init();
         timer.done();
-        if (Config.v().verbose >= 1) {
-            Messages.log("LEAVE: Souffle Runtime Initialization finished");
-            Timer.printTimer(timer);
-        }
+        Messages.log("LEAVE: Souffle Runtime Initialization finished");
+        Timer.printTimer(timer);
     }
 
     @Override

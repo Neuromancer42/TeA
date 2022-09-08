@@ -7,6 +7,12 @@ package com.neuromancer42.tea.core.project;
  */
 public class Messages {
     private Messages() { }
+    public static void debug(String format, Object... args) {
+        if (Config.v().verbose == 0)
+            return;
+        String msg = String.format(format, args);
+        System.out.println("DEBUG: " + msg);
+    }
     public static void log(String format, Object... args) {
         String msg = String.format(format, args);
         System.out.println("LOG: " + msg);

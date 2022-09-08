@@ -27,6 +27,7 @@
 #include <map>
 #include <set>
 #include <queue>
+#include <fstream>
 
 /**
  * Abstract base class for generated Datalog programs
@@ -121,6 +122,11 @@ public:
 
     void printProvenance(const std::string& provDirectory) {
         // similar to ExplainProvenanceImpl::setup()
+#ifndef NDEBUG
+    std::string logfilename = provDirectory + "/" + "log.txt";
+    std::ofstream logfile(logfilename, std::ios::out | std::ios::binary);
+#endif
+
         std::map<std::pair<std::string, std::size_t>, std::vector<std::string>> infoPredicates;
         std::map<std::pair<std::string, std::size_t>, std::string> infoName;
         for (auto& rel: program->getAllRelations()) {
@@ -138,7 +144,7 @@ public:
                 tuple >> ruleNum;
 
 #ifndef NDEBUG
-    std::cerr << "Find rule #" << ruleNum << " of " << name << std::endl;
+    logfile << "Find rule #" << ruleNum << " of " << name << std::endl;
 #endif
 
                 // middle fields are body literals
@@ -153,7 +159,7 @@ public:
                 tuple >> rule;
 
 #ifndef NDEBUG
-    std::cerr << rule << std::endl;
+    logfile << rule << std::endl;
 #endif
 
                 std::string relName = name.substr(0, name.find(".@info"));
@@ -184,7 +190,7 @@ public:
         }
 
 #ifndef NDEBUG
-    std::cerr << "Proving "<< worklist.size() << " output tuples." << std::endl;
+    logfile << "Proving "<< worklist.size() << " output tuples." << std::endl;
 #endif
 
         // recursively explore tuples from backward
@@ -217,7 +223,7 @@ public:
             std::string headAtom = decodeRelTuple(headRelName, headTup);
 
 #ifndef NDEBUG
-    std::cerr << "Exploreing proof of " << headAtom
+    logfile << "Exploreing proof of " << headAtom
             << ";" << headTup[headRel->getPrimaryArity()]
             << "," << headTup[headRel->getPrimaryArity()+1]
             << std::endl;
@@ -231,14 +237,14 @@ public:
             std::string subroutine = headRelName + "_" + std::to_string(ruleNum) + "_subproof";
 
 #ifndef NDEBUG
-    std::cerr << "> Executing subroutine: " << subroutine << std::endl;
+    logfile << "> Executing subroutine: " << subroutine << std::endl;
 #endif
 
             program->executeSubroutine(subroutine, headTup, ret);
 
             auto bodyRelations = infoPredicates.at(std::make_pair(headRelName, ruleNum));
 #ifndef NDEBUG
-    std::cerr << "> Fetching proofs, "
+    logfile << "> Fetching proofs, "
             << bodyRelations.size() << " total relations, "
             << ret.size() << " body domains." << std::endl;
 #endif
@@ -257,7 +263,7 @@ public:
                         isNegation = true;
                         bodyRelName = bodyPredicate.substr(1);
 #ifndef NDEBUG
-    std::cerr << ">> Negation: " << bodyPredicate << std::endl;
+    logfile << ">> Negation: " << bodyPredicate << std::endl;
 #endif
                     }
                     bool isConstraint = false;
@@ -269,7 +275,7 @@ public:
                         arity = 4;
                         auxArity = 2;
 #ifndef NDEBUG
-    std::cerr << ">> Constraint: " << bodyPredicate << std::endl;
+    logfile << ">> Constraint: " << bodyPredicate << std::endl;
 #endif
                     } else {
                         arity = program->getRelation(bodyRelName)->getArity();
@@ -292,7 +298,7 @@ public:
                         bodyTup.push_back(ret[i]);
                     }
 #ifndef NDEBUG
-    std::cerr << ">> built body atom: " << bodyAtom
+    logfile << ">> built body atom: " << bodyAtom
             << ";" << bodyTup[arity-auxArity]
             << "," << bodyTup[arity-auxArity+1]
             << std::endl;
@@ -308,7 +314,7 @@ public:
                 }
                 // finish one proof, print generated constraints
 #ifndef NDEBUG
-    std::cerr << "> Dumping one proof with length " << bodyAtoms.size() << std::endl;
+    logfile << "> Dumping one proof with length " << bodyAtoms.size() << std::endl;
 #endif
                 file << headAtom;
                 for (auto& bodyAtom : bodyAtoms)
@@ -321,11 +327,11 @@ public:
                 //      including source of head domains and comparison of levelNums
                 std::size_t auxRetArity = 2 * headRel->getPrimaryArity() + 2 * (bodyRelations.size() - 1);
 #ifndef NDEBUG
-    std::cerr << ">> Extra proof info:";
+    logfile << ">> Extra proof info:";
     for (int i = 0; i < auxRetArity; ++i) {
-        std::cerr << ' ' << ret[tupleCurInd + i];
+        logfile << ' ' << ret[tupleCurInd + i];
     }
-    std::cerr << std::endl;
+    logfile << std::endl;
 #endif
                 tupleCurInd += auxRetArity;
             }

@@ -1,6 +1,7 @@
 package com.neuromancer42.tea.core.tests;
 
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
+import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.project.Trgt;
 
 public class ConsumeOne extends JavaAnalysis {
@@ -17,7 +18,7 @@ public class ConsumeOne extends JavaAnalysis {
 	
 	@Override
 	public void run() {
-		System.out.println("test: " + oneTrgt + " consumed");
+		Messages.log("test: " + oneTrgt + " consumed");
 		done = true;
 	}
 
