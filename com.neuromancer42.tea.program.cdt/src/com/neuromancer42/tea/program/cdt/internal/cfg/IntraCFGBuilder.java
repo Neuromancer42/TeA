@@ -158,7 +158,7 @@ public class IntraCFGBuilder {
         }
         IASTStatement fBody = fDef.getBody();
         prevNode = expandGraph(prevNode, fBody);
-        if (prevNode != null && !unreachable.contains(prevNode)) {
+        if (prevNode != null && !(prevNode instanceof IExitNode) && !(prevNode instanceof IJumpNode) && !unreachable.contains(prevNode)) {
             ReturnNode dummyRet = new ReturnNode();
             Messages.debug("CParser: add implicit return node [%s] for function [%s]", dummyRet.toDebugString(), curFunc);
             dummyRet.setStartNode(start);
@@ -244,7 +244,7 @@ public class IntraCFGBuilder {
         } else if (statement instanceof IASTReturnStatement) {
             IASTReturnStatement ret = (IASTReturnStatement) statement;
             IASTExpression retExpr = ret.getReturnValue();
-            ReturnNode retNode = null;
+            ReturnNode retNode ;
             if (retExpr != null) {
                 retExpr = unparenthesize(retExpr);
                 int retReg = createRegister(retExpr);
@@ -255,10 +255,9 @@ public class IntraCFGBuilder {
             }
             retNode.setStartNode(start);
             exits.add(retNode);
-            connect(prevNode, retNode);
-            prevNode = retNode;
+            prevNode = connect(prevNode, retNode);
 
-            return null;
+            return prevNode;
         }
 
         Messages.error("CParser: skip unsupported C statement %s[%s]", statement.getClass().getSimpleName(), statement.getRawSignature());
@@ -285,8 +284,7 @@ public class IntraCFGBuilder {
             if (initReg != null) {
                 Messages.debug("CParser: store initializing value to %s <- %s@%d", vLoc.toDebugString(), var.getType(), initReg);
                 IBasicBlock storeNode = new StoreNode(vLoc, initReg);
-                connect(prevNode, storeNode);
-                prevNode = storeNode;
+                prevNode = connect(prevNode, storeNode);
             }
             return prevNode;
         }
@@ -307,8 +305,7 @@ public class IntraCFGBuilder {
 
                 Messages.debug("CParser: assign to location %s <- %s@%d (%s)", lhsLoc.toDebugString(), rhs.getExpressionType(), rReg, expression.getRawSignature());
                 IBasicBlock storeNode = new StoreNode(lhsLoc, rReg);
-                connect(prevNode, storeNode);
-                prevNode = storeNode;
+                prevNode = connect(prevNode, storeNode);
 
                 return prevNode;
             } else if (binExpr.isLValue()) { // equivalent to op is all compound assignment operators (except op_assign)
@@ -320,8 +317,7 @@ public class IntraCFGBuilder {
                 Messages.debug("CParser: read from location %s -> %s@%d (%s)", lhsLoc.toDebugString(), lval.getExpressionType(), prevReg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(lval, lhsLoc);
                 IBasicBlock loadNode = new EvalNode(loadEval, prevReg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
 
                 IASTExpression rval = unparenthesize(binExpr.getOperand2());
                 int rReg = createRegister(rval);
@@ -345,13 +341,11 @@ public class IntraCFGBuilder {
                 IEval eval = new BinaryEval(expression, opStr, prevReg, rReg);
                 Messages.debug("CParser: compute updated value in %s@%d := %s", eval.getType(), postReg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, postReg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 Messages.debug("CParser: update location %s <- %s@%d (%s)", lhsLoc.toDebugString(), expression.getExpressionType(), postReg, expression.getRawSignature());
                 IBasicBlock storeNode = new StoreNode(lhsLoc, postReg);
-                connect(prevNode, storeNode);
-                prevNode = storeNode;
+                prevNode = connect(prevNode, storeNode);
 
                 return prevNode;
             } else if (op == IASTBinaryExpression.op_logicalAnd || op == IASTBinaryExpression.op_logicalOr){
@@ -377,8 +371,7 @@ public class IntraCFGBuilder {
                 Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), obj.getExpressionType(), prevReg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(obj, loc);
                 IBasicBlock loadNode = new EvalNode(loadEval, prevReg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
 
                 int postReg = createRegister(expression);
                 String opStr = "Unknown";
@@ -395,13 +388,11 @@ public class IntraCFGBuilder {
                 IEval eval = new UnaryEval(expression, opStr, prevReg);
                 Messages.debug("CParser: compute incr/decr value in %s@%d := %s", eval.getType(), postReg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, postReg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 Messages.debug("CParser: incr/decr location %s <- %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), postReg, expression.getRawSignature());
                 IBasicBlock storeNode = new StoreNode(loc, postReg);
-                connect(prevNode,storeNode);
-                prevNode = storeNode;
+                prevNode = connect(prevNode,storeNode);
 
                 return prevNode;
             } else {
@@ -516,8 +507,8 @@ public class IntraCFGBuilder {
         if (expression instanceof IASTLiteralExpression) {
             IEval literalEval = new LiteralEval((IASTLiteralExpression) expression);
             IBasicBlock evalNode = new EvalNode(literalEval, reg);
-            connect(prevNode, evalNode);
-            prevNode = evalNode;
+            prevNode = connect(prevNode, evalNode);
+
             return prevNode;
         } else if (expression instanceof IASTIdExpression) {
             IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
@@ -527,16 +518,16 @@ public class IntraCFGBuilder {
                 Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(expression, loc);
                 IBasicBlock loadNode = new EvalNode(loadEval, reg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
+
                 return prevNode;
             } else if (binding instanceof IFunction) {
                 ILocation loc = funcNameMap.get((IFunction) binding);
                 Messages.debug("CParser: store function %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(expression, loc);
                 IBasicBlock loadNode = new EvalNode(loadEval, reg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
+
                 return prevNode;
             }
         } else if (expression instanceof IASTUnaryExpression) {
@@ -559,8 +550,7 @@ public class IntraCFGBuilder {
                     Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
                     IEval loadEval = new LoadEval(expression, loc);
                     IBasicBlock loadNode = new EvalNode(loadEval, reg);
-                    connect(prevNode, loadNode);
-                    prevNode = loadNode;
+                    prevNode = connect(prevNode, loadNode);
 
                     return prevNode;
                 }
@@ -576,8 +566,7 @@ public class IntraCFGBuilder {
                 IEval eval = new UnaryEval(expression, opStr, innerReg);
                 Messages.debug("CParser: compute unary expr in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 return prevNode;
             } else if (op == IASTUnaryExpression.op_prefixIncr || op == IASTUnaryExpression.op_prefixDecr
@@ -605,8 +594,7 @@ public class IntraCFGBuilder {
 
                     IEval eval = new BinaryEval(expression, BinaryEval.op_plus, arrReg, subReg);
                     IBasicBlock evalNode = new EvalNode(eval, reg);
-                    connect(prevNode, evalNode);
-                    prevNode = evalNode;
+                    prevNode = connect(prevNode, evalNode);
 
                     return prevNode;
                 }
@@ -616,8 +604,7 @@ public class IntraCFGBuilder {
                 IEval eval = new AddressEval(expression, loc);
                 Messages.debug("CParser: compute address in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 return prevNode;
             }
@@ -641,8 +628,7 @@ public class IntraCFGBuilder {
                 Messages.debug("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(expression, loc);
                 IBasicBlock loadNode = new EvalNode(loadEval, reg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
 
                 return prevNode;
             } else if (op == IASTBinaryExpression.op_pmarrow) {
@@ -658,8 +644,7 @@ public class IntraCFGBuilder {
                 Messages.debug("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
                 IEval loadEval = new LoadEval(expression, loc);
                 IBasicBlock loadNode = new EvalNode(loadEval, reg);
-                connect(prevNode, loadNode);
-                prevNode = loadNode;
+                prevNode = connect(prevNode, loadNode);
 
                 return prevNode;
             } else if (op == IASTBinaryExpression.op_logicalAnd || op == IASTBinaryExpression.op_logicalOr) {
@@ -674,8 +659,7 @@ public class IntraCFGBuilder {
                 IEval eval = new BinaryEval(expression, opStr, r1, r2);
                 Messages.debug("CParser: compute result of and/or in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 return prevNode;
             } else {
@@ -722,8 +706,7 @@ public class IntraCFGBuilder {
                 IEval eval = new BinaryEval(expression, opStr, r1, r2);
                 Messages.debug("CParser: compute binary expr in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
-                connect(prevNode, evalNode);
-                prevNode = evalNode;
+                prevNode = connect(prevNode, evalNode);
 
                 return prevNode;
             }
@@ -744,8 +727,7 @@ public class IntraCFGBuilder {
             Messages.debug("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), reg, expression.getRawSignature());
             IEval loadEval = new LoadEval(expression, loc);
             IBasicBlock loadNode = new EvalNode(loadEval, reg);
-            connect(prevNode, loadNode);
-            prevNode = loadNode;
+            prevNode = connect(prevNode, loadNode);
 
             return prevNode;
         } else if (expression instanceof IASTFunctionCallExpression) {
@@ -775,8 +757,7 @@ public class IntraCFGBuilder {
             }
             Messages.debug("CParser: compute invocation in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
             IBasicBlock evalNode = new EvalNode(eval, reg);
-            connect(prevNode, evalNode);
-            prevNode = evalNode;
+            prevNode = connect(prevNode, evalNode);
 
             return prevNode;
         }
@@ -858,10 +839,11 @@ public class IntraCFGBuilder {
         shortCircuit.setMergeNode(phiNode);
         jump(trueNode, phiNode, false);
         jump(falseNode, phiNode, false);
-        fixPhi(phiNode);
 
-        prevNode = phiNode;
-        return prevNode;
+        if (fixPhi(phiNode))
+            return phiNode;
+        else
+            return null;
     }
 
     private IBasicBlock handleIfStatement(IBasicBlock prevNode, IASTIfStatement cIf) {
@@ -884,10 +866,11 @@ public class IntraCFGBuilder {
         ifNode.setMergeNode(phiNode);
         jump(thenNode, phiNode, false);
         jump(elseNode, phiNode, false);
-        fixPhi(phiNode);
 
-        prevNode = phiNode;
-        return prevNode;
+        if (fixPhi(phiNode))
+            return phiNode;
+        else
+            return null;
     }
 
     private IBasicBlock handleWhileStatement(IBasicBlock prevNode, IASTWhileStatement cWhile) {
@@ -920,8 +903,10 @@ public class IntraCFGBuilder {
         connect(whileNode, loopEnd);
         jump(loopEnd, breakNode, false);
 
-        prevNode = breakNode;
-        return prevNode;
+        if (fixPhi(breakNode))
+            return breakNode;
+        else
+            return null;
     }
 
     private IBasicBlock handleDoWhileStatement(IBasicBlock prevNode, IASTDoStatement cDoWhile) {
@@ -951,8 +936,12 @@ public class IntraCFGBuilder {
         connect(doWhileNode, loopEnd);
         jump(loopEnd, breakNode, false);
 
-        prevNode = breakNode;
-        return prevNode;
+        fixPhi(continueNode);
+
+        if (fixPhi(breakNode))
+            return breakNode;
+        else
+            return null;
     }
 
 
@@ -985,8 +974,12 @@ public class IntraCFGBuilder {
         IBranchNode loopEnd = new LabelNode(IBranchNode.ELSE);
         connect(forNode, loopEnd);
         jump(loopEnd, breakNode, false);
-        prevNode = breakNode;
-        return prevNode;
+
+        fixPhi(continueNode);
+        if (fixPhi(breakNode))
+            return breakNode;
+        else
+            return null;
     }
 
     private IBasicBlock handleLoopBody(IBasicBlock bodyStart, IASTStatement body, IConnectorNode continueNode, boolean continueBackward, IConnectorNode breakNode) {
@@ -1003,14 +996,14 @@ public class IntraCFGBuilder {
         return bodyEnd;
     }
 
-    private boolean connect(IBasicBlock prevNode, IBasicBlock postNode) {
+    private IBasicBlock connect(IBasicBlock prevNode, IBasicBlock postNode) {
         if (prevNode instanceof IExitNode || prevNode instanceof IJumpNode || prevNode == null) {
             unreachable.add(postNode);
-            return false;
+            return null;
         }
         ((AbstractBasicBlock) prevNode).addOutgoing(postNode);
         ((AbstractBasicBlock) postNode).addIncoming(prevNode);
-        return true;
+        return postNode;
     }
 
     private void jump(IBasicBlock prevNode, IConnectorNode phiNode, boolean isBackward) {
