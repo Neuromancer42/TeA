@@ -17,6 +17,7 @@ public class Config {
 	{
         Utils.mkdirs(outDirName);
         Utils.mkdirs(bddbddbWorkDirName);
+        Utils.mkdirs(souffleWorkDirName);
         startTime = System.currentTimeMillis();
     }
 
@@ -70,7 +71,7 @@ public class Config {
 
     public String outDirName = System.getProperty("chord.out.dir", workRel2Abs("chord_output"));
     public String bddbddbWorkDirName = System.getProperty("chord.bddbddb.work.dir", outRel2Abs("bddbddb"));
-
+    public String souffleWorkDirName = System.getProperty("chord.souffle.work.dir", outRel2Abs("souffle"));
     public final boolean reuseRels =Utils.buildBoolProperty("chord.reuse.rels", false);
 
     // commonly-used constants

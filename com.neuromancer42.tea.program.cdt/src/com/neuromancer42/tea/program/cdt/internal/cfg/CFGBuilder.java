@@ -27,7 +27,7 @@ import java.util.*;
 // generally, this control flow is just a determinated variety of C specification
 // in that: some evaluation orders are unspecified
 // e.g. operands of arithmetical computations, arguments of function calls
-public class IntraCFGBuilder {
+public class CFGBuilder {
     private final IASTTranslationUnit transUnit;
     private final IndexMap<Object> registers; // sub-expressions should compute from registers and load into registers
     private final Map<IVariable, ILocation> stackMap;
@@ -49,7 +49,7 @@ public class IntraCFGBuilder {
     private boolean outerContinueBackward;
     private IConnectorNode outerBreakTarget;
 
-    public IntraCFGBuilder(IASTTranslationUnit tu) {
+    public CFGBuilder(IASTTranslationUnit tu) {
         this.transUnit = tu;
         registers = new IndexMap<>();
         stackMap = new HashMap<>();
@@ -129,7 +129,7 @@ public class IntraCFGBuilder {
 
     public Set<IField> getFields() { return fields; }
 
-    public IntraCFG build(IASTFunctionDefinition fDef) {
+    public IntraCFG buildIntraCFG(IASTFunctionDefinition fDef) {
         IASTFunctionDeclarator fDecl = fDef.getDeclarator();
         IFunction curFunc = (IFunction) fDecl.getName().resolveBinding();
         start = new FuncEntryNode(curFunc);
@@ -274,12 +274,15 @@ public class IntraCFGBuilder {
             return prevNode;
         } else {
             ILocation vLoc = new VariableLocation(var);
-            stackMap.put(var, vLoc);
 
             registers.add(declarator);
             int vReg = registers.indexOf(declarator);
             refRegMap.put(var, vReg);
+            stackMap.put(var, vLoc);
             Messages.debug("CParser: alloc stack location *(%s)@%d == &%s for %s#%d (%s)", var.getType(), vReg, vLoc.toDebugString(), var.getName(), var.hashCode(), var.getOwner());
+            IEval addrEval = new AddressEval(var, vLoc);
+            IBasicBlock allocNode = new EvalNode(addrEval, vReg);
+            prevNode = connect(prevNode, allocNode);
 
             if (initReg != null) {
                 Messages.debug("CParser: store initializing value to %s <- %s@%d", vLoc.toDebugString(), var.getType(), initReg);
@@ -523,9 +526,9 @@ public class IntraCFGBuilder {
                 return prevNode;
             } else if (binding instanceof IFunction) {
                 ILocation loc = funcNameMap.get((IFunction) binding);
-                Messages.debug("CParser: store function %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
-                IEval loadEval = new LoadEval(expression, loc);
-                IBasicBlock loadNode = new EvalNode(loadEval, reg);
+                Messages.debug("CParser: load function address %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
+                IEval addrEval = new AddressEval(expression, loc);
+                IBasicBlock loadNode = new EvalNode(addrEval, reg);
                 prevNode = connect(prevNode, loadNode);
 
                 return prevNode;

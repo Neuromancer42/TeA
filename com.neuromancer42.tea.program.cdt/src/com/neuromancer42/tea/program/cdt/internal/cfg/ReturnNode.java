@@ -2,7 +2,6 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import org.eclipse.cdt.codan.internal.core.cfg.ExitNode;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
-import org.eclipse.cdt.core.dom.ast.IType;
 
 public class ReturnNode extends ExitNode implements ICFGNode {
     private final IASTExpression retExpr;

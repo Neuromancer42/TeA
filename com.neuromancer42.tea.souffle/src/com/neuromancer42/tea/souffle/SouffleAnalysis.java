@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public final class SouffleAnalysis extends JavaAnalysis {
@@ -41,7 +42,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
         this.analysis = analysis;
         souffleProgram = program;
         // TODO: change analysis directory?
-        analysisDir = SouffleRuntime.g().getWorkDir().resolve(name);
+        analysisDir = Paths.get(Config.v().souffleWorkDirName).resolve(name);
         Path tmpFactDir = null;
         Path tmpOutDir = null;
         try {

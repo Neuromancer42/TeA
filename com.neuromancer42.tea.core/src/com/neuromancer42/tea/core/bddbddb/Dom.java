@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.io.File;
 import java.io.IOException;
 
+import com.neuromancer42.tea.core.analyses.IDebuggable;
 import com.neuromancer42.tea.core.util.IndexMap;
 
 /**
@@ -66,7 +67,11 @@ public class Dom<T> extends IndexMap<T> {
     }
     // subclasses may override
     public String toUniqueString(T val) {
-        return val == null ? "null" : val.toString();
+        if (val == null)
+            return "null";
+        if (val instanceof IDebuggable)
+            return ((IDebuggable) val).toDebugString();
+        return val.toString();
     }
     public String toUniqueString(int idx) {
         T val = get(idx);

@@ -4,10 +4,7 @@ import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.program.cdt.internal.cfg.*;
-import com.neuromancer42.tea.program.cdt.internal.evaluation.IEval;
-import com.neuromancer42.tea.program.cdt.internal.evaluation.IndirectCallEval;
-import com.neuromancer42.tea.program.cdt.internal.evaluation.LoadEval;
-import com.neuromancer42.tea.program.cdt.internal.evaluation.StaticCallEval;
+import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
 import com.neuromancer42.tea.program.cdt.internal.memory.*;
 import org.eclipse.cdt.codan.core.model.cfg.IBasicBlock;
 import org.eclipse.cdt.core.dom.ast.*;
@@ -44,6 +41,7 @@ public class CParser {
     public final ProgramRel relPeval;
     public final ProgramRel relPload;
     public final ProgramRel relPstore;
+    public final ProgramRel relPalloc;
     public final ProgramRel relPinvk;
 
     public final ProgramRel relAlloc;
@@ -92,6 +90,7 @@ public class CParser {
         relPeval = new ProgramRel("Peval", new ProgramDom[]{domP, domV, domE});
         relPload = new ProgramRel("Pload", new ProgramDom[]{domP, domV});
         relPstore = new ProgramRel("Pstore", new ProgramDom[]{domP, domV});
+        relPalloc = new ProgramRel("Palloc", new ProgramDom[]{domP, domV});
         relPinvk = new ProgramRel("Pinvk", new ProgramDom[]{domP, domI});
         relAlloc = new ProgramRel("Alloc", new ProgramDom[]{domV, domH});
         relGlobalAlloc = new ProgramRel("GlobalAlloc", new ProgramDom[]{domV, domH});
@@ -114,7 +113,8 @@ public class CParser {
 
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
-                relPeval, relPload, relPstore, relPinvk, relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
+                relPeval, relPload, relPstore, relPalloc, relPinvk,
+                relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relMmethArg, relMmethRet, relFuncPtr, relEntryM
         };
@@ -143,13 +143,13 @@ public class CParser {
             assert false;
         }
 
-        IntraCFGBuilder builder = new IntraCFGBuilder(translationUnit);
+        CFGBuilder builder = new CFGBuilder(translationUnit);
         Map<IFunction, IntraCFG> methCFGMap = new HashMap<>();
         for (var decl: translationUnit.getDeclarations()) {
             if (decl instanceof IASTFunctionDefinition) {
                 var fDef = (IASTFunctionDefinition) decl;
                 var f = (IFunction) fDef.getDeclarator().getName().resolveBinding();
-                var cfg = builder.build(fDef);
+                var cfg = builder.buildIntraCFG(fDef);
                 methCFGMap.put(f, cfg);
             }
         }
@@ -308,6 +308,10 @@ public class CParser {
                         } else {
                             Messages.warn("CParser: unhandled location type: %s", loc.toDebugString());
                         }
+                    } else if (e instanceof AddressEval) {
+                        ILocation loc = ((AddressEval) e).getLocation();
+                        relPalloc.add(p, v);
+                        relAlloc.add(v, loc);
                     } else {
                         relPeval.add(p, v, e);
                     }
