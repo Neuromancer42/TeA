@@ -35,7 +35,6 @@
 .input MmethArg
 .decl MmethRet(m:M,y:V)
 .input MmethRet
-.decl InterprocAssign(u:V,v:V)
 
 // statements
 .decl MV(m:M,v:V)
@@ -63,8 +62,10 @@
 .output ci_pt
 // pointers
 .decl ci_hpt(h:H,o:H)
+.output ci_hpt
 // structs
 .decl ci_fpt(h:H,f:F,o:H)
+.output ci_fpt
 // arrays are handled as pointers
 
 /*************

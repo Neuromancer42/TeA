@@ -31,6 +31,7 @@ public class CParser {
     public final ProgramDom<IField> domF;
     public final ProgramDom<IASTFunctionCallExpression> domI;
     public final ProgramDom<Integer> domZ;
+    public final ProgramDom<String> domC; // temporarily, use String to represent constants
 
     public final ProgramRel relMPentry;
     public final ProgramRel relMPexit;
@@ -61,6 +62,9 @@ public class CParser {
     public final ProgramRel relFuncPtr;
     public final ProgramRel relEntryM;
 
+    public final ProgramRel relVvalue;
+    //public final ProgramRel relHvalue;
+
     public final ProgramDom<?>[] generatedDoms;
     public final ProgramRel[] generatedRels;
 
@@ -76,8 +80,9 @@ public class CParser {
         domF = ProgramDom.createDom("F", IField.class);
         domI = ProgramDom.createDom("I", IASTFunctionCallExpression.class);
         domZ = ProgramDom.createDom("Z", Integer.class);
+        domC = ProgramDom.createDom("C", String.class);
 
-        generatedDoms = new ProgramDom<?>[]{domM, domP, domE, domV, domH, domF, domI, domZ};
+        generatedDoms = new ProgramDom<?>[]{domM, domP, domE, domV, domH, domF, domI, domZ, domC};
 
         // control flow relations
         relMPentry = new ProgramRel("MPentry", new ProgramDom[]{domM, domP});
@@ -111,12 +116,16 @@ public class CParser {
         relFuncPtr = new ProgramRel("funcPtr", new ProgramDom[]{domH, domM});
         relEntryM = new ProgramRel("entryM", new ProgramDom[]{domM});
 
+        // values
+        relVvalue = new ProgramRel("Vvalue", new ProgramDom[]{domV, domC});
+
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
                 relPeval, relPload, relPstore, relPalloc, relPinvk,
                 relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
-                relMmethArg, relMmethRet, relFuncPtr, relEntryM
+                relMmethArg, relMmethRet, relFuncPtr, relEntryM,
+                relVvalue
         };
     }
 
@@ -175,6 +184,9 @@ public class CParser {
         for (int i = 0; i < numRegs; ++i) {
             domV.add(i);
         }
+        for (var c : builder.getSimpleConstants().values()) {
+            domC.add(c);
+        }
         for (var vLoc : builder.getStackMap().values()) {
             assert (vLoc.isStatic());
             domH.add(vLoc);
@@ -220,6 +232,7 @@ public class CParser {
             IVariable variable = entry.getKey();
             ILocation vLoc = entry.getValue();
             int vReg = builder.getRefReg(variable);
+            Messages.debug("CParser: allocate #%d |-> [%s]", vReg, vLoc.toDebugString());
             relAlloc.add(vReg, vLoc);
         }
         for (var entry : builder.getGlobalAllocs().entrySet()) {
@@ -231,6 +244,13 @@ public class CParser {
             IFunction func = entry.getKey();
             ILocation fLoc = entry.getValue();
             relFuncPtr.add(fLoc, func);
+        }
+        for (var entry : builder.getSimpleConstants().entrySet()) {
+            int reg = entry.getKey();
+            String c = entry.getValue();
+            if (reg >= 0) {
+                relVvalue.add(reg, c);
+            }
         }
         for (var entry : methCFGMap.entrySet()) {
             IFunction meth = entry.getKey();
@@ -311,6 +331,7 @@ public class CParser {
                     } else if (e instanceof AddressEval) {
                         ILocation loc = ((AddressEval) e).getLocation();
                         relPalloc.add(p, v);
+                        Messages.debug("CParser: allocate #%d |-> [%s]", v, loc.toDebugString());
                         relAlloc.add(v, loc);
                     } else {
                         relPeval.add(p, v, e);

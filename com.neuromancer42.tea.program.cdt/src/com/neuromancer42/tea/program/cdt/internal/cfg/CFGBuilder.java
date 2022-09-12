@@ -37,6 +37,7 @@ public class CFGBuilder {
     private final Map<IASTExpression, IFunction> staticInvkMap;
     private final Map<IASTExpression, ILocation> lvalLocMap;
     private final Map<String, ILocation> stringConstants;
+    private final Map<Integer, String> simpleConstants;
 
     private final Map<Integer, ILocation> globalAllocs;
     private final Set<IField> fields;
@@ -61,6 +62,7 @@ public class CFGBuilder {
         staticInvkMap = new HashMap<>();
         lvalLocMap = new HashMap<>();
         stringConstants = new HashMap<>();
+        simpleConstants = new HashMap<>();
         for (IASTDeclaration decl : tu.getDeclarations()) {
             // add declared variables and functions into registers
             if (decl instanceof IASTFunctionDefinition) {
@@ -106,6 +108,10 @@ public class CFGBuilder {
 
     public Map<Integer, ILocation> getGlobalAllocs() {
         return globalAllocs;
+    }
+
+    public Map<Integer, String> getSimpleConstants() {
+        return simpleConstants;
     }
 
     public int[] getFuncArgs(IFunction meth) {
@@ -508,7 +514,12 @@ public class CFGBuilder {
 
     private IBasicBlock handleRvalue(IBasicBlock prevNode, IASTExpression expression, int reg) {
         if (expression instanceof IASTLiteralExpression) {
-            IEval literalEval = new LiteralEval((IASTLiteralExpression) expression);
+            IASTLiteralExpression literalExpr = (IASTLiteralExpression) expression;
+            LiteralEval literalEval = new LiteralEval(literalExpr);
+            String constant = literalEval.getValue();
+
+            Messages.debug("CParser: assign constant %s@%d := %s", expression.getExpressionType(), reg, constant);
+            simpleConstants.put(reg, constant);
             IBasicBlock evalNode = new EvalNode(literalEval, reg);
             prevNode = connect(prevNode, evalNode);
 

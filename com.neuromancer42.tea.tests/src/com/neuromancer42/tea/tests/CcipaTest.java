@@ -36,6 +36,11 @@ public class CcipaTest {
         SouffleAnalysis cipa = SouffleRuntime.g().createSouffleAnalysisFromFile("ciPointerAnalysis", "cipa_cg", new File(dlogName1));
         AnalysesUtil.registerAnalysis(context, cipa);
 
+        Messages.log("Registering interval.dl");
+        String dlogName2 = System.getProperty("dlog2");
+        SouffleAnalysis interval = SouffleRuntime.g().createSouffleAnalysisFromFile("interval", "interval", new File(dlogName2));
+        AnalysesUtil.registerAnalysis(context, interval);
+
         OsgiProject.init();
     }
 
@@ -47,13 +52,15 @@ public class CcipaTest {
         Assertions.assertTrue(tasks.contains("CParser"));
         Assertions.assertTrue(tasks.contains("PrePointer"));
         Assertions.assertTrue(tasks.contains("ciPointerAnalysis"));
-        String[] taskSet = new String[1];
+        Assertions.assertTrue(tasks.contains("interval"));
+        String[] taskSet = new String[2];
         taskSet[0] = "ciPointerAnalysis";
+        taskSet[1] = "interval";
         Project.g().run(taskSet);
         //TODO: souffle-generated relations cannot be loaded, need to fix this
         //Project.g().printRels(new String[]{"MP"});
 
-        Assertions.assertEquals(3, OsgiProject.g().getDoneTasks().size());
+        Assertions.assertEquals(4, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("ciPointerAnalysis");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
