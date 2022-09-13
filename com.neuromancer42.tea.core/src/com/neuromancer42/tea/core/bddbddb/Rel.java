@@ -1841,8 +1841,14 @@ public class Rel {
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
         }
+        add(idxs);
+    }
+
+    public void add(int[] idxs) {
+        if (bdd == null)
+            throw new RuntimeException("");
         try {
-            int i = vals.length - 1;
+            int i = idxs.length - 1;
             BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
             while (i > 0) {
                 i--;
@@ -1850,7 +1856,7 @@ public class Rel {
             }
             bdd.orWith(tupleBdd);
         } catch (BDDException ex) {
-            for (int i = 0; i < vals.length; ++i) {
+            for (int i = 0; i < idxs.length; ++i) {
                 checkRange(idxs[i], i);
             }
             throw new RuntimeException(ex);
@@ -1864,8 +1870,14 @@ public class Rel {
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
         }
+        remove(idxs);
+    }
+
+    public void remove(int[] idxs) {
+        if (bdd == null)
+            throw new RuntimeException("");
         try {
-            int i = vals.length - 1;
+            int i = idxs.length - 1;
             BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
             while (i > 0) {
                 i--;
@@ -1873,39 +1885,13 @@ public class Rel {
             }
             bdd.andWith(tupleBdd.not());
         } catch (BDDException ex) {
-            for (int i = 0; i < vals.length; ++i) {
+            for (int i = 0; i < idxs.length; ++i) {
                 checkRange(idxs[i], i);
             }
             throw new RuntimeException(ex);
         }
     }
 
-    public void add(int[] idxs) {
-        if (bdd == null)
-            throw new RuntimeException("");
-		switch (idxs.length) {
-		case 1:
-			add(idxs[0]);
-			break;
-		case 2:
-			add(idxs[0], idxs[1]);
-			break;
-		case 3:
-			add(idxs[0], idxs[1], idxs[2]);
-			break;
-		case 4:
-			add(idxs[0], idxs[1], idxs[2], idxs[3]);
-			break;
-		case 5:
-			add(idxs[0], idxs[1], idxs[2], idxs[3], idxs[4]);
-			break;
-		case 6:
-			add(idxs[0], idxs[1], idxs[2], idxs[3], idxs[4], idxs[5]);
-			break;
-		default:
-			throw new UnsupportedOperationException();
-		}
-    }
     public boolean contains(Object[] vals) {
         if (bdd == null)
             throw new RuntimeException("");
@@ -1913,8 +1899,14 @@ public class Rel {
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
         }
+        return contains(idxs);
+    }
+
+    public boolean contains(int[] idxs) {
+        if (bdd == null)
+            throw new RuntimeException("");
         try {
-            int i = vals.length - 1;
+            int i = idxs.length - 1;
             BDD tupleBdd = domBdds[i].ithVar(idxs[i]);
             while (i > 0) {
                 i--;
@@ -1922,7 +1914,7 @@ public class Rel {
             }
             return !bdd.id().andWith(tupleBdd).isZero();
         } catch (BDDException ex) {
-            for (int i = 0; i < vals.length; ++i) {
+            for (int i = 0; i < idxs.length; ++i) {
                 checkRange(idxs[i], i);
             }
             throw new RuntimeException(ex);
@@ -1933,6 +1925,7 @@ public class Rel {
             throw new RuntimeException("");
         return new AryNIterable(bdd, null);
     }
+
     public IntAryNIterable getAryNIntTuples() {
         if (bdd == null)
             throw new RuntimeException("");

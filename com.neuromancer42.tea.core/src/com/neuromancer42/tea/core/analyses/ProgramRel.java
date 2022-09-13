@@ -9,6 +9,7 @@ import com.neuromancer42.tea.core.project.ITask;
 import com.neuromancer42.tea.core.bddbddb.Rel;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 
@@ -30,9 +31,11 @@ public class ProgramRel implements ITask {
     protected Object[] consumes;
     protected final Rel rel;
 
-    public Iterable<Object[]> getTuples() {
+    public Iterable<Object[]> getValTuples() {
         return rel.getAryNValTuples();
     }
+
+    public Iterable<int[]> getIntTuples() { return rel.getAryNIntTuples(); }
 
     public Dom<?>[] getDoms() {
         return rel.getDoms();
@@ -225,5 +228,19 @@ public class ProgramRel implements ITask {
 
     public boolean contains(Object... vals) {
         return rel.contains(vals);
+    }
+
+    public void add(int[] idxs) {
+        rel.add(idxs);
+        status = Status.UnSync;
+    }
+
+    public void remove(int[] idxs) {
+        rel.remove(idxs);
+        status = Status.UnSync;
+    }
+
+    public boolean contains(int[] idxs) {
+        return rel.contains(idxs);
     }
 }

@@ -2,7 +2,6 @@ package com.neuromancer42.tea.souffle;
 
 import com.neuromancer42.tea.core.analyses.*;
 import com.neuromancer42.tea.core.bddbddb.Dom;
-import com.neuromancer42.tea.core.bddbddb.Rel;
 import com.neuromancer42.tea.core.bddbddb.RelSign;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.AbstractProvenanceBuilder;
@@ -339,13 +338,12 @@ public final class SouffleAnalysis extends JavaAnalysis {
             try {
                 List<String> lines = new ArrayList<>();
                 rel.load();
-                Iterable<Object[]> tuples = rel.getTuples();
+                Iterable<int[]> tuples = rel.getIntTuples();
                 int domNum = rel.getDoms().length;
-                for (Object[] tuple: tuples) {
+                for (int[] tuple: tuples) {
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < domNum; ++i) {
-                        Object element = tuple[i];
-                        int id = rel.getDoms()[i].indexOf(element);
+                        int id = tuple[i];
                         //s += rel.getDoms()[i].toUniqueString(element);
                         sb.append(id);
                         if (i < domNum - 1) {
@@ -387,11 +385,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
             List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
             for (int[] row: table) {
-                Object[] tuple = new Object[row.length];
-                for (int i = 0; i < row.length; ++i) {
-                    tuple[i] = doms[i].get(row[i]);
-                }
-                rel.add(tuple);
+                rel.add(row);
             }
             rel.save();
             rel.close();
