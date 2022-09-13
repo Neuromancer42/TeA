@@ -13,6 +13,8 @@ public class UnaryEval implements IEval {
     public static final String op_plus = "+";
     public static final String op_minus = "-";
     public static final String op_not = "!";
+    public static final String op_cast = "cast";
+    public static final String op_sizeof = "sizeof";
 
     public UnaryEval(IASTExpression expr, String op, int reg) {
         this.operator = op;

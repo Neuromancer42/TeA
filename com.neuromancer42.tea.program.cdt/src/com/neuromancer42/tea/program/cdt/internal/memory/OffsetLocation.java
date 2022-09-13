@@ -1,8 +1,10 @@
 package com.neuromancer42.tea.program.cdt.internal.memory;
 
+import com.neuromancer42.tea.core.project.Messages;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
+import org.eclipse.cdt.core.dom.ast.IArrayType;
+import org.eclipse.cdt.core.dom.ast.IPointerType;
 import org.eclipse.cdt.core.dom.ast.IType;
-import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 
 public class OffsetLocation implements ILocation {
     private final ILocation base;
@@ -39,7 +41,7 @@ public class OffsetLocation implements ILocation {
 
     @Override
     public IType getType() {
-        return ((ITypeContainer) base.getType()).getType();
+        return base.getType();
     }
 
     @Override

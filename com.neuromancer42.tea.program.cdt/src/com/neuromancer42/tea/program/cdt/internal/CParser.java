@@ -232,7 +232,7 @@ public class CParser {
             IVariable variable = entry.getKey();
             ILocation vLoc = entry.getValue();
             int vReg = builder.getRefReg(variable);
-            Messages.debug("CParser: allocate #%d |-> [%s]", vReg, vLoc.toDebugString());
+            //Messages.debug("CParser: allocate #%d |-> [%s]", vReg, vLoc.toDebugString());
             relAlloc.add(vReg, vLoc);
         }
         for (var entry : builder.getGlobalAllocs().entrySet()) {
@@ -331,7 +331,7 @@ public class CParser {
                     } else if (e instanceof AddressEval) {
                         ILocation loc = ((AddressEval) e).getLocation();
                         relPalloc.add(p, v);
-                        Messages.debug("CParser: allocate #%d |-> [%s]", v, loc.toDebugString());
+                        //Messages.debug("CParser: allocate #%d |-> [%s]", v, loc.toDebugString());
                         relAlloc.add(v, loc);
                     } else {
                         relPeval.add(p, v, e);

@@ -68,7 +68,7 @@ public class IntraCFG extends ControlFlowGraph {
                 writer.print("[label=\"" + loc.toDebugString() + "\"");
                 writer.println(";shape=hexagon]");
             }
-            if (reg != null) {
+            if (reg != null && reg >= 0) {
                 writer.print("r" + reg + " ");
                 writer.print("[label=\"#" + reg + "\"");
                 writer.print(";shape=egg]");
@@ -98,31 +98,37 @@ public class IntraCFG extends ControlFlowGraph {
                 int reg = ((StoreNode) p).getRegister();
                 writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
                 writer.println(" [arrowhead=diamond;color=red]");
-                writer.print("r" + reg + " -> n" + p.hashCode());
-                writer.println(" [arrowhead=open;color=red;style=dotted]");
-                for (int param : loc.getParameters()) {
-                    writer.print("r" + param + " -> m" + loc.hashCode());
-                    writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                if (reg >= 0) {
+                    writer.print("r" + reg + " -> n" + p.hashCode());
+                    writer.println(" [arrowhead=open;color=red;style=dotted]");
+                    for (int param : loc.getParameters()) {
+                        writer.print("r" + param + " -> m" + loc.hashCode());
+                        writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                    }
                 }
             } else if (p instanceof EvalNode && ((EvalNode) p).getEvaluation() instanceof LoadEval) {
                 ILocation loc = ((LoadEval) ((EvalNode) p).getEvaluation()).getLocation();
                 int reg = ((EvalNode) p).getRegister();
                 writer.print("n" + p.hashCode() + " -> m" + loc.hashCode());
                 writer.println(" [arrowhead=box;color=green]");
-                writer.print("n" + p.hashCode() + " -> r" + reg);
-                writer.println(" [arrowhead=open;color=green;style=dotted]");
-                for (int param : loc.getParameters()) {
-                    writer.print("r" + param + " -> m" + loc.hashCode());
-                    writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                if (reg >= 0) {
+                    writer.print("n" + p.hashCode() + " -> r" + reg);
+                    writer.println(" [arrowhead=open;color=green;style=dotted]");
+                    for (int param : loc.getParameters()) {
+                        writer.print("r" + param + " -> m" + loc.hashCode());
+                        writer.println(" [arrowhead=open;style=dotted;color=yellow]");
+                    }
                 }
             } else if (p instanceof EvalNode) {
                 IEval eval = ((EvalNode) p).getEvaluation();
                 int reg = ((EvalNode) p).getRegister();
-                writer.print("n" + p.hashCode() + " -> r" + reg);
-                writer.println(" [arrowhead=none;style=bold;color=blue]");
-                for (int param : eval.getOperands()) {
-                    writer.print("r" + param + " -> r" + reg);
-                    writer.println(" [arrowhead=open;style=dotted;color=aqua]");
+                if (reg >= 0) {
+                    writer.print("n" + p.hashCode() + " -> r" + reg);
+                    writer.println(" [arrowhead=none;style=bold;color=blue]");
+                    for (int param : eval.getOperands()) {
+                        writer.print("r" + param + " -> r" + reg);
+                        writer.println(" [arrowhead=open;style=dotted;color=aqua]");
+                    }
                 }
             }
         }

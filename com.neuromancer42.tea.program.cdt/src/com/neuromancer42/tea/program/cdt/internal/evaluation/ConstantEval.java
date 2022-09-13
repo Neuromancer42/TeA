@@ -4,13 +4,18 @@ import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IASTLiteralExpression;
 import org.eclipse.cdt.core.dom.ast.IType;
 
-public class LiteralEval implements IEval {
-    private final IASTLiteralExpression expr;
+public class ConstantEval implements IEval {
+    private final IASTExpression expr;
     private final String val;
 
-    public LiteralEval(IASTLiteralExpression expr) {
+    public ConstantEval(IASTLiteralExpression expr) {
         this.expr = expr;
         this.val = String.valueOf(expr.getValue());
+    }
+
+    public ConstantEval(IASTExpression expr, String val) {
+        this.expr = expr;
+        this.val = val;
     }
 
     public String getValue() {
