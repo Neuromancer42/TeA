@@ -3,16 +3,18 @@ package com.neuromancer42.tea.program.cdt.tests;
 import com.neuromancer42.tea.core.project.Messages;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.cpp.GPPLanguage;
+import org.eclipse.cdt.core.model.ITranslationUnit;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.cdt.internal.core.dom.parser.cpp.CPPASTFunctionCallExpression;
+import org.eclipse.cdt.internal.core.dom.parser.cpp.CPPASTIdExpression;
+import org.eclipse.cdt.internal.core.dom.parser.cpp.CPPASTName;
 import org.eclipse.cdt.internal.core.dom.parser.cpp.CPPASTTranslationUnit;
+import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.net.URL;
 
 public class CDTTest {
@@ -42,12 +44,15 @@ public class CDTTest {
             System.out.println("include - " + include.getName());
         }
 
+        translationUnit = translationUnit.copy();
+
         List<IASTBinaryExpression> binExprs = new ArrayList<>();
         printTree(translationUnit, 1, binExprs);
         for (var binExpr: binExprs) {
-            instrPeek(binExpr.getOperand2());
+            instrPeek(binExpr);
         }
-        dumpToSource(translationUnit, "example_new.h");
+        printTree(translationUnit, 1, binExprs);
+        //dumpToSource(translationUnit, "example_new.h");
     }
 
     private void dumpToSource(IASTTranslationUnit translationUnit, String filename) {
@@ -55,9 +60,18 @@ public class CDTTest {
         throw new UnsupportedOperationException();
     }
 
-    private void instrPeek(IASTExpression expr) {
-        // TODO
-        throw new UnsupportedOperationException();
+    private void instrPeek(IASTBinaryExpression binExpr) {
+        IASTExpression expr = binExpr.getOperand2();
+        IASTFunctionCallExpression callExpr = new CPPASTFunctionCallExpression();
+        callExpr.setParent(binExpr);
+        IASTInitializerClause[] args = new IASTInitializerClause[]{expr.copy()};
+        callExpr.setArguments(args);
+        char[] name = new char[]{'p', 'e', 'e', 'k'};
+        IASTName funcName = new CPPASTName(name);
+        IASTExpression funcNameExpr = new CPPASTIdExpression(funcName);
+        callExpr.setFunctionNameExpression(funcNameExpr);
+        binExpr.setOperand2(callExpr);
+        //throw new UnsupportedOperationException();
     }
 
     private static void printTree(IASTNode node, int index, List<IASTBinaryExpression> binExprs) {
@@ -75,11 +89,22 @@ public class CDTTest {
         } catch (ExpansionOverlapsBoundaryException e) {
             Assertions.fail(e);
         } catch (UnsupportedOperationException e) {
-            offset = "UnsupportedOperationException";
+            offset = " UnsupportedOperationException";
         }
 
-        System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + offset + " -> " + (printContents ? node.getRawSignature().replaceAll("\n", " \\ ") : node.getRawSignature().subSequence(0, 5)));
-
+        if(!node.getRawSignature().isEmpty()) System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + offset + " -> " + (printContents ? node.getRawSignature().replaceAll("\n", " \\ ") : node.getRawSignature().subSequence(0, 5)));
+        else{
+            if(node instanceof CPPASTFunctionCallExpression)
+                System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + " (new node) -> "
+                        + ((CPPASTIdExpression)((CPPASTFunctionCallExpression) node).getFunctionNameExpression()).getName().toString()
+                        + "(args)");
+            if(node instanceof CPPASTIdExpression)
+                System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + " (new node) -> "
+                        + ((CPPASTIdExpression) node).getName().toString());
+            if(node instanceof CPPASTName)
+                System.out.println(String.format("%1$" + index * 2 + "s", "-") + node.getClass().getSimpleName() + " (new node) -> "
+                        + new String(((CPPASTName) node).toCharArray()));
+        }
         for (IASTNode iastNode : children)
             printTree(iastNode, index + 1, binExprs);
     }
