@@ -2,22 +2,27 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.IndexMap;
+import com.neuromancer42.tea.core.util.tuple.object.Pair;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
 import com.neuromancer42.tea.program.cdt.internal.memory.*;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
 import org.eclipse.cdt.core.dom.ast.*;
+import org.eclipse.cdt.core.dom.ast.c.ICASTDesignatedInitializer;
+import org.eclipse.cdt.core.dom.ast.c.ICASTDesignator;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
+import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
 
+import java.io.PrintWriter;
 import java.util.*;
 
 // general purpose
 // translate the complex source code into a control flow graph
 // each edge in the graph represents a simple computation of register values
 // 1. arithmetical computations
-// 2. read variables / read from memory locations
-// 3. write variables / store to memory locations
+// 2. read variables from a pointer
+// 3. write variables to a pointer
 // 4. computation with controls: logical and/or, ternary expression
 // 5. function calls
 // 6. returns
@@ -29,18 +34,29 @@ import java.util.*;
 // e.g. operands of arithmetical computations, arguments of function calls
 public class CFGBuilder {
     private final IASTTranslationUnit transUnit;
-    private final IndexMap<Object> registers; // sub-expressions should compute from registers and load into registers
-    private final Map<IVariable, ILocation> stackMap;
-    private final Map<IFunction, ILocation> funcNameMap;
+    private final Map<IFunction, IntraCFG> intraCFGMap;
+
+    private final IndexMap<Object> registers;
+    // a register is either:
+    // 1. <IASTExpression> the result value of a non-lvalue expression
+    // 2. <IBinding> a pointer points to a declared variable/function
+    // 3. <Pair<IFunction, Integer>> the value of a function parameter
+    // 4. <String> a pointer points to the address of a string literal
+    // 5. <GetElementPtrEval> inserted gep result for field/offset access
+
+    private final Set<IFunction> funcs;
+    private final Map<IFunction, FuncObj> funcObjMap;
+    private final Map<IFunction, Set<IVariable>> funcVars;
+    private final Set<IVariable> staticVars;
+    private final Map<IVariable, StackVarObj> varObjMap;
+    private final Set<IField> fields;
+
     private final Map<IFunction, int[]> funcArgsMap;
     private final Map<IBinding, Integer> refRegMap;
     private final Map<IASTExpression, IFunction> staticInvkMap;
-    private final Map<IASTExpression, ILocation> lvalLocMap;
-    private final Map<String, ILocation> stringConstants;
+    private final Map<String, Integer> stringConstants;
     private final Map<Integer, String> simpleConstants;
 
-    private final Map<Integer, ILocation> globalAllocs;
-    private final Set<IField> fields;
     // TODO: use struct signatures rather than statement references to collect fields
 
     private IStartNode start;
@@ -51,104 +67,116 @@ public class CFGBuilder {
     private IConnectorNode outerBreakTarget;
     private Map<ILabel, IConnectorNode> labelMap;
     private Map<ILabel, Set<IBasicBlock>> unresolvedGotos;
+    private IFunction curFunc;
+    private IBasicBlock prevNode;
 
     public CFGBuilder(IASTTranslationUnit tu) {
         this.transUnit = tu;
+        intraCFGMap = new HashMap<>();
         registers = new IndexMap<>();
-        stackMap = new HashMap<>();
-        fields = new HashSet<>();
-        funcNameMap = new HashMap<>();
+
+        funcs = new LinkedHashSet<>();
+        funcObjMap = new HashMap<>();
+        funcVars = new HashMap<>();
+        staticVars = new LinkedHashSet<>();
+        varObjMap = new HashMap<>();
+        fields = new LinkedHashSet<>();
+
         funcArgsMap = new HashMap<>();
-        globalAllocs = new HashMap<>();
         refRegMap = new HashMap<>();
-        staticInvkMap = new HashMap<>();
-        lvalLocMap = new HashMap<>();
-        stringConstants = new HashMap<>();
-        simpleConstants = new HashMap<>();
+        staticInvkMap = new LinkedHashMap<>();
+        stringConstants = new LinkedHashMap<>();
+        simpleConstants = new LinkedHashMap<>();
+
+        curFunc = null;
         for (IASTDeclaration decl : tu.getDeclarations()) {
             // add declared variables and functions into registers
             if (decl instanceof IASTFunctionDefinition) {
                 IASTDeclarator dtor = ((IASTFunctionDefinition) decl).getDeclarator();
-                IFunction func = (IFunction) dtor.getName().resolveBinding();
-                processFunction(func);
+                processDeclarator(dtor, true);
             } else if (decl instanceof IASTSimpleDeclaration) {
                 IASTDeclarator[] dtors = ((IASTSimpleDeclaration) decl).getDeclarators();
                 for (var dtor : dtors) {
-                    handleStaticDeclarator(dtor);
+                    processDeclarator(dtor, true);
                 }
             }
         }
     }
 
-    private void handleStaticDeclarator(IASTDeclarator declarator) {
+    public void build() {
+        for (var decl: transUnit.getDeclarations()) {
+            if (decl instanceof IASTFunctionDefinition) {
+                var fDef = (IASTFunctionDefinition) decl;
+                var f = (IFunction) fDef.getDeclarator().getName().resolveBinding();
+                var cfg = buildIntraCFG(fDef);
+                intraCFGMap.put(f, cfg);
+            }
+        }
+    }
+
+    public IntraCFG getIntraCFG(IFunction func) {
+        return intraCFGMap.get(func);
+    }
+
+    // given a maybe-nested declarator, returning its declared binding
+    // create locations if it allocates an object
+    private IBinding processDeclarator(IASTDeclarator declarator, boolean isStatic) {
         while (declarator.getNestedDeclarator() != null)
             declarator = declarator.getNestedDeclarator();
         IBinding binding = declarator.getName().resolveBinding();
         if (binding instanceof IVariable) {
             IVariable var = (IVariable) binding;
-            if (stackMap.containsKey(var)) {
-                Messages.warn("CParser: redeclare variable %s[%s] at %s[%s]", var.getType(), var.getName(), declarator.getClass().getSimpleName(), declarator.getRawSignature());
-            }
-            ILocation vLoc = new VariableLocation(var);
-            stackMap.put(var, vLoc);
-
-            registers.add(declarator);
-            int vReg = registers.indexOf(declarator);
+            boolean notDeclared = registers.add(var);
+            if (!notDeclared)
+                Messages.warn("CParser: re-declare variable %s[%s] at line#%d: (%s)", var.getClass().getSimpleName(), var, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
+            int vReg = registers.indexOf(var);
             refRegMap.put(var, vReg);
-            Messages.debug("CParser: alloc stack location *(%s)@%d == &%s for %s#%d (%s)", var.getType(), vReg, vLoc.toDebugString(), var.getName(), var.hashCode(), var.getOwner());
-
-            globalAllocs.put(vReg, vLoc);
+            StackVarObj obj = new StackVarObj(var, curFunc);
+            varObjMap.put(var, obj);
+            if (isStatic) {
+                staticVars.add(var);
+            } else {
+                funcVars.get(curFunc).add(var);
+            }
+            Messages.debug("CParser: alloc stack location *(%s)@%d=>{%s}for %s#%d in (%s)", var.getType(), vReg, obj.toDebugString(), var.getName(), var.hashCode(), var.getOwner());
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
-            Messages.debug("CParser: skip function declaration %s[%s]", func.getClass().getSimpleName(), func);
+            boolean notDeclared = registers.add(func);
+            if (!notDeclared)
+                Messages.warn("CParser: re-declare function %s[%s] at line#%d: (%s)", func.getClass().getSimpleName(), func, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
+            int fReg = registers.indexOf(func);
+            funcs.add(func);
+            refRegMap.put(func, fReg);
+            FuncObj obj = new FuncObj(func);
+            funcObjMap.put(func, obj);
+            funcVars.putIfAbsent(func, new LinkedHashSet<>());
+            Messages.debug("CParser: alloc stack location (funPtr)@%d=>{%s} for function %s[%s]", fReg, obj.toDebugString(), func.getClass().getSimpleName(), func);
+            if (func.getParameters() == null) {
+                Messages.debug("CParser: function %s[%s] has no argument", func.getClass().getSimpleName(), func);
+            } else {
+                // TODO: var-arg?
+                IParameter[] params = func.getParameters();
+                int[] argRegs = new int[params.length];
+                for (int i = 0; i < params.length; ++i) {
+                    Pair<IFunction, Integer> arg = new Pair<>(func, i);
+                    registers.add(arg);
+                    int aReg = registers.indexOf(arg);
+                    argRegs[i] = aReg;
+                    Messages.debug("CParser: reference %s[%s]'s %d-th argument %s[%s] by %s@%d", func.getClass().getSimpleName(), func, i, arg.getClass().getSimpleName(), arg, params[i].getType(), aReg);
+                }
+                funcArgsMap.put(func, argRegs);
+            }
         } else if (binding instanceof ITypedef) {
             ITypedef typedef = (ITypedef) binding;
             Messages.warn("CParser: [TODO] collect fields of %s[%s]", typedef.getClass().getSimpleName(), typedef);
         } else {
             Messages.error("CParser: unhandled declaration %s[%s] (%s[%s])", binding.getClass().getSimpleName(), binding, declarator.getClass().getSimpleName(), declarator.getRawSignature());
         }
-    }
-
-    private void processFunction(IFunction func) {
-        boolean notDeclared = registers.add(func);
-        if (!notDeclared)
-            Messages.warn("CParser: re-declare function %s[%s]", func.getClass().getSimpleName(), func);
-        int fReg = registers.indexOf(func);
-        ILocation fLoc = new FunctionLocation(func);
-        funcNameMap.put(func, fLoc);
-        globalAllocs.put(fReg, fLoc);
-        refRegMap.put(func, fReg);
-        Messages.debug("CParser: function %s@%d:%s[%s] stores itself in %s", func.getType(), fReg, func.getClass().getSimpleName(), func, fLoc.toDebugString());
-        if (func.getParameters() == null) {
-            Messages.debug("CParser: function %s[%s] has no argument", func.getClass().getSimpleName(), func);
-        } else {
-            // TODO: var-arg?
-            int[] argRegs = new int[func.getParameters().length];
-            for (int i = 0; i < func.getParameters().length; ++i) {
-                IParameter arg = func.getParameters()[i];
-                registers.add(arg);
-                int aReg = registers.indexOf(arg);
-                argRegs[i] = aReg;
-                Messages.debug("CParser: reference %s[%s]'s %d-th argument %s[%s] by %s@%d", func.getClass().getSimpleName(), func, i, arg.getClass().getSimpleName(), arg, arg.getType(), aReg);
-            }
-            funcArgsMap.put(func, argRegs);
-        }
+        return binding;
     }
 
     public IndexMap<Object> getRegisters() {
         return registers;
-    }
-
-    public Map<IVariable, ILocation> getStackMap() {
-        return stackMap;
-    }
-
-    public Map<IFunction, ILocation> getFuncNameMap() {
-        return funcNameMap;
-    }
-
-    public Map<Integer, ILocation> getGlobalAllocs() {
-        return globalAllocs;
     }
 
     public Map<Integer, String> getSimpleConstants() {
@@ -158,7 +186,7 @@ public class CFGBuilder {
     public int[] getFuncArgs(IFunction meth) {
         int[] args = funcArgsMap.get(meth);
         if (args == null) {
-            Messages.warn("CParser: function %s[%s] doesn't declare arguments", meth.getClass().getSimpleName(), meth);
+            Messages.error("CParser: function %s[%s] arguments not processed", meth.getClass().getSimpleName(), meth);
             return new int[0];
         } else {
             return args;
@@ -174,11 +202,31 @@ public class CFGBuilder {
         return reg;
     }
 
+
+    public Set<IFunction> getDeclaredFuncs() {
+        return funcs;
+    }
+
+    public Set<IVariable> getGlobalVars() {
+        return staticVars;
+    }
     public Set<IField> getFields() { return fields; }
+
+    public IMemObj getStackVarObj(IVariable var) {
+        return varObjMap.get(var);
+    }
+
+    public IMemObj getFuncObj(IFunction func) {
+        return funcObjMap.get(func);
+    }
+
+    public Set<IVariable> getMethodVars(IFunction func) {
+        return funcVars.get(func);
+    }
 
     public IntraCFG buildIntraCFG(IASTFunctionDefinition fDef) {
         IASTFunctionDeclarator fDecl = fDef.getDeclarator();
-        IFunction curFunc = (IFunction) fDecl.getName().resolveBinding();
+        curFunc = (IFunction) fDecl.getName().resolveBinding();
         start = new FuncEntryNode(curFunc);
         exits = new ArrayList<>();
         outerContinueTarget = null;
@@ -187,26 +235,48 @@ public class CFGBuilder {
         labelMap = new HashMap<>();
         unresolvedGotos = new HashMap<>();
         unreachable = new ArrayList<>();
-        IBasicBlock prevNode = start;
+        prevNode = start;
+        IASTDeclarator[] paramDtors;
         if (fDecl instanceof IASTStandardFunctionDeclarator) {
             IASTParameterDeclaration[] paramDecls = ((IASTStandardFunctionDeclarator) fDecl).getParameters();
-            for (var paramDecl : paramDecls) {
-                IASTDeclarator dtor = paramDecl.getDeclarator();
-                IParameter param = (IParameter) dtor.getName().getBinding();
-                int aReg = registers.indexOf(param);
-                prevNode = handleDeclarator(prevNode, dtor, aReg);
-            }
+            paramDtors = new IASTDeclarator[paramDecls.length];
+            for (int i = 0; i < paramDtors.length; i++)
+                paramDtors[i] = paramDecls[i].getDeclarator();
         } else if (fDecl instanceof ICASTKnRFunctionDeclarator) {
             IASTName[] paramNames = ((ICASTKnRFunctionDeclarator) fDecl).getParameterNames();
-            for (var paramName : paramNames) {
-                IASTDeclarator dtor = ((ICASTKnRFunctionDeclarator) fDecl).getDeclaratorForParameterName(paramName);
-                IParameter param = (IParameter) paramName.resolveBinding();
-                int aReg = registers.indexOf(param);
-                prevNode = handleDeclarator(prevNode, dtor, aReg);
-            }
+            paramDtors = new IASTDeclarator[paramNames.length];
+            for (int i = 0; i < paramDtors.length; i++)
+                paramDtors[i] = ((ICASTKnRFunctionDeclarator) fDecl).getDeclaratorForParameterName(paramNames[i]);
+        } else {
+            Messages.error("CParser: skip unhandled function declarator %s[%s]", fDecl.getClass().getSimpleName(), fDecl.getName());
+            return null;
         }
+        int[] argRegs = funcArgsMap.get(curFunc);
+        for (int i = 0; i < paramDtors.length; ++i) {
+            IASTDeclarator dtor = paramDtors[i];
+            IParameter param = (IParameter) processDeclarator(dtor, false);
+            int refReg = getRefReg(param);
+            if (refReg < 0) {
+                Messages.fatal("CParser: cannot find reference register for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, param.hashCode(), param.getOwner());
+            }
+            IMemObj obj = getStackVarObj(param);
+            if (obj == null) {
+                Messages.fatal("CParser: memory object not created for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, param.hashCode(), param.getOwner());
+                assert false;
+            }
+            Messages.debug("CParser: alloc stack memory for parameter ref @%d = {%s}", refReg, obj.toDebugString());
+            IBasicBlock allocNode = new AllocNode(refReg, obj);
+            prevNode = connect(prevNode, allocNode);
+
+            int aReg = argRegs[i];
+            Messages.debug("CParser: store parameter in location @%d <- %s@%d (%s)", refReg, param.getType(), aReg, param);
+            IBasicBlock storeNode = new StoreNode(refReg, aReg);
+            prevNode = connect(prevNode, storeNode);
+        }
+
         IASTStatement fBody = fDef.getBody();
-        prevNode = expandGraph(prevNode, fBody);
+        expandGraph(fBody);
+
         if (prevNode != null && !(prevNode instanceof IExitNode) && !(prevNode instanceof IJumpNode) && !unreachable.contains(prevNode)) {
             ReturnNode dummyRet = new ReturnNode();
             Messages.debug("CParser: add implicit return node [%s] for function [%s]", dummyRet.toDebugString(), curFunc);
@@ -225,82 +295,102 @@ public class CFGBuilder {
         return cfg;
     }
 
-    private IBasicBlock expandGraph(IBasicBlock prevNode, IASTStatement statement) {
+    private void expandGraph(IASTStatement statement) {
         if (statement == null || statement instanceof IASTNullStatement) {
-            return prevNode;
+            return;
         } else if (statement instanceof IASTCompoundStatement) {
             IASTStatement[] subStatements = ((IASTCompoundStatement) statement).getStatements();
             for (IASTStatement subStatement : subStatements) {
-                prevNode = expandGraph(prevNode, subStatement);
+                expandGraph(subStatement);
             }
-            return prevNode;
+            return;
         } else if (statement instanceof IASTExpressionStatement) {
             IASTExpression expr = unparenthesize(((IASTExpressionStatement) statement).getExpression());
-            return handleExpression(prevNode, expr);
+            handleExpression(expr);
+            return;
         } else if (statement instanceof IASTDeclarationStatement) {
             IASTDeclaration decl = ((IASTDeclarationStatement) statement).getDeclaration();
             if (decl instanceof IASTSimpleDeclaration) {
+                boolean isStatic = ((IASTSimpleDeclaration) decl).getDeclSpecifier().getStorageClass() == IASTDeclSpecifier.sc_static;
                 IASTDeclarator[] dtors = ((IASTSimpleDeclaration) decl).getDeclarators();
-                if (((IASTSimpleDeclaration) decl).getDeclSpecifier().getStorageClass() == IASTDeclSpecifier.sc_static) {
-                    for (IASTDeclarator dtor: dtors) {
-                        handleStaticDeclarator(dtor);
-                    }
-                }
                 for (IASTDeclarator dtor: dtors) {
+                    IBinding binding = processDeclarator(dtor, isStatic);
+                    if (binding instanceof IVariable && !isStatic) {
+                        IVariable var = (IVariable) binding;
+                        int refReg = getRefReg(binding);
+                        if (refReg < 0) {
+                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, var.hashCode(), var.getOwner());
+                        }
+                        IMemObj obj = getStackVarObj((IVariable) binding);
+                        if (obj == null) {
+                            Messages.fatal("CParser: memory object not create for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, var.hashCode(), var.getOwner());
+                            assert false;
+                        }
+                        Messages.debug("CParser: alloc stack memory for variable @%d = {%s}", refReg, obj.toDebugString());
+                        IBasicBlock allocNode = new AllocNode(refReg, obj);
+                        prevNode = connect(prevNode, allocNode);
+                    }
+
                     IASTInitializer initializer = dtor.getInitializer();
-                    if (initializer == null) {
-                        prevNode = handleDeclarator(prevNode, dtor, null);
-                    } else if (initializer instanceof IASTEqualsInitializer) {
-                        IASTInitializerClause initClause = ((IASTEqualsInitializer) initializer).getInitializerClause();
-                        IASTExpression initExpr = unparenthesize((IASTExpression) initClause);
-                        int initReg = createRegister(initExpr);
-                        prevNode = handleRvalue(prevNode, initExpr, initReg);
-                        prevNode = handleDeclarator(prevNode, dtor, initReg);
-                    } else {
-                        Messages.error("CParser: skip unhandled declaration initializer %s[%s]", initializer.getClass().getSimpleName(), initializer.getRawSignature());
+                    if (initializer != null) {
+                        if (!(binding instanceof IVariable)) {
+                            Messages.fatal("CParser: initializing non-variable object %s[%s] at line#%d", binding.getClass().getSimpleName(), binding, dtor.getFileLocation().getStartingLineNumber());
+                            assert false;
+                        }
+                        IVariable var = (IVariable) binding;
+                        int refReg = getRefReg(binding);
+                        if (refReg < 0) {
+                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, var.hashCode(), var.getOwner());
+                        }
+                        if (initializer instanceof IASTEqualsInitializer) {
+                            IASTInitializerClause initCls = ((IASTEqualsInitializer) initializer).getInitializerClause();
+                            handleInitializerClause(refReg, var.getType(), initCls);
+                        } else {
+                            Messages.error("CParser: skip unhandled declaration initializer %s[%s]", initializer.getClass().getSimpleName(), initializer.getRawSignature());
+                        }
                     }
                 }
-                return prevNode;
+                return;
             } else if (decl instanceof IASTFunctionDefinition) {
                 Messages.fatal("CParser: do not support nested function definition");
             }
             Messages.error("CParser: skip unhandled declaration %s[%s]", decl.getClass().getSimpleName(), decl.getRawSignature());
         } else if (statement instanceof IASTIfStatement) {
             IASTIfStatement cIf = (IASTIfStatement) statement;
-            prevNode = handleIfStatement(prevNode, cIf);
+            handleIfStatement(cIf);
 
-            return prevNode;
+            return;
         } else if (statement instanceof IASTWhileStatement) {
             IASTWhileStatement cWhile = (IASTWhileStatement) statement;
-            prevNode = handleWhileStatement(prevNode, cWhile);
+            handleWhileStatement(cWhile);
 
-            return prevNode;
+            return;
         } else if (statement instanceof IASTDoStatement) {
             IASTDoStatement cDo = (IASTDoStatement) statement;
-            prevNode = handleDoWhileStatement(prevNode, cDo);
+            handleDoWhileStatement(cDo);
 
-            return prevNode;
+            return;
         } else if (statement instanceof IASTForStatement) {
             IASTForStatement cFor = (IASTForStatement) statement;
-            prevNode = handleForStatement(prevNode, cFor);
+            handleForStatement(cFor);
 
-            return prevNode;
+            return;
         } else if (statement instanceof IASTBreakStatement) {
             if (outerBreakTarget != null) {
                 jump(prevNode, outerBreakTarget, false);
-                return null;
+                prevNode = null;
             } else {
                 Messages.warn("CParser: skip invalid %s in no loop or switch", statement.getClass().getSimpleName());
-                return prevNode;
             }
+            return;
         } else if (statement instanceof IASTContinueStatement) {
             if (outerContinueTarget != null) {
                 jump(prevNode, outerContinueTarget, outerContinueBackward);
-                return null;
+                prevNode = null;
             } else {
                 Messages.warn("CParser: skip invalid %s in no loop", statement.getClass().getSimpleName());
-                return prevNode;
             }
+            return;
         } else if (statement instanceof IASTLabelStatement) {
             ILabel label = (ILabel) ((IASTLabelStatement) statement).getName().resolveBinding();
             IConnectorNode labelNode = new PhiNode(label.getName() + "@" + statement.getFileLocation().getStartingLineNumber());
@@ -319,8 +409,8 @@ public class CFGBuilder {
             }
 
             prevNode = labelNode;
-            prevNode = expandGraph(prevNode, ((IASTLabelStatement) statement).getNestedStatement());
-            return prevNode;
+            expandGraph(((IASTLabelStatement) statement).getNestedStatement());
+            return;
         } else if (statement instanceof IASTGotoStatement) {
             ILabel label = (ILabel) ((IASTGotoStatement) statement).getName().resolveBinding();
             IConnectorNode labelNode = labelMap.get(label);
@@ -329,15 +419,15 @@ public class CFGBuilder {
             } else {
                 unresolvedGotos.computeIfAbsent(label, l -> new HashSet<>()).add(prevNode);
             }
-            return null;
+            prevNode = null;
+            return;
         }else if (statement instanceof IASTReturnStatement) {
             IASTReturnStatement ret = (IASTReturnStatement) statement;
             IASTExpression retExpr = ret.getReturnValue();
             ReturnNode retNode ;
             if (retExpr != null) {
                 retExpr = unparenthesize(retExpr);
-                int retReg = createRegister(retExpr);
-                prevNode = handleRvalue(prevNode, retExpr, retReg);
+                int retReg = handleRvalue(retExpr);
                 retNode = new ReturnNode(retExpr, retReg);
             } else {
                 retNode = new ReturnNode();
@@ -346,74 +436,90 @@ public class CFGBuilder {
             exits.add(retNode);
             prevNode = connect(prevNode, retNode);
 
-            return prevNode;
+            return;
         }
 
         Messages.error("CParser: skip unsupported C statement %s[%s]", statement.getClass().getSimpleName(), statement.getRawSignature());
-        return prevNode;
     }
 
-    public IBasicBlock handleDeclarator(IBasicBlock prevNode, IASTDeclarator declarator, Integer initReg) {
-        while (declarator.getNestedDeclarator() != null)
-            declarator = declarator.getNestedDeclarator();
-        IASTName varName = declarator.getName();
-        IVariable var = (IVariable) varName.resolveBinding();
-        if (stackMap.containsKey(var)) {
-            Messages.warn("CParser: redeclare variable %s[%s] at %s[%s]", var.getType(), var.getName(), declarator.getClass().getSimpleName(), declarator.getRawSignature());
-            return prevNode;
-        } else {
-            ILocation vLoc = new VariableLocation(var);
+    private void handleInitializerClause(int refReg, IType refType, IASTInitializerClause initClause) {
+        if (initClause instanceof IASTExpression) {
+            // scalar expression
+            IASTExpression initExpr = unparenthesize((IASTExpression) initClause);
+            int initReg = handleRvalue(initExpr);
 
-            registers.add(declarator);
-            int vReg = registers.indexOf(declarator);
-            refRegMap.put(var, vReg);
-            stackMap.put(var, vLoc);
-            Messages.debug("CParser: alloc stack location *(%s)@%d == &%s for %s#%d (%s)", var.getType(), vReg, vLoc.toDebugString(), var.getName(), var.hashCode(), var.getOwner());
-            IEval addrEval = new AddressEval(var, vLoc);
-            IBasicBlock allocNode = new EvalNode(addrEval, vReg);
-            prevNode = connect(prevNode, allocNode);
-
-            if (initReg != null) {
-                Messages.debug("CParser: store initializing value to %s <- %s@%d", vLoc.toDebugString(), var.getType(), initReg);
-                IBasicBlock storeNode = new StoreNode(vLoc, initReg);
-                prevNode = connect(prevNode, storeNode);
+            Messages.debug("CParser: initialize location %s <- %s@%d (%s)", refReg, initExpr.getExpressionType(), initReg, initClause.getRawSignature());
+            IBasicBlock storeNode = new StoreNode(refReg, initReg);
+            prevNode = connect(prevNode, storeNode);
+            return;
+        } else if (initClause instanceof IASTInitializerList) {
+            IASTInitializerClause[] clsList = ((IASTInitializerList) initClause).getClauses();
+            if (refType instanceof IBasicType) {
+                if (clsList.length >= 1) {
+                    if (clsList.length > 1)
+                        Messages.warn("CParser: drop excess elements in scalar initializer");
+                    handleInitializerClause(refReg, refType, clsList[0]);
+                    return;
+                }
             }
-            return prevNode;
+            int pos = -1;
+            for (IASTInitializerClause subCls : clsList) {
+                if (subCls instanceof ICASTDesignatedInitializer) {
+                    ICASTDesignatedInitializer designatedInit = (ICASTDesignatedInitializer) subCls;
+                    ICASTDesignator[] designators = designatedInit.getDesignators();
+                    StringBuffer sb = new StringBuffer();
+                    sb.append("{");
+                    for (var designator : designators) {
+                        sb.append(designator.getClass().getSimpleName());
+                        sb.append("[");
+                        sb.append(designator.getRawSignature());
+                        sb.append("]");
+                    }
+                    sb.append("}");
+                    IASTInitializerClause cls = designatedInit.getOperand();
+                    Messages.error("CParser: skip unhandled designated initializer %s = %s[%s]", sb, cls.getClass().getSimpleName(), cls.getRawSignature());
+                } else {
+                    ++pos;
+                    GetElementPtrEval gepEval = new GetOffsetPtrEval(null, refReg, pos);
+                    registers.add(gepEval);
+                    int subReg = registers.indexOf(gepEval);
+                    IType subType = ((ITypeContainer) refType).getType();
+                    handleInitializerClause(subReg, subType, subCls);
+                }
+            }
+            return;
         }
+        Messages.error("CParser: skip unhandled initializer clause %s[%s]", initClause.getClass().getSimpleName(), initClause.getRawSignature());
     }
 
-    private IBasicBlock handleExpression(IBasicBlock prevNode, IASTExpression expression) {
+
+    private int handleExpression(IASTExpression expression) {
         if (expression instanceof IASTBinaryExpression) {
             IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
             int op = binExpr.getOperator();
             if (op == IASTBinaryExpression.op_assign) {
                 IASTExpression lhs = unparenthesize(binExpr.getOperand1());
-                prevNode = handleLvalue(prevNode, lhs);
-                ILocation lhsLoc = lvalLocMap.get(lhs);
+                int lRefReg = handleLvalue(lhs);
 
                 IASTExpression rhs = unparenthesize(binExpr.getOperand2());
-                int rReg = createRegister(rhs);
-                prevNode = handleRvalue(prevNode, rhs, rReg);
+                int rValReg = handleRvalue(rhs);
 
-                Messages.debug("CParser: assign to location %s <- %s@%d (%s)", lhsLoc.toDebugString(), rhs.getExpressionType(), rReg, expression.getRawSignature());
-                IBasicBlock storeNode = new StoreNode(lhsLoc, rReg);
+                Messages.debug("CParser: assign to location %s <- %s@%d (%s)", lRefReg, rhs.getExpressionType(), rValReg, expression.getRawSignature());
+                IBasicBlock storeNode = new StoreNode(lRefReg, rValReg);
                 prevNode = connect(prevNode, storeNode);
 
-                return prevNode;
+                return rValReg;
             } else if (binExpr.isLValue()) { // equivalent to op is all compound assignment operators (except op_assign)
                 IASTExpression lval = unparenthesize(binExpr.getOperand1());
-                prevNode = handleLvalue(prevNode, lval);
-                ILocation lhsLoc = lvalLocMap.get(lval);
+                int lRefReg = handleLvalue(lval);
 
                 int prevReg = createRegister(lval);
-                Messages.debug("CParser: read from location %s -> %s@%d (%s)", lhsLoc.toDebugString(), lval.getExpressionType(), prevReg, expression.getRawSignature());
-                IEval loadEval = new LoadEval(lval, lhsLoc);
-                IBasicBlock loadNode = new EvalNode(loadEval, prevReg);
+                Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", lval.getExpressionType(), prevReg, lRefReg, expression.getRawSignature());
+                IBasicBlock loadNode = new LoadNode(prevReg, lRefReg);
                 prevNode = connect(prevNode, loadNode);
 
                 IASTExpression rval = unparenthesize(binExpr.getOperand2());
-                int rReg = createRegister(rval);
-                prevNode = handleRvalue(prevNode, rval, rReg);
+                int rValReg = handleRvalue(rval);
 
                 int postReg = createRegister(expression);
                 String opStr = "Unknown";
@@ -430,24 +536,21 @@ public class CFGBuilder {
                     case IASTBinaryExpression.op_binaryXorAssign:
                         opStr = BinaryEval.op_bit; break;
                 }
-                IEval eval = new BinaryEval(expression, opStr, prevReg, rReg);
+                IEval eval = new BinaryEval(expression, opStr, prevReg, rValReg);
                 Messages.debug("CParser: compute updated value in %s@%d := %s", eval.getType(), postReg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, postReg);
                 prevNode = connect(prevNode, evalNode);
 
-                Messages.debug("CParser: update location %s <- %s@%d (%s)", lhsLoc.toDebugString(), expression.getExpressionType(), postReg, expression.getRawSignature());
-                IBasicBlock storeNode = new StoreNode(lhsLoc, postReg);
+                Messages.debug("CParser: update location %s <- %s@%d (%s)", lRefReg, expression.getExpressionType(), postReg, expression.getRawSignature());
+                IBasicBlock storeNode = new StoreNode(lRefReg, postReg);
                 prevNode = connect(prevNode, storeNode);
 
-                return prevNode;
+                return postReg;
             } else if (op == IASTBinaryExpression.op_logicalAnd || op == IASTBinaryExpression.op_logicalOr){
-                prevNode = handleShortcircuitExpression(prevNode, binExpr);
-                return prevNode;
+                return handleShortcircuitExpression(binExpr);
             } else {
                 Messages.warn("CParser: expression result un-used for [%s]", expression.getRawSignature());
-                int reg = createRegister(expression);
-                prevNode = handleRvalue(prevNode, expression, reg);
-                return prevNode;
+                return handleRvalue(expression);
             }
         } else if (expression instanceof IASTUnaryExpression) {
             IASTUnaryExpression unaryExpr = (IASTUnaryExpression) expression;
@@ -456,13 +559,11 @@ public class CFGBuilder {
                     || op == IASTUnaryExpression.op_postFixIncr || op == IASTUnaryExpression.op_postFixDecr
             ) {
                 IASTExpression obj = unparenthesize(unaryExpr.getOperand());
-                prevNode = handleLvalue(prevNode, obj);
-                ILocation loc = lvalLocMap.get(obj);
+                int refReg = handleLvalue(obj);
 
                 int prevReg = createRegister(obj);
-                Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), obj.getExpressionType(), prevReg, expression.getRawSignature());
-                IEval loadEval = new LoadEval(obj, loc);
-                IBasicBlock loadNode = new EvalNode(loadEval, prevReg);
+                Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", obj.getExpressionType(), prevReg, refReg, expression.getRawSignature());
+                IBasicBlock loadNode = new LoadNode(prevReg, refReg);
                 prevNode = connect(prevNode, loadNode);
 
                 int postReg = createRegister(expression);
@@ -482,54 +583,41 @@ public class CFGBuilder {
                 IBasicBlock evalNode = new EvalNode(eval, postReg);
                 prevNode = connect(prevNode, evalNode);
 
-                Messages.debug("CParser: incr/decr location %s <- %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), postReg, expression.getRawSignature());
-                IBasicBlock storeNode = new StoreNode(loc, postReg);
+                Messages.debug("CParser: incr/decr location *@%d <- %s@%d (%s)", refReg, expression.getExpressionType(), postReg, expression.getRawSignature());
+                IBasicBlock storeNode = new StoreNode(refReg, postReg);
                 prevNode = connect(prevNode,storeNode);
 
-                return prevNode;
+                return postReg;
             } else {
                 Messages.warn("CParser: expression result un-used for [%s]", expression.getRawSignature());
-                int reg = createRegister(expression);
-                prevNode = handleRvalue(prevNode, expression, reg);
-                return prevNode;
+                return handleRvalue(expression);
             }
         } else if (expression instanceof IASTFunctionCallExpression) {
             //int reg = createRegister(expression);
             if (!expression.getExpressionType().isSameType(CBasicType.VOID))
-                Messages.debug("CParser: discard ret-val of expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-            prevNode = handleRvalue(prevNode, expression, -1);
-            return prevNode;
+                Messages.warn("CParser: discard ret-val of expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            return handleRvalue(expression);
         }
         Messages.error("CParser: skip unsupported %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-        return prevNode;
+        return -1;
     }
 
     // Note: this method does not check if the lvalue is modifiable
-    private IBasicBlock handleLvalue(IBasicBlock prevNode, IASTExpression expression) {
+    private int handleLvalue(IASTExpression expression) {
         if (expression instanceof IASTIdExpression) {
             // No need to compute target
             IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
-            ILocation loc = null;
-            if (binding instanceof IVariable) {
-                loc = stackMap.get((IVariable) binding);
-            } else if (binding instanceof IFunction) {
-                loc = funcNameMap.get((IFunction) binding);
+            int refReg = getRefReg(binding);
+            if (refReg < 0) {
+                Messages.fatal("CParser: referenced register not found for %s[%s]#%d in (%s)", binding.getClass().getSimpleName(), binding.getName(), binding.hashCode(), binding.getOwner());
             }
-            if (loc == null) {
-                Messages.fatal("CParser: referenced location not found for variable %s[%s]#%d (%s)", binding.getClass().getSimpleName(), binding.getName(), binding.hashCode(), binding.getOwner());
-            }
-            lvalLocMap.put(expression, loc);
-            return prevNode;
+            return refReg;
         } else if (expression instanceof IASTUnaryExpression) {
             IASTUnaryExpression unaryExpr = (IASTUnaryExpression) expression;
             int op = unaryExpr.getOperator();
             IASTExpression innerExpr = unparenthesize(unaryExpr.getOperand());
             if (op == IASTUnaryExpression.op_star) {
-                int innerReg = createRegister(innerExpr);
-                prevNode = handleRvalue(prevNode, innerExpr, innerReg);
-                ILocation loc = new PointerLocation(innerExpr, innerReg);
-                lvalLocMap.put(expression, loc);
-                return prevNode;
+                return handleRvalue(innerExpr);
             } else if (op == IASTUnaryExpression.op_bracketedPrimary)
                 Messages.fatal("CParser: brackets should have been unparenthesized for [%s]", expression.getRawSignature());
             Messages.fatal("CParser: modifying non-lvalue %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
@@ -542,48 +630,45 @@ public class CFGBuilder {
                 IASTExpression fieldExpr = unparenthesize(binaryExpr.getOperand2());
                 IField field = (IField) ((IASTIdExpression) fieldExpr).getName().resolveBinding();
                 boolean isPointerDeref = op == IASTBinaryExpression.op_pmarrow;
-                prevNode = handleFieldReference(prevNode, baseExpr, field, isPointerDeref, null, expression);
-                return prevNode;
+                return handleFieldReference(baseExpr, field, isPointerDeref);
             }
             Messages.fatal("CParser: modifying non-lvalue %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         } else if (expression instanceof IASTFieldReference) {
             IASTFieldReference fieldRef = (IASTFieldReference) expression;
             IASTExpression baseExpr = unparenthesize(fieldRef.getFieldOwner());
             IField field = (IField) fieldRef.getFieldName().resolveBinding();
-            prevNode = handleFieldReference(prevNode, baseExpr, field, fieldRef.isPointerDereference(), null, expression);
-            return prevNode;
+            return handleFieldReference(baseExpr, field, fieldRef.isPointerDereference());
         } else if (expression instanceof IASTArraySubscriptExpression) {
             IASTArraySubscriptExpression arraySubExpr = (IASTArraySubscriptExpression) expression;
-            prevNode = handleArraySubscript(prevNode, arraySubExpr, null);
-
-            return prevNode;
+            return handleArraySubscript(arraySubExpr);
         } else if (expression instanceof IASTLiteralExpression) {
             IASTLiteralExpression literal = (IASTLiteralExpression) expression;
             if (literal.getKind() == IASTLiteralExpression.lk_string_literal) {
-                ILocation loc = processStringConstant(literal);
-                lvalLocMap.put(expression, loc);
-                return prevNode;
+                int refReg = processStringConstant(literal);
+                throw new UnsupportedOperationException();
             }
         }
         Messages.fatal("CParser: non-lvalue %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-        return null;
+        return -1;
     }
 
-    private ILocation processStringConstant(IASTLiteralExpression literal) {
-        ILocation loc;
+    private int processStringConstant(IASTLiteralExpression literal) {
+        int refReg;
         String s = String.valueOf(literal.getValue());
         if (stringConstants.containsKey(s)) {
-            loc = stringConstants.get(s);
-            assert loc.getType().isSameType(literal.getExpressionType());
+            refReg = stringConstants.get(s);
         } else {
-            loc = new StringConstant(s, literal.getExpressionType());
-            stringConstants.put(s, loc);
+            registers.add(s);
+            refReg = registers.indexOf(s);
+            stringConstants.put(s, refReg);
         }
-        return loc;
+        return refReg;
     }
 
-    private IBasicBlock handleRvalue(IBasicBlock prevNode, IASTExpression expression, int reg) {
+    private int handleRvalue(IASTExpression expression) {
         if (expression instanceof IASTLiteralExpression) {
+            int reg = createRegister(expression);
+
             IASTLiteralExpression literalExpr = (IASTLiteralExpression) expression;
             ConstantEval literalEval = new ConstantEval(literalExpr);
             String constant = literalEval.getValue();
@@ -593,26 +678,26 @@ public class CFGBuilder {
             IBasicBlock evalNode = new EvalNode(literalEval, reg);
             prevNode = connect(prevNode, evalNode);
 
-            return prevNode;
+            return reg;
         } else if (expression instanceof IASTIdExpression) {
+            int reg = createRegister(expression);
             IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
             if (binding instanceof IVariable) {
                 // TODO: special handling of array-to-pointer conversion
-                ILocation loc = stackMap.get((IVariable) binding);
-                Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
-                IEval loadEval = new LoadEval(expression, loc);
-                IBasicBlock loadNode = new EvalNode(loadEval, reg);
+                int refReg = getRefReg(binding);
+                if (refReg < 0)
+                    Messages.fatal("CParser: cannot find variable reference for %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", expression.getExpressionType(), reg, refReg, expression.getRawSignature());
+                IBasicBlock loadNode = new LoadNode(reg, refReg);
                 prevNode = connect(prevNode, loadNode);
 
-                return prevNode;
+                return reg;
             } else if (binding instanceof IFunction) {
-                ILocation loc = funcNameMap.get((IFunction) binding);
-                Messages.debug("CParser: load function address %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
-                IEval addrEval = new AddressEval(expression, loc);
-                IBasicBlock loadNode = new EvalNode(addrEval, reg);
-                prevNode = connect(prevNode, loadNode);
+                int refReg = getRefReg(binding);
+                if (refReg < 0)
+                    Messages.fatal("CParser: cannot find function reference for %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
 
-                return prevNode;
+                return refReg;
             }
         } else if (expression instanceof IASTUnaryExpression) {
             IASTUnaryExpression unaryExpr = (IASTUnaryExpression) expression;
@@ -622,25 +707,20 @@ public class CFGBuilder {
                 Messages.fatal("CParser: brackets should have been unparenthesized for [%s]", expression.getRawSignature());
             else if (op == IASTUnaryExpression.op_star) {
                 if (expression.getExpressionType() instanceof IFunctionType) {
+                    int reg = handleRvalue(inner);
                     Messages.debug("CParser: cancel dereference of function to location %s[%s] : %s@%s", expression.getClass().getSimpleName(), expression.getRawSignature(), expression.getExpressionType(), reg);
-                    prevNode = handleRvalue(prevNode, inner, reg);
-                    return prevNode;
+                    return reg;
                 } else {
-                    int innerReg = createRegister(inner);
-                    prevNode = handleRvalue(prevNode, inner, innerReg);
-
-                    ILocation loc = new PointerLocation(inner, innerReg);
-
-                    Messages.debug("CParser: read from location %s -> %s@%d (%s)", loc.toDebugString(), expression.getExpressionType(), reg, expression.getRawSignature());
-                    IEval loadEval = new LoadEval(expression, loc);
-                    IBasicBlock loadNode = new EvalNode(loadEval, reg);
+                    int innerReg = handleRvalue(inner);
+                    int reg = createRegister(expression);
+                    Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", expression.getExpressionType(), reg, innerReg, expression.getRawSignature());
+                    IBasicBlock loadNode = new LoadNode(reg, innerReg);
                     prevNode = connect(prevNode, loadNode);
 
-                    return prevNode;
+                    return reg;
                 }
             } else if (op == IASTUnaryExpression.op_plus || op == IASTUnaryExpression.op_minus || op == IASTUnaryExpression.op_not) {
-                int innerReg = createRegister(inner);
-                prevNode = handleRvalue(prevNode, inner, innerReg);
+                int innerReg = handleRvalue(inner);
                 String opStr = "Unknown";
                 switch (op) {
                     case IASTUnaryExpression.op_plus: opStr = UnaryEval.op_plus; break;
@@ -648,57 +728,31 @@ public class CFGBuilder {
                     case IASTUnaryExpression.op_not: opStr = UnaryEval.op_not; break;
                 }
                 IEval eval = new UnaryEval(expression, opStr, innerReg);
+                int reg = createRegister(expression);
                 Messages.debug("CParser: compute unary expr in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
                 prevNode = connect(prevNode, evalNode);
 
-                return prevNode;
+                return reg;
             } else if (op == IASTUnaryExpression.op_prefixIncr || op == IASTUnaryExpression.op_prefixDecr
                     || op == IASTUnaryExpression.op_postFixIncr || op == IASTUnaryExpression.op_postFixDecr) {
                 Messages.warn("CParser: side effect in right value %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
 
-                prevNode = handleExpression(prevNode, expression);
-
-                return prevNode;
+                return handleExpression(expression);
             } else if (op == IASTUnaryExpression.op_amper) {
                 if (inner instanceof IASTUnaryExpression && ((IASTUnaryExpression) inner).getOperator() == IASTUnaryExpression.op_star) {
                     IASTExpression cancelledExpr = unparenthesize(((IASTUnaryExpression) inner).getOperand());
-                    prevNode = handleRvalue(prevNode, cancelledExpr, reg);
-                    return prevNode;
-                } else if (inner instanceof IASTArraySubscriptExpression) {
-                    IASTArraySubscriptExpression arraySubExpr = (IASTArraySubscriptExpression) inner;
-
-                    IASTExpression arrExpr = unparenthesize(arraySubExpr.getArrayExpression());
-                    int arrReg = createRegister(arrExpr);
-                    prevNode = handleRvalue(prevNode, arrExpr, arrReg);
-
-                    IASTExpression subExpr = unparenthesize((IASTExpression) arraySubExpr.getArgument());
-                    int subReg = createRegister(subExpr);
-                    prevNode = handleRvalue(prevNode, subExpr, subReg);
-
-                    IEval eval = new BinaryEval(expression, BinaryEval.op_plus, arrReg, subReg);
-                    IBasicBlock evalNode = new EvalNode(eval, reg);
-                    prevNode = connect(prevNode, evalNode);
-
-                    return prevNode;
+                    return handleRvalue(cancelledExpr);
                 }
 
-                prevNode = handleLvalue(prevNode, inner);
-                ILocation loc = lvalLocMap.get(inner);
-                IEval eval = new AddressEval(expression, loc);
-                Messages.debug("CParser: compute address in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
-                IBasicBlock evalNode = new EvalNode(eval, reg);
-                prevNode = connect(prevNode, evalNode);
-
-                return prevNode;
+                return handleLvalue(inner);
             } else if (op == IASTUnaryExpression.op_sizeof) {
+                int reg = createRegister(expression);
                 if (inner.getExpressionType() instanceof IArrayType) {
-                    int innerReg = createRegister(inner);
-                    prevNode = handleRvalue(prevNode, inner, innerReg);
+                    int innerReg = handleRvalue(inner);
                     IEval eval = new UnaryEval(expression, UnaryEval.op_sizeof, innerReg);
                     IBasicBlock evalNode = new EvalNode(eval, reg);
                     prevNode = connect(prevNode, evalNode);
-                    return prevNode;
                 } else {
                     String constant;
                     if (inner instanceof IASTLiteralExpression && ((IASTLiteralExpression) inner).getKind() == IASTLiteralExpression.lk_string_literal) {
@@ -713,17 +767,15 @@ public class CFGBuilder {
                     simpleConstants.put(reg, constant);
                     IBasicBlock evalNode = new EvalNode(eval, reg);
                     prevNode = connect(prevNode, evalNode);
-                    return prevNode;
                 }
+                return reg;
             }
         } else if (expression instanceof IASTBinaryExpression) {
             IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
             int op = binExpr.getOperator();
             if (binExpr.isLValue()) {
                 Messages.warn("CParser: side effect in right value %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-                prevNode = handleExpression(prevNode, expression);
-
-                return prevNode;
+                return handleExpression(expression);
             } else if (op == IASTBinaryExpression.op_pmdot || op == IASTBinaryExpression.op_pmarrow) {
                 Messages.error("CParser: rarely used binary-expr-represented field reference expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
 
@@ -731,37 +783,20 @@ public class CFGBuilder {
                 IASTExpression fieldExpr = unparenthesize(binExpr.getOperand2());
                 IField field = (IField) ((IASTIdExpression) fieldExpr).getName().resolveBinding();
                 boolean isPointerDeref = op == IASTBinaryExpression.op_pmarrow;
-                prevNode = handleFieldReference(prevNode, baseExpr, field, isPointerDeref, reg, expression);
-
-                return prevNode;
+                int refReg = handleFieldReference(baseExpr, field, isPointerDeref);
+                int reg = createRegister(expression);
+                IBasicBlock loadNode = new LoadNode(reg, refReg);
+                prevNode = connect(prevNode, loadNode);
+                return reg;
             } else if (op == IASTBinaryExpression.op_logicalAnd || op == IASTBinaryExpression.op_logicalOr) {
-                prevNode = handleShortcircuitExpression(prevNode, binExpr);
-                int r1 = fetchRegister(binExpr.getOperand1());
-                int r2 = fetchRegister(binExpr.getOperand2());
-                String opStr = "Unknown";
-                switch (op) {
-                    case IASTBinaryExpression.op_logicalAnd:
-                        opStr = BinaryEval.op_and;
-                        break;
-                    case IASTBinaryExpression.op_logicalOr:
-                        opStr = BinaryEval.op_or;
-                        break;
-                }
-                IEval eval = new BinaryEval(expression, opStr, r1, r2);
-                Messages.debug("CParser: compute result of and/or in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
-                IBasicBlock evalNode = new EvalNode(eval, reg);
-                prevNode = connect(prevNode, evalNode);
-
-                return prevNode;
+                return handleShortcircuitExpression(binExpr);
             } else {
                 // TODO: C standard does not specify the evaluation order of arithmetical expressions
                 IASTExpression op1 = unparenthesize(binExpr.getOperand1());
-                int r1 = createRegister(op1);
-                prevNode = handleRvalue(prevNode, op1, r1);
+                int r1 = handleRvalue(op1);
 
                 IASTExpression op2 = unparenthesize(binExpr.getOperand2());
-                int r2 = createRegister(op2);
-                prevNode = handleRvalue(prevNode, op2, r2);
+                int r2 = handleRvalue(op2);
 
                 String opStr = "Unknown";
                 switch (op) {
@@ -815,29 +850,38 @@ public class CFGBuilder {
                         break;
                 }
                 IEval eval = new BinaryEval(expression, opStr, r1, r2);
+                int reg = createRegister(expression);
                 Messages.debug("CParser: compute binary expr in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
                 IBasicBlock evalNode = new EvalNode(eval, reg);
                 prevNode = connect(prevNode, evalNode);
 
-                return prevNode;
+                return reg;
             }
         } else if (expression instanceof IASTFieldReference) {
             IASTFieldReference fieldRef = (IASTFieldReference) expression;
             IASTExpression baseExpr = unparenthesize(fieldRef.getFieldOwner());
             IField field = (IField) fieldRef.getFieldName().resolveBinding();
-            prevNode = handleFieldReference(prevNode, baseExpr, field, fieldRef.isPointerDereference(), reg, expression);
+            int refReg = handleFieldReference(baseExpr, field, fieldRef.isPointerDereference());
+            int reg = createRegister(expression);
+            Messages.debug("CParser: load from field pointer %s@%d <- *@%d[%s]", expression.getExpressionType(), reg, refReg, expression.getRawSignature());
+            IBasicBlock loadNode = new LoadNode(reg, refReg);
+            prevNode = connect(prevNode, loadNode);
 
-            return prevNode;
+            return reg;
         } else if (expression instanceof IASTArraySubscriptExpression) {
             IASTArraySubscriptExpression arraySubExpr = (IASTArraySubscriptExpression) expression;
-            prevNode = handleArraySubscript(prevNode, arraySubExpr, reg);
+            int refReg = handleArraySubscript(arraySubExpr);
+            int reg = createRegister(expression);
+            Messages.debug("CParser: load from offset pointer %s@%d <- *@%d[%s]", expression.getExpressionType(), reg, refReg, expression.getExpressionType());
+            IBasicBlock loadNode = new LoadNode(reg, refReg);
+            prevNode = connect(prevNode, loadNode);
 
-            return prevNode;
+            return reg;
         } else if (expression instanceof IASTFunctionCallExpression) {
             IASTFunctionCallExpression invk = (IASTFunctionCallExpression) expression;
 
             IASTExpression fNameExpr = unparenthesize(invk.getFunctionNameExpression());
-            prevNode = handleFunctionName(prevNode, fNameExpr);
+            int fReg = handleFunctionName(fNameExpr);
 
             // TODO: C standard does not specify the evaluation order of arguments
             int[] fArgRegs = new int[invk.getArguments().length];
@@ -846,105 +890,95 @@ public class CFGBuilder {
                 if (fArgExpr instanceof IASTFunctionCallExpression) {
                     Messages.warn("CParser: embedded function call in [%s]", expression.getRawSignature());
                 }
-                fArgRegs[i] = createRegister(fArgExpr);
-                prevNode = handleRvalue(prevNode, fArgExpr, fArgRegs[i]);
+                fArgRegs[i] = handleRvalue(fArgExpr);
             }
 
             IEval eval;
-            if (staticInvkMap.containsKey(fNameExpr)) {
+            if (fReg < 0) {
                 IFunction f = staticInvkMap.get(fNameExpr);
+                if (f == null) {
+                    Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                }
                 eval = new StaticCallEval(expression, f, fArgRegs);
             } else {
-                int fReg = fetchRegister(fNameExpr);
                 eval = new IndirectCallEval(expression, fReg, fArgRegs);
             }
+            int reg = createRegister(expression);
             Messages.debug("CParser: compute invocation in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
             IBasicBlock evalNode = new EvalNode(eval, reg);
             prevNode = connect(prevNode, evalNode);
 
-            return prevNode;
+            return reg;
         } else if (expression instanceof IASTCastExpression) {
             IASTExpression innerExpr = unparenthesize(((IASTCastExpression) expression).getOperand());
-            int innerReg = createRegister(innerExpr);
-            prevNode = handleRvalue(prevNode, innerExpr, innerReg);
+            int innerReg = handleRvalue(innerExpr);
             IEval eval = new UnaryEval(expression, UnaryEval.op_cast, innerReg);
+            int reg = createRegister(expression);
             Messages.debug("CParser: casting expression to %s@%d := %s", eval.getType(), reg, eval.toDebugString());
             IBasicBlock evalNode = new EvalNode(eval, reg);
             prevNode = connect(prevNode, evalNode);
-            return prevNode;
+            return reg;
         } else if (expression instanceof IASTTypeIdExpression) {
             IASTTypeIdExpression typeIdExpression = (IASTTypeIdExpression) expression;
             if (typeIdExpression.getOperator() == IASTTypeIdExpression.op_sizeof) {
                 String constant = "sizeof(" + typeIdExpression.getTypeId().getRawSignature() + ")";
 
                 ConstantEval sizeEval = new ConstantEval(typeIdExpression, constant);
+                int reg = createRegister(expression);
                 Messages.debug("CParser: assign size-of constant %s@%d := %s", expression.getExpressionType(), reg, constant);
                 simpleConstants.put(reg, constant);
                 IBasicBlock evalNode = new EvalNode(sizeEval, reg);
                 prevNode = connect(prevNode, evalNode);
-                return prevNode;
+                return reg;
             }
         }
         registers.add(expression);
+        int reg = registers.indexOf(expression);
         Messages.error("CParser: skip unsupported C Rvalue expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-        return prevNode;
+        return reg;
     }
 
-    private IBasicBlock handleFieldReference(IBasicBlock prevNode, IASTExpression baseExpr, IField field, boolean isPointerDereference, Integer regRvalue, IASTExpression debugExpr) {
-        ILocation baseLoc;
+    private int handleFieldReference(IASTExpression baseExpr, IField field, boolean isPointerDereference) {
+        int basePtr;
         if (isPointerDereference) {
-            int ptrReg = createRegister(baseExpr);
-            prevNode = handleRvalue(prevNode, baseExpr, ptrReg);
-            baseLoc = new PointerLocation(baseExpr, ptrReg);
+            basePtr = handleRvalue(baseExpr);
         } else {
-            prevNode = handleLvalue(prevNode, baseExpr);
-            baseLoc = lvalLocMap.get(baseExpr);
+            basePtr = handleLvalue(baseExpr);
         }
-        ILocation loc = new FieldLocation(baseLoc, field);
-        if (regRvalue == null) {
-            Messages.debug("CParser: create reference for location %s (%s[%s])", loc.toDebugString(), debugExpr.getClass().getSimpleName(), debugExpr.getRawSignature());
-            lvalLocMap.put(debugExpr, loc);
-        } else {
-            Messages.debug("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), regRvalue, debugExpr.getRawSignature());
-            IEval loadEval = new LoadEval(debugExpr, loc);
-            IBasicBlock loadNode = new EvalNode(loadEval, regRvalue);
-            prevNode = connect(prevNode, loadNode);
-        }
-        return prevNode;
+        GetElementPtrEval gepEval = new GetFieldPtrEval(baseExpr, basePtr, field);
+        registers.add(gepEval);
+        int fieldPtr = registers.indexOf(gepEval);
+        Messages.debug("CParser: compute field pointer %d = &(%d->%s)", fieldPtr, basePtr, field);
+        return fieldPtr;
     }
 
-    private IBasicBlock handleArraySubscript(IBasicBlock prevNode, IASTArraySubscriptExpression arraySubExpr, Integer regRvalue) {
-        IASTExpression arrExpr = unparenthesize(arraySubExpr.getArrayExpression());
-        int arrReg = createRegister(arrExpr);
-        prevNode = handleRvalue(prevNode, arrExpr, arrReg);
+    private int handleArraySubscript(IASTArraySubscriptExpression arraySubExpr) {
+        IASTExpression expr1 = unparenthesize(arraySubExpr.getArrayExpression());
+        int reg1 = handleRvalue(expr1);
 
-        IASTExpression subExpr = unparenthesize((IASTExpression) arraySubExpr.getArgument());
-        int subReg = createRegister(subExpr);
-        prevNode = handleRvalue(prevNode, subExpr, subReg);
+        IASTExpression expr2 = unparenthesize((IASTExpression) arraySubExpr.getArgument());
+        int reg2 = handleRvalue(expr2);
 
-        ILocation baseLoc = new PointerLocation(arrExpr, arrReg);
-        ILocation loc = new OffsetLocation(baseLoc, subExpr, subReg);
-
-        if (regRvalue == null) {
-            lvalLocMap.put(arraySubExpr, loc);
+        GetElementPtrEval gepEval;
+        if (expr1.getExpressionType() instanceof ITypeContainer) {
+            gepEval = new GetOffsetPtrEval(expr1, reg1, expr2, reg2);
         } else {
-            Messages.debug("CParser: read from location %s -> @%s (%s)", loc.toDebugString(), regRvalue, arraySubExpr.getRawSignature());
-            IEval loadEval = new LoadEval(arraySubExpr, loc);
-            IBasicBlock loadNode = new EvalNode(loadEval, regRvalue);
-            prevNode = connect(prevNode, loadNode);
+            gepEval = new GetOffsetPtrEval(expr2, reg2, expr1, reg1);
         }
-        return prevNode;
+        registers.add(gepEval);
+        int offsetPtr = registers.indexOf(gepEval);
+        Messages.debug("CParser: compute offset pointer %d = (%d+%d)", offsetPtr, reg1, reg2);
+        return offsetPtr;
     }
 
-    private IBasicBlock handleFunctionName(IBasicBlock prevNode, IASTExpression fNameExpr) {
+    private int handleFunctionName(IASTExpression fNameExpr) {
        IFunction receiver = findReceiver(fNameExpr);
         if (receiver != null) {
             Messages.debug("CParser: resolve static invocation %s[%s] to %s", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), receiver);
             staticInvkMap.put(fNameExpr, receiver);
-            return prevNode;
+            return -1;
         } else {
-            int funcPtrReg = createRegister(fNameExpr);
-            return handleRvalue(prevNode, fNameExpr, funcPtrReg);
+            return handleRvalue(fNameExpr);
         }
     }
 
@@ -981,13 +1015,12 @@ public class CFGBuilder {
         return null;
     }
 
-    private IBasicBlock handleShortcircuitExpression(IBasicBlock prevNode, IASTBinaryExpression expression) {
+    private int handleShortcircuitExpression(IASTBinaryExpression expression) {
         int op = expression.getOperator();
         assert op == IASTBinaryExpression.op_logicalAnd || op == IASTBinaryExpression.op_logicalOr;
 
         IASTExpression lval = unparenthesize(expression.getOperand1());
-        int lReg = createRegister(lval);
-        prevNode = handleRvalue(prevNode, lval, lReg);
+        int lReg = handleRvalue(lval);
 
         CondNode shortCircuit = new CondNode(lval, lReg);
         connect(prevNode, shortCircuit);
@@ -998,11 +1031,15 @@ public class CFGBuilder {
         connect(shortCircuit, falseNode);
 
         IASTExpression rval = unparenthesize(expression.getOperand2());
-        int rReg = createRegister(rval);
+        int rReg;
         if (op == IASTBinaryExpression.op_logicalAnd) {
-            trueNode = handleRvalue(trueNode, rval, rReg);
+            prevNode = trueNode;
+            rReg = handleRvalue(rval);
+            trueNode = prevNode;
         } else {
-            falseNode = handleRvalue(falseNode, rval, rReg);
+            prevNode = falseNode;
+            rReg = handleRvalue(rval);
+            falseNode = prevNode;
         }
 
         IConnectorNode phiNode = new PhiNode("shortcircuit");
@@ -1011,26 +1048,41 @@ public class CFGBuilder {
         jump(falseNode, phiNode, false);
 
         if (fixPhi(phiNode))
-            return phiNode;
+            prevNode = phiNode;
         else
-            return null;
+            prevNode = null;
+
+        String opStr = "Unknown";
+        if (op == IASTBinaryExpression.op_logicalAnd)
+            opStr = BinaryEval.op_and;
+        else
+            opStr = BinaryEval.op_or;
+        IEval eval = new BinaryEval(expression, opStr, lReg, rReg);
+        int reg = createRegister(expression);
+        Messages.debug("CParser: compute result of and/or in %s@%d := %s", eval.getType(), reg, eval.toDebugString());
+        IBasicBlock evalNode = new EvalNode(eval, reg);
+        prevNode = connect(prevNode, evalNode);
+        return reg;
     }
 
-    private IBasicBlock handleIfStatement(IBasicBlock prevNode, IASTIfStatement cIf) {
+    private void handleIfStatement(IASTIfStatement cIf) {
         IASTExpression condExpr = unparenthesize(cIf.getConditionExpression());
-        int condReg = createRegister(condExpr);
-        prevNode = handleRvalue(prevNode, condExpr, condReg);
+        int condReg = handleRvalue(condExpr);
 
         CondNode ifNode = new CondNode(condExpr, condReg);
         connect(prevNode, ifNode);
 
         IBasicBlock thenNode = new LabelNode(IBranchNode.THEN);
         connect(ifNode, thenNode);
-        thenNode = expandGraph(thenNode, cIf.getThenClause());
+        prevNode = thenNode;
+        expandGraph(cIf.getThenClause());
+        thenNode = prevNode;
 
         IBasicBlock elseNode = new LabelNode(IBranchNode.ELSE);
         connect(ifNode, elseNode);
-        elseNode = expandGraph(elseNode, cIf.getElseClause());
+        prevNode = elseNode;
+        expandGraph(cIf.getElseClause());
+        elseNode = prevNode;
 
         IConnectorNode phiNode = new PhiNode("endif");
         ifNode.setMergeNode(phiNode);
@@ -1038,12 +1090,12 @@ public class CFGBuilder {
         jump(elseNode, phiNode, false);
 
         if (fixPhi(phiNode))
-            return phiNode;
+            prevNode = phiNode;
         else
-            return null;
+            prevNode = null;
     }
 
-    private IBasicBlock handleWhileStatement(IBasicBlock prevNode, IASTWhileStatement cWhile) {
+    private void handleWhileStatement(IASTWhileStatement cWhile) {
         IConnectorNode continueNode = new PhiNode("continue");
         IConnectorNode breakNode = new PhiNode("break");
 
@@ -1057,8 +1109,9 @@ public class CFGBuilder {
 //            jump(bodyEnd, continueNode, true);
 
         condExpr = unparenthesize(condExpr);
-        int condReg = createRegister(condExpr);
-        IBasicBlock evalCondNode = handleRvalue(continueNode, condExpr, condReg);
+        prevNode = continueNode;
+        int condReg = handleRvalue(condExpr);
+        IBasicBlock evalCondNode = prevNode;
 
         CondNode whileNode = new CondNode(condExpr, condReg);
         connect(evalCondNode, whileNode);
@@ -1066,7 +1119,9 @@ public class CFGBuilder {
 
         IBasicBlock bodyStart = new LabelNode(IBranchNode.THEN);
         connect(whileNode, bodyStart);
-        IBasicBlock bodyEnd = handleLoopBody(bodyStart, loopBody, continueNode, true, breakNode);
+        prevNode = bodyStart;
+        handleLoopBody(loopBody, continueNode, true, breakNode);
+        IBasicBlock bodyEnd = prevNode;
         jump(bodyEnd, continueNode, true);
 
         IBasicBlock loopEnd = new LabelNode(IBranchNode.ELSE);
@@ -1074,12 +1129,12 @@ public class CFGBuilder {
         jump(loopEnd, breakNode, false);
 
         if (fixPhi(breakNode))
-            return breakNode;
+            prevNode = breakNode;
         else
-            return null;
+            prevNode = null;
     }
 
-    private IBasicBlock handleDoWhileStatement(IBasicBlock prevNode, IASTDoStatement cDoWhile) {
+    private void handleDoWhileStatement(IASTDoStatement cDoWhile) {
         IConnectorNode continueNode = new PhiNode("continue");
         IConnectorNode breakNode = new PhiNode("break");
 
@@ -1089,11 +1144,14 @@ public class CFGBuilder {
         IConnectorNode bodyStart = new PhiNode("do");
         connect(prevNode, bodyStart);
 
-        IBasicBlock bodyEnd = handleLoopBody(bodyStart, loopBody, continueNode, false, breakNode);
+        prevNode = bodyStart;
+        handleLoopBody(loopBody, continueNode, false, breakNode);
+        IBasicBlock bodyEnd = prevNode;
         jump(bodyEnd, continueNode, false);
 
-        int condReg = createRegister(condExpr);
-        IBasicBlock evalCondNode = handleRvalue(continueNode, condExpr, condReg);
+        prevNode = continueNode;
+        int condReg = handleRvalue(condExpr);
+        IBasicBlock evalCondNode = prevNode;
         CondNode doWhileNode = new CondNode(condExpr, condReg);
         connect(evalCondNode, doWhileNode);
         doWhileNode.setMergeNode(breakNode);
@@ -1109,24 +1167,26 @@ public class CFGBuilder {
         fixPhi(continueNode);
 
         if (fixPhi(breakNode))
-            return breakNode;
+            prevNode = breakNode;
         else
-            return null;
+            prevNode = null;
     }
 
 
-    private IBasicBlock handleForStatement(IBasicBlock prevNode, IASTForStatement cFor) {
+    private void handleForStatement(IASTForStatement cFor) {
         IConnectorNode continueNode = new PhiNode("continue");
         IConnectorNode breakNode = new PhiNode("break");
 
         IASTStatement init = cFor.getInitializerStatement();
-        prevNode = expandGraph(prevNode, init);
+        expandGraph(init);
+
         IConnectorNode condStart = new PhiNode();
         connect(prevNode, condStart);
 
         IASTExpression condExpr = cFor.getConditionExpression();
-        int condReg = createRegister(condExpr);
-        IBasicBlock evalCondNode = handleRvalue(condStart, condExpr, condReg);
+        prevNode = condStart;
+        int condReg = handleRvalue(condExpr);
+        IBasicBlock evalCondNode = prevNode;
         CondNode forNode = new CondNode(condExpr, condReg);
         connect(evalCondNode, forNode);
         forNode.setMergeNode(breakNode);
@@ -1134,11 +1194,15 @@ public class CFGBuilder {
         IASTStatement loopBody = cFor.getBody();
         IBranchNode bodyStart = new LabelNode(IBranchNode.THEN);
         connect(forNode, bodyStart);
-        IBasicBlock bodyEnd = handleLoopBody(bodyStart, loopBody, continueNode, true, breakNode);
+        prevNode = bodyStart;
+        handleLoopBody(loopBody, continueNode, true, breakNode);
+        IBasicBlock bodyEnd = prevNode;
         jump(bodyEnd, continueNode, true);
 
         IASTExpression iter = cFor.getIterationExpression();
-        IBasicBlock afterIter = handleExpression(continueNode, iter);
+        prevNode = continueNode;
+        handleExpression(iter);
+        IBasicBlock afterIter = prevNode;
         connect(afterIter, condStart);
 
         IBranchNode loopEnd = new LabelNode(IBranchNode.ELSE);
@@ -1147,23 +1211,22 @@ public class CFGBuilder {
 
         fixPhi(continueNode);
         if (fixPhi(breakNode))
-            return breakNode;
+            prevNode = breakNode;
         else
-            return null;
+            prevNode = null;
     }
 
-    private IBasicBlock handleLoopBody(IBasicBlock bodyStart, IASTStatement body, IConnectorNode continueNode, boolean continueBackward, IConnectorNode breakNode) {
+    private void handleLoopBody(IASTStatement body, IConnectorNode continueNode, boolean continueBackward, IConnectorNode breakNode) {
         IConnectorNode savedContinue = outerContinueTarget;
         boolean savedContinuePos = outerContinueBackward;
         IConnectorNode savedBreak = outerBreakTarget;
         outerContinueTarget = continueNode;
         outerContinueBackward = continueBackward;
         outerBreakTarget = breakNode;
-        IBasicBlock bodyEnd = expandGraph(bodyStart, body);
+        expandGraph(body);
         outerContinueTarget = savedContinue;
         outerContinueBackward = savedContinuePos;
         outerBreakTarget = savedBreak;
-        return bodyEnd;
     }
 
     private IBasicBlock connect(IBasicBlock prevNode, IBasicBlock postNode) {
@@ -1209,7 +1272,7 @@ public class CFGBuilder {
             int op = ((IASTUnaryExpression) expression).getOperator();
             if (op == IASTUnaryExpression.op_bracketedPrimary) {
                 if (allocate)
-                    Messages.warn("CParser: brackets should have been unparenthesized for [%s]", expression.getRawSignature());
+                    Messages.error("CParser: brackets should have been unparenthesized for [%s]", expression.getRawSignature());
                 return getRegister(unparenthesize(expression), allocate);
             }
             if (op == IASTUnaryExpression.op_postFixIncr || op == IASTUnaryExpression.op_postFixDecr) {
@@ -1244,6 +1307,7 @@ public class CFGBuilder {
     }
 
     // allocate a register to store the evaluated value of expression
+    @Deprecated
     public int fetchRegister(IASTExpression expression) {
         return getRegister(expression, false);
     }
@@ -1254,5 +1318,216 @@ public class CFGBuilder {
             return -1;
         }
         return getRegister(expression, true);
+    }
+
+    public void dumpDot(PrintWriter pw) {
+        pw.println("digraph \"" + transUnit.getContainingFilename() + "\" {");
+        pw.println("compound=true;");
+        for (IFunction meth : funcs) {
+            CFGBuilder.IntraCFG cfg = getIntraCFG(meth);
+            int reg = getRefReg(meth);
+            pw.print("r" + reg + " ");
+            pw.print("[label=\"#" + reg + ":refFunc-" + meth + "\"");
+            pw.print(";color=navy");
+            pw.println("]");
+
+            if (cfg != null) {
+                cfg.dumpDotString(pw);
+                pw.print("r" + reg + " -> f" + meth.hashCode());
+                pw.println(" [arrowhead=odot;style=bold;lhead=cluster_" + meth.hashCode() + "]");
+
+            } else {
+                pw.print("f" + meth.hashCode() + " ");
+                pw.println("[label=\"extern " + meth + "\"");
+                pw.print(";shape=doubleoctagon");
+                pw.println("]");
+
+                pw.print("r" + reg + " -> f" + meth.hashCode());
+                pw.println(" [arrowhead=odot;style=bold]");
+            }
+            pw.flush();
+        }
+//        pw.println("subgraph cluster_global {");
+        for (IVariable v: staticVars) {
+            int reg = getRefReg(v);
+            pw.print("r" + reg + " ");
+            pw.print("[label=\"#" + reg + ":refVar-" + v + "\"");
+            pw.print(";color=navy");
+            pw.println("]");
+            pw.print("v" + v.hashCode());
+            pw.print("[label=\"var-" + v + "\"");
+            pw.print(";color=brown");
+            pw.println("]");
+            pw.print("r" + reg + " -> v" + v.hashCode());
+            pw.println(" [arrowhead=odot;style=bold]");
+        }
+//        pw.println("}");
+        pw.println("}");
+        pw.flush();
+    }
+
+    public class IntraCFG extends ControlFlowGraph {
+        private final IFunction func;
+        public IntraCFG(IFunction func, IStartNode start, Collection<IExitNode> exitNodes) {
+            super(start, exitNodes);
+            this.func = func;
+        }
+
+        public void dumpDotString(PrintWriter writer) {
+            writer.println("subgraph cluster_" + func.hashCode() + " {");
+            writer.println("label = \"" + func + "\"");
+            writer.print("f" + func.hashCode() + " ");
+            writer.println("[label=\"" + func + "\"");
+            writer.print(";shape=doubleoctagon");
+            writer.println("]");
+            Set<Integer> localRegs = new LinkedHashSet<>();
+            for (IBasicBlock n: getNodes()) {
+                ICFGNode node = (ICFGNode) n;
+                writer.print("n" + node.hashCode() + " ");
+                writer.print("[label=\"" + node.toDebugString() + "\"");
+                if (getDeadNodes().contains(node)) {
+                    writer.print(";bgcolor=gray");
+                }
+                if (node instanceof IStartNode) {
+                    writer.print(";shape=Mdiamond");
+                } else if (node instanceof IExitNode) {
+                    writer.print(";shape=trapezium");
+                } else if (node instanceof IDecisionNode) {
+                    writer.print(";shape=diamond");
+                } else if (node instanceof IConnectorNode) {
+                    writer.print(";shape=pentagon");
+                } else if (node instanceof IBranchNode) {
+                    writer.print(";shape=house");
+                } else if (node instanceof IJumpNode) {
+                    writer.print(";shape=invhouse");
+                } else if (node instanceof IPlainNode) {
+                    writer.print(";shape=rectangle");
+                }
+
+                if (node instanceof StoreNode) {
+                    writer.print(";color=red");
+                } else if (node instanceof LoadNode) {
+                    writer.print(";color=green");
+                } else if (node instanceof EvalNode) {
+                    writer.print(";color=blue");
+                } else if (node instanceof AllocNode) {
+                    writer.print(";color=purple");
+                }
+                writer.println("]");
+
+                if (node instanceof StoreNode) {
+                    localRegs.add(((StoreNode) node).getPointer());
+                    localRegs.add(((StoreNode) node).getValue());
+                } else if (node instanceof LoadNode) {
+                    localRegs.add(((LoadNode) node).getValue());
+                    localRegs.add(((LoadNode) node).getPointer());
+                } else if (node instanceof EvalNode) {
+                    localRegs.add(((EvalNode) node).getRegister());
+                    for (int reg: ((EvalNode) node).getEvaluation().getOperands())
+                        localRegs.add(reg);
+                } else if (node instanceof AllocNode) {
+                    localRegs.add(((AllocNode) node).getRegister());
+                }
+            }
+//            writer.println("subgraph cluster_regs" + func.hashCode() + " {");
+            for (int reg : localRegs) {
+                if (reg < 0)
+                    continue;;
+                Object debugObj = registers.get(reg);
+                if (debugObj instanceof IASTExpression) {
+                    writer.print("r" + reg + " ");
+                    writer.print("[label=\"#" + reg + ":" + ((IASTExpression) debugObj).getRawSignature() + "\"");
+                    writer.print(";color=tan");
+                    writer.println("]");
+                } else if (debugObj instanceof IVariable && !staticVars.contains(debugObj)) {
+                    writer.print("r" + reg + " ");
+                    writer.print("[label=\"#" + reg + ":refVar-" + debugObj + "\"");
+                    writer.print(";color=navy");
+                    writer.println("]");
+                } else if (debugObj instanceof Pair) {
+                    writer.print("r" + reg + " ");
+                    writer.print("[label=\"" + reg + ":Arg-" + debugObj + "\"");
+                    writer.print(";color=indigo");
+                    writer.println("]");
+                } else if (debugObj instanceof GetElementPtrEval) {
+                    writer.print("r" + reg + " ");
+                    writer.print("[label=\"" + reg + ":" + ((GetElementPtrEval) debugObj).toDebugString() + "\"");
+                    writer.print(";color=skyblue");
+                    writer.println("]");
+                }
+            }
+//            writer.println("}");
+//            writer.println("subgraph cluster_vars" + func.hashCode() + " {");
+            for (IVariable v: funcVars.get(func)) {
+                IMemObj vObj = getStackVarObj(v);
+                writer.print("v" + vObj.hashCode());
+                if (v instanceof IParameter)
+                    writer.print("[label=\"" + vObj.toDebugString() + "\"");
+                else
+                    writer.print("[label=\"" + vObj.toDebugString() + "\"");
+                writer.print(";color=brown");
+                writer.println("]");
+            }
+//            writer.println("}");
+            writer.println("}");
+            for (IBasicBlock p : getNodes()) {
+                for (IBasicBlock q : p.getOutgoingNodes()) {
+                    if (q == null) {
+                        if (!getDeadNodes().contains(p))
+                            Messages.error("CParser: null outgoing node from n%d[%s]", p.hashCode(), ((ICFGNode) p).toDebugString());
+                        continue;
+                    }
+                    writer.print("n" + p.hashCode() + " -> n" + q.hashCode());
+                    if (getDeadNodes().contains(p) || getDeadNodes().contains(q)) {
+                        writer.print(" [color=gray");
+                    } else {
+                        writer.print(" [color=black");
+                    }
+                    if (p instanceof GotoNode && ((GotoNode) p).isBackwardArc()) {
+                        writer.print(";style=dashed");
+                    }
+                    writer.println("]");
+                }
+                if (p instanceof StoreNode) {
+                    int ptr = ((StoreNode) p).getPointer();
+                    int reg = ((StoreNode) p).getValue();
+                    writer.print("n" + p.hashCode() + " -> r" + ptr);
+                    writer.println(" [arrowhead=diamond;color=red;style=dashed]");
+                    writer.print("r" + reg + " -> n" + p.hashCode());
+                    writer.println(" [arrowhead=none;color=red;style=dotted]");
+                    writer.print("r" + reg + " -> r" + ptr);
+                    writer.println(" [arrowhead=open;color=red;style=dotted]");
+                } else if (p instanceof LoadNode) {
+                    int ptr = ((LoadNode) p).getPointer();
+                    int reg = ((LoadNode) p).getValue();
+                    writer.print("n" + p.hashCode() + " -> r" + ptr);
+                    writer.println(" [arrowhead=box;color=green;style=dashed]");
+                    writer.print("n" + p.hashCode() + " -> r" + reg);
+                    writer.println(" [arrowhead=none;color=green;style=dotted]");
+                    writer.print("r" + ptr + " -> r" + reg);
+                    writer.println(" [arrowhead=open;color=green;style=dotted]");
+                } else if (p instanceof EvalNode) {
+                    IEval eval = ((EvalNode) p).getEvaluation();
+                    int reg = ((EvalNode) p).getRegister();
+                    if (reg >= 0) {
+                        writer.print("n" + p.hashCode() + " -> r" + reg);
+                        writer.println(" [arrowhead=none;color=blue;style=dashed]");
+                        for (int param : eval.getOperands()) {
+                            writer.print("r" + param + " -> r" + reg);
+                            writer.println(" [arrowhead=open;style=dotted;color=aqua]");
+                        }
+                    }
+                } else if (p instanceof AllocNode) {
+                    int ptr = ((AllocNode) p).getRegister();
+                    IMemObj obj = ((AllocNode) p).getMemObj();
+                    writer.print("n" + p.hashCode() + " -> r" + ptr);
+                    writer.println(" [arrowhead=dot;color=purple;style=dashed]");
+                    writer.print("r" + ptr + " -> v" + obj.hashCode());
+                    writer.println(" [arrowhead=odot;color=purple;style=bold]");
+                }
+            }
+            writer.println();
+            writer.flush();
+        }
     }
 }

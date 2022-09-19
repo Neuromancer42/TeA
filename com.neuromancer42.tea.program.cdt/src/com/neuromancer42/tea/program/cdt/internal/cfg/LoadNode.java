@@ -3,11 +3,10 @@ package com.neuromancer42.tea.program.cdt.internal.cfg;
 import org.eclipse.cdt.codan.internal.core.cfg.PlainNode;
 import org.eclipse.cdt.core.dom.ast.IType;
 
-// Store the value in register to target (variable/pointer/array/field)
-public class StoreNode extends PlainNode implements ICFGNode {
+public class LoadNode extends PlainNode implements ICFGNode {
     private final int value;
     private final int pointer;
-    public StoreNode(int ptrReg, int valReg) {
+    public LoadNode(int valReg, int ptrReg) {
         this.value = valReg;
         this.pointer = ptrReg;
     }
@@ -26,6 +25,6 @@ public class StoreNode extends PlainNode implements ICFGNode {
 
     @Override
     public String toDebugString() {
-        return "store:" + "*@" + pointer + "<-" + getType() + "@" + value;
+        return "load:" + getType() + "@" + value + "<-*@" + pointer;
     }
 }

@@ -27,7 +27,7 @@ public class CParser {
     public final ProgramDom<IBasicBlock> domP;
     public final ProgramDom<IEval> domE;
     public final ProgramDom<Integer> domV;
-    public final ProgramDom<ILocation> domH;
+    public final ProgramDom<IMemObj> domH;
     public final ProgramDom<IField> domF;
     public final ProgramDom<IASTFunctionCallExpression> domI;
     public final ProgramDom<Integer> domZ;
@@ -48,9 +48,11 @@ public class CParser {
     public final ProgramRel relAlloc;
     public final ProgramRel relGlobalAlloc;
     public final ProgramRel relLoadPtr;
-    public final ProgramRel relLoadFld;
     public final ProgramRel relStorePtr;
+    public final ProgramRel relLoadFld;
     public final ProgramRel relStoreFld;
+    public final ProgramRel relLoadArr;
+    public final ProgramRel relStoreArr;
 
     public final ProgramRel relIinvkArg;
     public final ProgramRel relIinvkRet;
@@ -76,7 +78,7 @@ public class CParser {
         domP = ProgramDom.createDom("P", IBasicBlock.class);
         domE = ProgramDom.createDom("E", IEval.class);
         domV = ProgramDom.createDom("V", Integer.class);
-        domH = ProgramDom.createDom("H", ILocation.class);
+        domH = ProgramDom.createDom("H", IMemObj.class);
         domF = ProgramDom.createDom("F", IField.class);
         domI = ProgramDom.createDom("I", IASTFunctionCallExpression.class);
         domZ = ProgramDom.createDom("Z", Integer.class);
@@ -100,9 +102,11 @@ public class CParser {
         relAlloc = new ProgramRel("Alloc", new ProgramDom[]{domV, domH});
         relGlobalAlloc = new ProgramRel("GlobalAlloc", new ProgramDom[]{domV, domH});
         relLoadPtr = new ProgramRel("LoadPtr", new ProgramDom[]{domV, domV});
-        relLoadFld = new ProgramRel("LoadFld", new ProgramDom[]{domV, domV, domF});
         relStorePtr = new ProgramRel("StorePtr", new ProgramDom[]{domV, domV});
+        relLoadFld = new ProgramRel("LoadFld", new ProgramDom[]{domV, domV, domF});
         relStoreFld = new ProgramRel("StoreFld", new ProgramDom[]{domV, domF, domV});
+        relLoadArr = new ProgramRel("LoadArr", new ProgramDom[]{domV, domV, domV});
+        relStoreArr = new ProgramRel("StoreArr", new ProgramDom[]{domV, domV, domV});
 
         // invocations
         relIinvkArg = new ProgramRel("IinvkArg", new ProgramDom[]{domI, domZ, domV});
@@ -122,7 +126,7 @@ public class CParser {
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
                 relPeval, relPload, relPstore, relPalloc, relPinvk,
-                relAlloc, relGlobalAlloc, relLoadPtr, relLoadFld, relStorePtr, relStoreFld,
+                relAlloc, relGlobalAlloc, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relMmethArg, relMmethRet, relFuncPtr, relEntryM,
                 relVvalue
@@ -153,27 +157,13 @@ public class CParser {
         }
 
         CFGBuilder builder = new CFGBuilder(translationUnit);
-        Map<IFunction, IntraCFG> methCFGMap = new HashMap<>();
-        for (var decl: translationUnit.getDeclarations()) {
-            if (decl instanceof IASTFunctionDefinition) {
-                var fDef = (IASTFunctionDefinition) decl;
-                var f = (IFunction) fDef.getDeclarator().getName().resolveBinding();
-                var cfg = builder.buildIntraCFG(fDef);
-                methCFGMap.put(f, cfg);
-            }
-        }
+        builder.build();
 
         String dotName = sourceFile.getName() + ".dot";
         try {
             BufferedWriter bw = Files.newBufferedWriter(Path.of(dotName), StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
-            pw.println("digraph \"" + sourceFile.getName() + "\" {");
-            for (IFunction meth : methCFGMap.keySet()) {
-                IntraCFG cfg = methCFGMap.get(meth);
-                cfg.dumpDotString(pw);
-            }
-            pw.println("}");
-            pw.flush();
+            builder.dumpDot(pw);
         } catch (IOException e) {
             Messages.error("CParser: failed to dump DOT file %s", dotName);
             Messages.fatal(e);
@@ -187,23 +177,26 @@ public class CParser {
         for (var c : builder.getSimpleConstants().values()) {
             domC.add(c);
         }
-        for (var vLoc : builder.getStackMap().values()) {
-            assert (vLoc.isStatic());
-            domH.add(vLoc);
+        for (IVariable var : builder.getGlobalVars()) {
+            domH.add(builder.getStackVarObj(var));
         }
-        for (var fLoc : builder.getFuncNameMap().values()) {
-            assert (fLoc.isStatic());
-            domH.add(fLoc);
+        for (IFunction func : builder.getDeclaredFuncs()) {
+            domH.add(builder.getFuncObj(func));
         }
         int maxNumArg = 0;
-        for (var entry : methCFGMap.entrySet()) {
-            IFunction meth = entry.getKey();
+        for (IFunction meth : builder.getDeclaredFuncs()) {
             domM.add(meth);
             int numMargs = meth.getParameters().length;
             if (numMargs > maxNumArg)
                 maxNumArg = numMargs;
-
-            IntraCFG cfg = entry.getValue();
+            for (IVariable var : builder.getMethodVars(meth)) {
+                domH.add(builder.getStackVarObj(var));
+            }
+            CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
+            if (cfg == null) {
+                Messages.warn("CParser: external function? %s[%s]", meth.getClass().getSimpleName(), meth);
+                continue;
+            }
             Collection<IBasicBlock> nodes = cfg.getNodes();
             nodes.removeAll(cfg.getDeadNodes());
             domP.addAll(nodes);
@@ -228,22 +221,16 @@ public class CParser {
         saveDomains();
 
         openRelations();
-        for (var entry : builder.getStackMap().entrySet()) {
-            IVariable variable = entry.getKey();
-            ILocation vLoc = entry.getValue();
-            int vReg = builder.getRefReg(variable);
-            //Messages.debug("CParser: allocate #%d |-> [%s]", vReg, vLoc.toDebugString());
-            relAlloc.add(vReg, vLoc);
+        for (IFunction func : builder.getDeclaredFuncs()) {
+            IMemObj funcObj = builder.getFuncObj(func);
+            int refReg = builder.getRefReg(func);
+            relGlobalAlloc.add(refReg, funcObj);
+            relFuncPtr.add(funcObj, func);
         }
-        for (var entry : builder.getGlobalAllocs().entrySet()) {
-            int reg = entry.getKey();
-            ILocation loc = entry.getValue();
-            relGlobalAlloc.add(reg, loc);
-        }
-        for (var entry : builder.getFuncNameMap().entrySet()) {
-            IFunction func = entry.getKey();
-            ILocation fLoc = entry.getValue();
-            relFuncPtr.add(fLoc, func);
+        for (IVariable var : builder.getGlobalVars()) {
+            IMemObj obj = builder.getStackVarObj(var);
+            int reg = builder.getRefReg(var);
+            relGlobalAlloc.add(reg, obj);
         }
         for (var entry : builder.getSimpleConstants().entrySet()) {
             int reg = entry.getKey();
@@ -252,13 +239,14 @@ public class CParser {
                 relVvalue.add(reg, c);
             }
         }
-        for (var entry : methCFGMap.entrySet()) {
-            IFunction meth = entry.getKey();
+        for (IFunction meth : builder.getDeclaredFuncs()) {
             if (meth.getName().contentEquals("main")) {
                 Messages.debug("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
                 relEntryM.add(meth);
             }
-            IntraCFG cfg = entry.getValue();
+            CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
+            if (cfg == null)
+                continue;
             relMPentry.add(meth, cfg.getStartNode());
             int[] mArgRegs = builder.getFuncArgs(meth);
             for (int i = 0; i < mArgRegs.length; ++i) {
@@ -289,7 +277,6 @@ public class CParser {
                         IASTFunctionCallExpression invk = (IASTFunctionCallExpression) e.getExpression();
                         relPinvk.add(p, invk);
                         if (v >= 0) {
-                            assert v == builder.fetchRegister(invk);
                             relIinvkRet.add(invk, v);
                         } else {
                             Messages.debug("CParser: invocation has no ret-val [%s]", e.toDebugString());
@@ -308,54 +295,44 @@ public class CParser {
                         IASTInitializerClause[] argExprs = invk.getArguments();
                         assert iArgRegs.length == argExprs.length;
                         for (int i = 0; i < iArgRegs.length; ++i) {
-                            assert iArgRegs[i] == builder.fetchRegister((IASTExpression) argExprs[i]);
                             relIinvkArg.add(invk, i, iArgRegs[i]);
                         }
-                    } else if (e instanceof LoadEval) {
+                    } else if (e instanceof GetOffsetPtrEval) {
+                        int u = ((GetOffsetPtrEval) e).getBasePtr();
+                        int o = ((GetOffsetPtrEval) e).getOffset();
+                        Messages.debug("CParser: get offset address #%d = [%s]", v, e.toDebugString());
                         relPload.add(p, v);
-                        ILocation loc = ((LoadEval) e).getLocation();
-                        if (loc instanceof PointerLocation) {
-                            int u = ((PointerLocation) loc).getRegister();
-                            relLoadPtr.add(v, u);
-                        } else if (loc instanceof VariableLocation) {
-                            IVariable variable = ((VariableLocation) loc).getVariable();
-                            int u = builder.getRefReg(variable);
-                            relLoadPtr.add(v, u);
-                        } else if (loc instanceof FunctionLocation) {
-                            IFunction func = ((FunctionLocation) loc).getFunc();
-                            int u = builder.getRefReg(func);
-                            relLoadPtr.add(v, u);
-                        } else {
-                            Messages.warn("CParser: unhandled location type: %s", loc.toDebugString());
-                        }
-                    } else if (e instanceof AddressEval) {
-                        ILocation loc = ((AddressEval) e).getLocation();
-                        relPalloc.add(p, v);
-                        //Messages.debug("CParser: allocate #%d |-> [%s]", v, loc.toDebugString());
-                        relAlloc.add(v, loc);
+                        relLoadArr.add(v, u, o);
+                    } else if (e instanceof GetFieldPtrEval) {
+                        int u = ((GetFieldPtrEval) e).getBasePtr();
+                        IField f = ((GetFieldPtrEval) e).getField();
+                        Messages.debug("CParser: get field address #%d = [%s]", v, e.toDebugString());
+                        relPload.add(p, v);
+                        relLoadFld.add(v, u, f);
                     } else {
                         relPeval.add(p, v, e);
                     }
+                } else if (p instanceof LoadNode) {
+                    IBasicBlock q = ((LoadNode) p).getOutgoing();
+                    relPPdirect.add(p, q);
+                    int v = ((LoadNode) p).getValue();
+                    relPload.add(p, v);
+                    int u = ((LoadNode) p).getPointer();
+                    relLoadPtr.add(v, u);
                 } else if (p instanceof StoreNode) {
                     IBasicBlock q = ((StoreNode) p).getOutgoing();
                     relPPdirect.add(p, q);
-                    ILocation loc = ((StoreNode) p).getLocation();
-                    int v = ((StoreNode) p).getRegister();
+                    int v = ((StoreNode) p).getValue();
                     relPstore.add(p, v);
-                    if (loc instanceof PointerLocation) {
-                        int u = ((PointerLocation) loc).getRegister();
-                        relStorePtr.add(u, v);
-                    } else if (loc instanceof VariableLocation) {
-                        IVariable variable = ((VariableLocation) loc).getVariable();
-                        int u = builder.getRefReg(variable);
-                        relStorePtr.add(u, v);
-                    } else if (loc instanceof FunctionLocation) {
-                        IFunction func = ((FunctionLocation) loc).getFunc();
-                        int u = builder.getRefReg(func);
-                        relStorePtr.add(u, v);
-                    } else {
-                        Messages.warn("CParser: unhandled location type: %s", loc.toDebugString());
-                    }
+                    int u = ((StoreNode) p).getPointer();
+                    relStorePtr.add(u, v);
+                } else if (p instanceof AllocNode) {
+                    IBasicBlock q = ((AllocNode) p).getOutgoing();
+                    relPPdirect.add(p,q);
+                    int v = ((AllocNode) p).getRegister();
+                    relPalloc.add(p, v);
+                    IMemObj o = ((AllocNode) p).getMemObj();
+                    relAlloc.add(v, o);
                 } else {
                     for (var q : p.getOutgoingNodes())
                         relPPdirect.add(p, q);

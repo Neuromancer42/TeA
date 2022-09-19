@@ -296,15 +296,16 @@ public class OsgiProject extends Project {
     }
     private Set<ITask> getTasksProducingTrgtName(String trgtName) {
         Set<ITask> tasks = trgtNameToProducingTasksMap.get(trgtName);
-        int n = tasks.size();
-        if (n > 1) {
+        if (tasks == null || tasks.size() == 0) {
+            Messages.fatal("OsgiProject: No task producing target '%s' found in project.", trgtName);
+            assert false;
+        }
+        if (tasks.size() > 1) {
             StringBuilder tasksStr = new StringBuilder();
             for (ITask task : tasks)
                 tasksStr.append(" ").append(task.getName());
             Messages.warn("OsgiProject: Multiple tasks produced target '%s'", tasksStr.substring(1), trgtName);
         }
-        if (n == 0)
-            Messages.fatal("OsgiProject: No task producing target '%s' found in project.", trgtName);
         return tasks;
     }
 
