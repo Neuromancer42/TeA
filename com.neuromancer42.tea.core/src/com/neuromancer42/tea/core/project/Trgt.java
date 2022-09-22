@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 public class Trgt<T> {
     private final String name;
     private final TrgtInfo trgtInfo;
-    private T val;
+    protected T val;
     public Trgt(String name, TrgtInfo info) {
         this.name = name;
         this.trgtInfo = info;

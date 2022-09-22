@@ -5,5 +5,4 @@ import org.eclipse.cdt.core.dom.ast.IType;
 
 public interface IMemObj extends IDebuggable {
     IType getObjectType();
-    boolean isStatic();
 }

@@ -32,10 +32,24 @@ public class ProgramRel implements ITask {
     protected final Rel rel;
 
     public Iterable<Object[]> getValTuples() {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: iterating uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: iterating detached rel", getName());
+        }
         return rel.getAryNValTuples();
     }
 
-    public Iterable<int[]> getIntTuples() { return rel.getAryNIntTuples(); }
+    public Iterable<int[]> getIntTuples() {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: iterating uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: iterating detached rel", getName());
+        }
+        return rel.getAryNIntTuples();
+    }
 
     public Dom<?>[] getDoms() {
         return rel.getDoms();
@@ -68,7 +82,11 @@ public class ProgramRel implements ITask {
         rel.setDoms(doms);
     }
 
-    public ProgramRel(String relName, Dom<?>[] doms) {
+    public ProgramRel(String relName, RelSign relSign, Dom<?> ... doms) {
+        this(relName, doms, relSign);
+    }
+
+    public ProgramRel(String relName, Dom<?> ... doms) {
         String[] rawDomNames = new String[doms.length];
         for (int i = 0; i < doms.length; ++i) {
             rawDomNames[i] = doms[i].getName();
@@ -98,7 +116,7 @@ public class ProgramRel implements ITask {
                 }
             }
             if (!allLetters) {
-                Messages.fatal("AnalysesUtil: raw domain name (%s) should be restricted to english letters only", rawDomName);
+                Messages.fatal("ProgramRel: raw domain name (%s) should be restricted to english letters only", rawDomName);
             } else {
                 int idx = domCount.getOrDefault(rawDomName, 0);
                 domNames[i] = rawDomName + idx;
@@ -151,22 +169,22 @@ public class ProgramRel implements ITask {
     public void save() {
         switch (status) {
             case UnSync:
-                Messages.debug("SAVING rel " + rel.getName() + " size: " + rel.size());
+                Messages.log("SAVING rel " + rel.getName() + " size: " + rel.size());
                 rel.save(Config.v().bddbddbWorkDirName);
                 status = Status.Sync;
                 break;
             case UnInit:
-                Messages.fatal("Rel %s: saving uninitialized rel", getName());
+                Messages.fatal("ProgramRel %s: saving uninitialized rel", getName());
         }
     }
 
     public void close() {
         switch (status) {
             case UnInit:
-                Messages.fatal("Rel %s: closing uninitialized rel", getName());
+                Messages.fatal("ProgramRel %s: closing uninitialized rel", getName());
                 break;
             case UnSync:
-                Messages.warn("Rel %s: discarding unsaved rel", getName());
+                Messages.warn("ProgramRel %s: discarding unsaved rel", getName());
                 rel.close();
                 status = Status.UnInit;
                 break;
@@ -175,13 +193,13 @@ public class ProgramRel implements ITask {
                 status = Status.Detach;
                 break;
             case Detach:
-                Messages.warn("Rel %s: already detached", getName());
+                Messages.warn("ProgramRel %s: already detached", getName());
         }
     }
 
     public void load() {
         if (status == Status.Sync) {
-            Messages.warn("Rel %s: loading already sync-ed rel", getName());
+            Messages.warn("ProgramRel %s: loading already sync-ed rel", getName());
         }
         if (status == Status.UnSync) {
             Messages.warn("ProgramRel %s: Overriding unsync-ed rel", getName());
@@ -197,10 +215,10 @@ public class ProgramRel implements ITask {
 
     public void print() {
         if (status == Status.UnInit) {
-            Messages.fatal("Rel %s: printing uninitialized rel", getName());
+            Messages.fatal("ProgramRel %s: printing uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("Rel %s: printing detached rel", getName());
+            Messages.fatal("ProgramRel %s: printing detached rel", getName());
         }
         rel.print(Config.v().outDirName);
     }

@@ -1,7 +1,6 @@
 package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import org.eclipse.cdt.codan.internal.core.cfg.PlainNode;
-import org.eclipse.cdt.core.dom.ast.IType;
 
 public class LoadNode extends PlainNode implements ICFGNode {
     private final int value;
@@ -19,12 +18,8 @@ public class LoadNode extends PlainNode implements ICFGNode {
         return pointer;
     }
 
-    public IType getType() {
-        return null;
-    }
-
     @Override
     public String toDebugString() {
-        return "load:" + getType() + "@" + value + "<-*@" + pointer;
+        return "load:" + "@" + value + "<-*@" + pointer;
     }
 }

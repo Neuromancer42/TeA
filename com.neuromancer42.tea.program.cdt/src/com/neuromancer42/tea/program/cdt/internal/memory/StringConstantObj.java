@@ -22,8 +22,4 @@ public class StringConstantObj implements IMemObj {
         return new CBasicType(IBasicType.Kind.eChar, 0);
     }
 
-    @Override
-    public boolean isStatic() {
-        return true;
-    }
 }

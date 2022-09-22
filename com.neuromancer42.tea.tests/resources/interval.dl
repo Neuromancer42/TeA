@@ -4,7 +4,10 @@
 .type F <: unsigned
 .type I <: unsigned
 .type Z <: unsigned
-.type C <: unsigned
+.type P <: unsigned
+.type E <: unsigned
+.type OP <: unsigned
+.type U <: unsigned
 
 .decl ci_pt(v:V, h:H)
 .input ci_pt
@@ -22,9 +25,6 @@
 .input MV
 .decl MI(m:M, i:I)
 .input MI
-
-.decl Vvalue(v:V, c:C)
-.input Vvalue
 
 .decl LoadPtr(y:V, x:V)
 .input LoadPtr
@@ -45,14 +45,32 @@
 .decl MmethRet(m:M, y:V)
 .input MmethRet
 
-.decl ci_Hval(h:H, c:C)
+.decl Peval(p:P, v:V, e:E)
+.input Peval
+.decl Econst(e:E)
+.input Econst
+.decl Eunary(e:E, o:OP, v:V)
+.input Eunary
+.decl Ebinop(e:E, o:OP, v1:V, v2:V)
+.input Ebinop
+
+.decl EConstU(e:E, u:U)
+.input EConstU
+.decl evalUnaryU(o:OP, u0:U, u:U)
+.input evalUnaryU
+.decl evalBinopU(o:OP, u1:U, u2:U, u:U)
+.input evalBinopU
+
+.decl ci_Hval(h:H, u:U)
 .output ci_Hval
-.decl ci_Vval(v:V, c:C)
+.decl ci_Vval(v:V, u:U)
 .output ci_Vval
-.decl ci_Fval(h:H, f:F, c:C)
+.decl ci_Fval(h:H, f:F, u:U)
 .output ci_Fval
 
-ci_Vval(v,c) :- ci_reachableM(m), MV(m, v), Vvalue(v,c).
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Econst(e), EConstU(e, u).
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Eunary(e, o, v0), ci_Vval(v0, u0), evalUnaryU(o, u0, u).
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Ebinop(e, o, v1, v2), ci_Vval(v1, u1), ci_Vval(v2, u2), evalBinopU(o, u1, u2, u).
 
 ci_Hval(h,c) :- StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c).
 ci_Vval(u,c) :- LoadPtr(u,v), ci_pt(v,h), ci_Hval(h,c).

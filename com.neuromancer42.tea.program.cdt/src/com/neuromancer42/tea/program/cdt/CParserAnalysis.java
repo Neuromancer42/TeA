@@ -11,16 +11,16 @@ public class CParserAnalysis extends JavaAnalysis {
     private final CParser cParser;
 
     public CParserAnalysis() {
+        this.name = "CParser";
         String fileName = System.getProperty("chord.source.path");
         if (fileName == null) {
             Messages.fatal("CParser: no source file is given. Use -Dchord.source.path=<path> to set.");
         }
         this.cParser = new CParser(fileName);
-        this.name = "CParser";
         for (ProgramDom<?> dom : cParser.generatedDoms)
-            registerProducer(AnalysesUtil.createInitializedDomTrgt(dom, name));
+            registerProducer(AnalysesUtil.createInitializedDomTrgt(name, dom));
         for (ProgramRel rel : cParser.generatedRels)
-            registerProducer(AnalysesUtil.createInitializedRelTrgt(rel, name));
+            registerProducer(AnalysesUtil.createInitializedRelTrgt(name, rel));
     }
 
     @Override

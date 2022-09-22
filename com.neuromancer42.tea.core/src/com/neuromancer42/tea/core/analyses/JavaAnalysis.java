@@ -31,10 +31,6 @@ public abstract class JavaAnalysis implements ITask {
     }
 
     @Override
-    public void run() {
-        Messages.fatal(UNDEFINED_RUN, name);
-    }
-    @Override
     public String toString() {
         return name;
     }
@@ -45,6 +41,18 @@ public abstract class JavaAnalysis implements ITask {
 
     protected final void registerProducer(Trgt<?> trgt) {
         producerMap.put(trgt.getName(), trgt);
+    }
+
+    protected final void registerConsumers(Trgt<?> ... trgts) {
+        for (Trgt<?> trgt : trgts) {
+            registerConsumer(trgt);
+        }
+    }
+
+    protected final void registerProducers(Trgt<?> ... trgts) {
+        for (Trgt<?> trgt : trgts) {
+            registerProducer(trgt);
+        }
     }
 
     public Dictionary<String, Object> genAnalysisProperties() {

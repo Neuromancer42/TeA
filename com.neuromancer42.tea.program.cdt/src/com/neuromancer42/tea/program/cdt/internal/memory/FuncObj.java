@@ -20,8 +20,4 @@ public class FuncObj implements IMemObj {
         return func.getType();
     }
 
-    @Override
-    public boolean isStatic() {
-        return true;
-    }
 }

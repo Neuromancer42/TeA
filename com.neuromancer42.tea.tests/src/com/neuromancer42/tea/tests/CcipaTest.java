@@ -7,7 +7,9 @@ import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
+import com.neuromancer42.tea.program.cdt.CMemoryModel;
 import com.neuromancer42.tea.program.cdt.CParserAnalysis;
+import com.neuromancer42.tea.program.cdt.PreIntervalAnalysis;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
@@ -25,6 +27,14 @@ public class CcipaTest {
         Messages.log("Registering CParser");
         CParserAnalysis cparser = new CParserAnalysis();
         AnalysesUtil.registerAnalysis(context, cparser);
+
+        Messages.log("Registering CMemModel");
+        CMemoryModel cMemModel = new CMemoryModel();
+        AnalysesUtil.registerAnalysis(context, cMemModel);
+
+        Messages.log("Registering PreInterval");
+        PreIntervalAnalysis preInterval = new PreIntervalAnalysis();
+        AnalysesUtil.registerAnalysis(context, preInterval);
 
         Messages.log("Registering pre_pt.dl");
         String dlogName0 = System.getProperty("dlog0");
@@ -58,9 +68,9 @@ public class CcipaTest {
         taskSet[1] = "interval";
         Project.g().run(taskSet);
         //TODO: souffle-generated relations cannot be loaded, need to fix this
-        //Project.g().printRels(new String[]{"MP"});
+        Project.g().printRels(new String[]{"MP", "ci_hpt", "ci_Hval", "ci_Vval"});
 
-        Assertions.assertEquals(4, OsgiProject.g().getDoneTasks().size());
+        Assertions.assertEquals(6, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("ciPointerAnalysis");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,

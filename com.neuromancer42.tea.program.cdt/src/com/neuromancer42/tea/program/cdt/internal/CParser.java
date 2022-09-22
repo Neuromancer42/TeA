@@ -27,11 +27,12 @@ public class CParser {
     public final ProgramDom<IBasicBlock> domP;
     public final ProgramDom<IEval> domE;
     public final ProgramDom<Integer> domV;
-    public final ProgramDom<IMemObj> domH;
     public final ProgramDom<IField> domF;
     public final ProgramDom<IASTFunctionCallExpression> domI;
     public final ProgramDom<Integer> domZ;
     public final ProgramDom<String> domC; // temporarily, use String to represent constants
+    public final ProgramDom<IType> domT;
+    public final ProgramDom<IVariable> domA;
 
     public final ProgramRel relMPentry;
     public final ProgramRel relMPexit;
@@ -45,8 +46,8 @@ public class CParser {
     public final ProgramRel relPalloc;
     public final ProgramRel relPinvk;
 
-    public final ProgramRel relAlloc;
-    public final ProgramRel relGlobalAlloc;
+    public final ProgramRel relAlloca;
+    public final ProgramRel relGlobalAlloca;
     public final ProgramRel relLoadPtr;
     public final ProgramRel relStorePtr;
     public final ProgramRel relLoadFld;
@@ -59,9 +60,9 @@ public class CParser {
     public final ProgramRel relIndirectCall;
     public final ProgramRel relStaticCall;
 
+    public final ProgramRel relFuncRef;
     public final ProgramRel relMmethArg;
     public final ProgramRel relMmethRet;
-    public final ProgramRel relFuncPtr;
     public final ProgramRel relEntryM;
 
     public final ProgramRel relVvalue;
@@ -78,57 +79,58 @@ public class CParser {
         domP = ProgramDom.createDom("P", IBasicBlock.class);
         domE = ProgramDom.createDom("E", IEval.class);
         domV = ProgramDom.createDom("V", Integer.class);
-        domH = ProgramDom.createDom("H", IMemObj.class);
         domF = ProgramDom.createDom("F", IField.class);
         domI = ProgramDom.createDom("I", IASTFunctionCallExpression.class);
         domZ = ProgramDom.createDom("Z", Integer.class);
         domC = ProgramDom.createDom("C", String.class);
+        domT = ProgramDom.createDom("T", IType.class);
+        domA = ProgramDom.createDom("A", IVariable.class);
 
-        generatedDoms = new ProgramDom<?>[]{domM, domP, domE, domV, domH, domF, domI, domZ, domC};
+        generatedDoms = new ProgramDom<?>[]{domM, domP, domE, domV, domF, domI, domZ, domC, domT, domA};
 
         // control flow relations
-        relMPentry = new ProgramRel("MPentry", new ProgramDom[]{domM, domP});
-        relMPexit = new ProgramRel("MPexit", new ProgramDom[]{domM, domP});
-        relPPdirect = new ProgramRel("PPdirect", new ProgramDom[]{domP, domP});
-        relPPtrue = new ProgramRel("PPtrue", new ProgramDom[]{domP, domP, domV});
-        relPPfalse = new ProgramRel("PPfalse", new ProgramDom[]{domP, domP, domV});
+        relMPentry = new ProgramRel("MPentry", domM, domP);
+        relMPexit = new ProgramRel("MPexit", domM, domP);
+        relPPdirect = new ProgramRel("PPdirect", domP, domP);
+        relPPtrue = new ProgramRel("PPtrue", domP, domP, domV);
+        relPPfalse = new ProgramRel("PPfalse", domP, domP, domV);
 
         // statements
-        relPeval = new ProgramRel("Peval", new ProgramDom[]{domP, domV, domE});
-        relPload = new ProgramRel("Pload", new ProgramDom[]{domP, domV});
-        relPstore = new ProgramRel("Pstore", new ProgramDom[]{domP, domV});
-        relPalloc = new ProgramRel("Palloc", new ProgramDom[]{domP, domV});
-        relPinvk = new ProgramRel("Pinvk", new ProgramDom[]{domP, domI});
-        relAlloc = new ProgramRel("Alloc", new ProgramDom[]{domV, domH});
-        relGlobalAlloc = new ProgramRel("GlobalAlloc", new ProgramDom[]{domV, domH});
-        relLoadPtr = new ProgramRel("LoadPtr", new ProgramDom[]{domV, domV});
-        relStorePtr = new ProgramRel("StorePtr", new ProgramDom[]{domV, domV});
-        relLoadFld = new ProgramRel("LoadFld", new ProgramDom[]{domV, domV, domF});
-        relStoreFld = new ProgramRel("StoreFld", new ProgramDom[]{domV, domF, domV});
-        relLoadArr = new ProgramRel("LoadArr", new ProgramDom[]{domV, domV, domV});
-        relStoreArr = new ProgramRel("StoreArr", new ProgramDom[]{domV, domV, domV});
+        relPeval = new ProgramRel("Peval", domP, domV, domE);
+        relPload = new ProgramRel("Pload", domP, domV);
+        relPstore = new ProgramRel("Pstore", domP, domV);
+        relPalloc = new ProgramRel("Palloc", domP, domV);
+        relPinvk = new ProgramRel("Pinvk", domP, domI);
+        relAlloca = new ProgramRel("Alloca", domV, domA);
+        relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA);
+        relLoadPtr = new ProgramRel("LoadPtr", domV, domV);
+        relStorePtr = new ProgramRel("StorePtr", domV, domV);
+        relLoadFld = new ProgramRel("LoadFld", domV, domV, domF);
+        relStoreFld = new ProgramRel("StoreFld", domV, domF, domV);
+        relLoadArr = new ProgramRel("LoadArr", domV, domV, domV);
+        relStoreArr = new ProgramRel("StoreArr", domV, domV, domV);
 
         // invocations
-        relIinvkArg = new ProgramRel("IinvkArg", new ProgramDom[]{domI, domZ, domV});
-        relIinvkRet = new ProgramRel("IinvkRet", new ProgramDom[]{domI, domV});
-        relIndirectCall = new ProgramRel("IndirectCall", new ProgramDom[]{domI, domV});
-        relStaticCall = new ProgramRel("StaticCall", new ProgramDom[]{domI, domM});
+        relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
+        relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
+        relIndirectCall = new ProgramRel("IndirectCall", domI, domV);
+        relStaticCall = new ProgramRel("StaticCall", domI, domM);
 
         // methods
-        relMmethArg = new ProgramRel("MmethArg", new ProgramDom[]{domM, domZ, domV});
-        relMmethRet = new ProgramRel("MmethRet", new ProgramDom[]{domM, domV});
-        relFuncPtr = new ProgramRel("funcPtr", new ProgramDom[]{domH, domM});
-        relEntryM = new ProgramRel("entryM", new ProgramDom[]{domM});
+        relFuncRef = new ProgramRel("funcRef", domM, domV);
+        relMmethArg = new ProgramRel("MmethArg", domM, domZ, domV);
+        relMmethRet = new ProgramRel("MmethRet", domM, domV);
+        relEntryM = new ProgramRel("entryM", domM);
 
         // values
-        relVvalue = new ProgramRel("Vvalue", new ProgramDom[]{domV, domC});
+        relVvalue = new ProgramRel("Vvalue", domV, domC);
 
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
                 relPeval, relPload, relPstore, relPalloc, relPinvk,
-                relAlloc, relGlobalAlloc, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
+                relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
-                relMmethArg, relMmethRet, relFuncPtr, relEntryM,
+                relFuncRef, relMmethArg, relMmethRet, relEntryM,
                 relVvalue
         };
     }
@@ -178,10 +180,11 @@ public class CParser {
             domC.add(c);
         }
         for (IVariable var : builder.getGlobalVars()) {
-            domH.add(builder.getStackVarObj(var));
+            domT.add(var.getType());
+            domA.add(var);
         }
         for (IFunction func : builder.getDeclaredFuncs()) {
-            domH.add(builder.getFuncObj(func));
+            domT.add(func.getType());
         }
         int maxNumArg = 0;
         for (IFunction meth : builder.getDeclaredFuncs()) {
@@ -190,7 +193,8 @@ public class CParser {
             if (numMargs > maxNumArg)
                 maxNumArg = numMargs;
             for (IVariable var : builder.getMethodVars(meth)) {
-                domH.add(builder.getStackVarObj(var));
+                domT.add(var.getType());
+                domA.add(var);
             }
             CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
             if (cfg == null) {
@@ -222,15 +226,12 @@ public class CParser {
 
         openRelations();
         for (IFunction func : builder.getDeclaredFuncs()) {
-            IMemObj funcObj = builder.getFuncObj(func);
             int refReg = builder.getRefReg(func);
-            relGlobalAlloc.add(refReg, funcObj);
-            relFuncPtr.add(funcObj, func);
+            relFuncRef.add(func, refReg);
         }
         for (IVariable var : builder.getGlobalVars()) {
-            IMemObj obj = builder.getStackVarObj(var);
-            int reg = builder.getRefReg(var);
-            relGlobalAlloc.add(reg, obj);
+            int refReg = builder.getRefReg(var);
+            relGlobalAlloca.add(refReg, var);
         }
         for (var entry : builder.getSimpleConstants().entrySet()) {
             int reg = entry.getKey();
@@ -331,8 +332,8 @@ public class CParser {
                     relPPdirect.add(p,q);
                     int v = ((AllocNode) p).getRegister();
                     relPalloc.add(p, v);
-                    IMemObj o = ((AllocNode) p).getMemObj();
-                    relAlloc.add(v, o);
+                    IVariable variable = ((AllocNode) p).getVariable();
+                    relAlloca.add(v, variable);
                 } else {
                     for (var q : p.getOutgoingNodes())
                         relPPdirect.add(p, q);

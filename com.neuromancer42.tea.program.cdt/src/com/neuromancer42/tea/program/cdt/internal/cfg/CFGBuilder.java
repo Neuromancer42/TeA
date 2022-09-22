@@ -4,7 +4,6 @@ import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.IndexMap;
 import com.neuromancer42.tea.core.util.tuple.object.Pair;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
-import com.neuromancer42.tea.program.cdt.internal.memory.*;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
 import org.eclipse.cdt.core.dom.ast.*;
@@ -45,10 +44,8 @@ public class CFGBuilder {
     // 5. <GetElementPtrEval> inserted gep result for field/offset access
 
     private final Set<IFunction> funcs;
-    private final Map<IFunction, FuncObj> funcObjMap;
     private final Map<IFunction, Set<IVariable>> funcVars;
     private final Set<IVariable> staticVars;
-    private final Map<IVariable, StackVarObj> varObjMap;
     private final Set<IField> fields;
 
     private final Map<IFunction, int[]> funcArgsMap;
@@ -76,10 +73,8 @@ public class CFGBuilder {
         registers = new IndexMap<>();
 
         funcs = new LinkedHashSet<>();
-        funcObjMap = new HashMap<>();
         funcVars = new HashMap<>();
         staticVars = new LinkedHashSet<>();
-        varObjMap = new HashMap<>();
         fields = new LinkedHashSet<>();
 
         funcArgsMap = new HashMap<>();
@@ -131,14 +126,12 @@ public class CFGBuilder {
                 Messages.warn("CParser: re-declare variable %s[%s] at line#%d: (%s)", var.getClass().getSimpleName(), var, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
             int vReg = registers.indexOf(var);
             refRegMap.put(var, vReg);
-            StackVarObj obj = new StackVarObj(var, curFunc);
-            varObjMap.put(var, obj);
             if (isStatic) {
                 staticVars.add(var);
             } else {
                 funcVars.get(curFunc).add(var);
             }
-            Messages.debug("CParser: alloc stack location *(%s)@%d=>{%s}for %s#%d in (%s)", var.getType(), vReg, obj.toDebugString(), var.getName(), var.hashCode(), var.getOwner());
+            Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%d in (%s)", var.getType(), vReg, var.getName(), var.hashCode(), var.getOwner());
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
             boolean notDeclared = registers.add(func);
@@ -147,10 +140,8 @@ public class CFGBuilder {
             int fReg = registers.indexOf(func);
             funcs.add(func);
             refRegMap.put(func, fReg);
-            FuncObj obj = new FuncObj(func);
-            funcObjMap.put(func, obj);
             funcVars.putIfAbsent(func, new LinkedHashSet<>());
-            Messages.debug("CParser: alloc stack location (funPtr)@%d=>{%s} for function %s[%s]", fReg, obj.toDebugString(), func.getClass().getSimpleName(), func);
+            Messages.debug("CParser: alloc stack location (funPtr)@%d for function %s[%s]", fReg, func.getClass().getSimpleName(), func);
             if (func.getParameters() == null) {
                 Messages.debug("CParser: function %s[%s] has no argument", func.getClass().getSimpleName(), func);
             } else {
@@ -212,14 +203,6 @@ public class CFGBuilder {
     }
     public Set<IField> getFields() { return fields; }
 
-    public IMemObj getStackVarObj(IVariable var) {
-        return varObjMap.get(var);
-    }
-
-    public IMemObj getFuncObj(IFunction func) {
-        return funcObjMap.get(func);
-    }
-
     public Set<IVariable> getMethodVars(IFunction func) {
         return funcVars.get(func);
     }
@@ -259,13 +242,8 @@ public class CFGBuilder {
             if (refReg < 0) {
                 Messages.fatal("CParser: cannot find reference register for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, param.hashCode(), param.getOwner());
             }
-            IMemObj obj = getStackVarObj(param);
-            if (obj == null) {
-                Messages.fatal("CParser: memory object not created for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, param.hashCode(), param.getOwner());
-                assert false;
-            }
-            Messages.debug("CParser: alloc stack memory for parameter ref @%d = {%s}", refReg, obj.toDebugString());
-            IBasicBlock allocNode = new AllocNode(refReg, obj);
+            Messages.debug("CParser: alloc stack memory for parameter ref @%d = {%s}", refReg, param);
+            IBasicBlock allocNode = new AllocNode(refReg, param);
             prevNode = connect(prevNode, allocNode);
 
             int aReg = argRegs[i];
@@ -321,13 +299,8 @@ public class CFGBuilder {
                         if (refReg < 0) {
                             Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, var.hashCode(), var.getOwner());
                         }
-                        IMemObj obj = getStackVarObj((IVariable) binding);
-                        if (obj == null) {
-                            Messages.fatal("CParser: memory object not create for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, var.hashCode(), var.getOwner());
-                            assert false;
-                        }
-                        Messages.debug("CParser: alloc stack memory for variable @%d = {%s}", refReg, obj.toDebugString());
-                        IBasicBlock allocNode = new AllocNode(refReg, obj);
+                        Messages.debug("CParser: alloc stack memory for variable @%d = {%s}", refReg, var);
+                        IBasicBlock allocNode = new AllocNode(refReg, var);
                         prevNode = connect(prevNode, allocNode);
                     }
 
@@ -428,7 +401,7 @@ public class CFGBuilder {
             if (retExpr != null) {
                 retExpr = unparenthesize(retExpr);
                 int retReg = handleRvalue(retExpr);
-                retNode = new ReturnNode(retExpr, retReg);
+                retNode = new ReturnNode(retReg);
             } else {
                 retNode = new ReturnNode();
             }
@@ -750,7 +723,7 @@ public class CFGBuilder {
                 int reg = createRegister(expression);
                 if (inner.getExpressionType() instanceof IArrayType) {
                     int innerReg = handleRvalue(inner);
-                    IEval eval = new UnaryEval(expression, UnaryEval.op_sizeof, innerReg);
+                    IEval eval = new ArraySizeEval(expression, innerReg);
                     IBasicBlock evalNode = new EvalNode(eval, reg);
                     prevNode = connect(prevNode, evalNode);
                 } else {
@@ -912,7 +885,7 @@ public class CFGBuilder {
         } else if (expression instanceof IASTCastExpression) {
             IASTExpression innerExpr = unparenthesize(((IASTCastExpression) expression).getOperand());
             int innerReg = handleRvalue(innerExpr);
-            IEval eval = new UnaryEval(expression, UnaryEval.op_cast, innerReg);
+            IEval eval = new CastEval(expression, innerReg);
             int reg = createRegister(expression);
             Messages.debug("CParser: casting expression to %s@%d := %s", eval.getType(), reg, eval.toDebugString());
             IBasicBlock evalNode = new EvalNode(eval, reg);
@@ -1022,7 +995,7 @@ public class CFGBuilder {
         IASTExpression lval = unparenthesize(expression.getOperand1());
         int lReg = handleRvalue(lval);
 
-        CondNode shortCircuit = new CondNode(lval, lReg);
+        CondNode shortCircuit = new CondNode(lReg);
         connect(prevNode, shortCircuit);
 
         IBasicBlock trueNode = new LabelNode(IBranchNode.THEN);
@@ -1069,7 +1042,7 @@ public class CFGBuilder {
         IASTExpression condExpr = unparenthesize(cIf.getConditionExpression());
         int condReg = handleRvalue(condExpr);
 
-        CondNode ifNode = new CondNode(condExpr, condReg);
+        CondNode ifNode = new CondNode(condReg);
         connect(prevNode, ifNode);
 
         IBasicBlock thenNode = new LabelNode(IBranchNode.THEN);
@@ -1113,7 +1086,7 @@ public class CFGBuilder {
         int condReg = handleRvalue(condExpr);
         IBasicBlock evalCondNode = prevNode;
 
-        CondNode whileNode = new CondNode(condExpr, condReg);
+        CondNode whileNode = new CondNode(condReg);
         connect(evalCondNode, whileNode);
         whileNode.setMergeNode(breakNode);
 
@@ -1152,7 +1125,7 @@ public class CFGBuilder {
         prevNode = continueNode;
         int condReg = handleRvalue(condExpr);
         IBasicBlock evalCondNode = prevNode;
-        CondNode doWhileNode = new CondNode(condExpr, condReg);
+        CondNode doWhileNode = new CondNode(condReg);
         connect(evalCondNode, doWhileNode);
         doWhileNode.setMergeNode(breakNode);
 
@@ -1187,7 +1160,7 @@ public class CFGBuilder {
         prevNode = condStart;
         int condReg = handleRvalue(condExpr);
         IBasicBlock evalCondNode = prevNode;
-        CondNode forNode = new CondNode(condExpr, condReg);
+        CondNode forNode = new CondNode(condReg);
         connect(evalCondNode, forNode);
         forNode.setMergeNode(breakNode);
 
@@ -1195,15 +1168,15 @@ public class CFGBuilder {
         IBranchNode bodyStart = new LabelNode(IBranchNode.THEN);
         connect(forNode, bodyStart);
         prevNode = bodyStart;
-        handleLoopBody(loopBody, continueNode, true, breakNode);
+        handleLoopBody(loopBody, continueNode, false, breakNode);
         IBasicBlock bodyEnd = prevNode;
-        jump(bodyEnd, continueNode, true);
+        jump(bodyEnd, continueNode, false);
 
         IASTExpression iter = cFor.getIterationExpression();
         prevNode = continueNode;
         handleExpression(iter);
         IBasicBlock afterIter = prevNode;
-        connect(afterIter, condStart);
+        jump(afterIter, condStart, true);
 
         IBranchNode loopEnd = new LabelNode(IBranchNode.ELSE);
         connect(forNode, loopEnd);
@@ -1432,7 +1405,7 @@ public class CFGBuilder {
 //            writer.println("subgraph cluster_regs" + func.hashCode() + " {");
             for (int reg : localRegs) {
                 if (reg < 0)
-                    continue;;
+                    continue;
                 Object debugObj = registers.get(reg);
                 if (debugObj instanceof IASTExpression) {
                     writer.print("r" + reg + " ");
@@ -1459,12 +1432,11 @@ public class CFGBuilder {
 //            writer.println("}");
 //            writer.println("subgraph cluster_vars" + func.hashCode() + " {");
             for (IVariable v: funcVars.get(func)) {
-                IMemObj vObj = getStackVarObj(v);
-                writer.print("v" + vObj.hashCode());
+                writer.print("v" + v.hashCode());
                 if (v instanceof IParameter)
-                    writer.print("[label=\"" + vObj.toDebugString() + "\"");
+                    writer.print("[label=\"param-" + v + "\"");
                 else
-                    writer.print("[label=\"" + vObj.toDebugString() + "\"");
+                    writer.print("[label=\"var-" + v + "\"");
                 writer.print(";color=brown");
                 writer.println("]");
             }
@@ -1519,11 +1491,24 @@ public class CFGBuilder {
                     }
                 } else if (p instanceof AllocNode) {
                     int ptr = ((AllocNode) p).getRegister();
-                    IMemObj obj = ((AllocNode) p).getMemObj();
+                    //IType ty = ((AllocNode) p).getAllocType();
+                    IBinding obj = (IBinding) registers.get(ptr);
                     writer.print("n" + p.hashCode() + " -> r" + ptr);
                     writer.println(" [arrowhead=dot;color=purple;style=dashed]");
                     writer.print("r" + ptr + " -> v" + obj.hashCode());
                     writer.println(" [arrowhead=odot;color=purple;style=bold]");
+                } else if (p instanceof ReturnNode) {
+                    int reg = ((ReturnNode) p).getRegister();
+                    if (reg >= 0) {
+                        writer.print("n" + p.hashCode() + " -> r" + reg);
+                        writer.println(" [arrowhead=none;color=cyan;style=dashed]");
+                    }
+                } else if (p instanceof CondNode) {
+                    int reg = ((CondNode) p).getRegister();
+                    if (reg >= 0) {
+                        writer.print("n" + p.hashCode() + " -> r" + reg);
+                        writer.println(" [arrowhead=none;color=violet;style=dashed]");
+                    }
                 }
             }
             writer.println();

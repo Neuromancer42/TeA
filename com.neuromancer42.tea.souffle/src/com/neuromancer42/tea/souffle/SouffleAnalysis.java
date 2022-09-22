@@ -72,7 +72,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 // keep subtype name only
                 relAttrs[i] = relAttrs[i].substring(colonIdx + 1);
                 String domName = relAttrs[i];
-                Trgt<ProgramDom<Object>> domTrgt = AnalysesUtil.createDomTrgt(domName, Object.class, name);
+                Trgt<ProgramDom<Object>> domTrgt = AnalysesUtil.createDomTrgt(name, domName, Object.class);
                 domTrgtMap.put(domName, domTrgt);
                 registerConsumer(domTrgt);
             }
@@ -310,36 +310,32 @@ public final class SouffleAnalysis extends JavaAnalysis {
     }
 
     private class SouffleRelTrgt extends Trgt<ProgramRel> {
-        private ProgramRel rel = null;
-
         private SouffleRelTrgt(String name, TrgtInfo info) {
             super(name, info);
         }
 
         @Override
         public ProgramRel get() {
-            if (rel == null) {
+            if (val == null) {
                 loadRel();
             }
-            super.accept(rel);
             return super.get();
         }
 
         @Override
         public <SubT extends ProgramRel> void accept(SubT v) {
             super.accept(v);
-            rel = super.get();
             dumpRel();
         }
 
         private void dumpRel() {
-            Path factPath = factDir.resolve(rel.getName()+".facts");
+            Path factPath = factDir.resolve(val.getName()+".facts");
             Messages.debug("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
             try {
                 List<String> lines = new ArrayList<>();
-                rel.load();
-                Iterable<int[]> tuples = rel.getIntTuples();
-                int domNum = rel.getDoms().length;
+                val.load();
+                Iterable<int[]> tuples = val.getIntTuples();
+                int domNum = val.getDoms().length;
                 for (int[] tuple: tuples) {
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < domNum; ++i) {
@@ -353,9 +349,9 @@ public final class SouffleAnalysis extends JavaAnalysis {
                     lines.add(sb.toString());
                 }
                 Files.write(factPath, lines, StandardCharsets.UTF_8);
-                rel.close();
+                val.close();
             } catch (IOException e) {
-                Messages.error("SouffleAnalysis %s: failed to dump relation %s", name, rel.getName());
+                Messages.error("SouffleAnalysis %s: failed to dump relation %s", name, val.getName());
                 Messages.fatal(e);
             }
         }
@@ -378,17 +374,17 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 doms[i] = domTrgtMap.get(domKind).get();
             }
 
-            rel = new ProgramRel(relName, doms, relSign);
+            val = new ProgramRel(relName, doms, relSign);
 
-            rel.init();
+            val.init();
             Path outPath = outDir.resolve(relName+".csv");
             Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
             List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
             for (int[] row: table) {
-                rel.add(row);
+                val.add(row);
             }
-            rel.save();
-            rel.close();
+            val.save();
+            val.close();
         }
 
     }

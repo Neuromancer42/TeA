@@ -5,12 +5,17 @@
 .type I <: unsigned // invocation sites
 .type Z <: unsigned // integers for counting function arguments
 
-// y = &<some var> or malloc
+// declared variables
 .decl Alloc(y:V,h:H)
 .input Alloc
-
 .decl GlobalAlloc(y:V,h:H)
 .input GlobalAlloc
+.decl HeapAllocPtr(o:H,h:H)
+.input HeapAllocPtr
+.decl HeapAllocArr(o:H,h:H)
+.input HeapAllocArr
+.decl HeapAllocFld(o:H,f:F,h:H)
+.input HeapAllocFld
 
 // rhs $y[*x]
 .decl LoadPtr(y:V,x:V)
@@ -53,6 +58,7 @@
 .decl IndirectCall(i:I,f:V)
 .input IndirectCall
 
+.decl ci_reachableH(h:H)
 .decl ci_reachableI(i:I)
 .decl ci_reachableM(m:M)
 .output ci_reachableM
@@ -83,10 +89,19 @@ ci_IM(i,m) :- ci_reachableI(i), StaticCall(i,m).
 ci_pt(u,o) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_pt(v,o).
 ci_pt(v,o) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_pt(u,o).
 
+
+ci_reachableH(h) :- ci_pt(_, h).
+ci_reachableH(h) :- ci_hpt(_,h).
+ci_reachableH(h) :- ci_fpt(_,_,h).
+
 ci_pt(v,h) :- GlobalAlloc(v,h).
 ci_pt(v,h) :- ci_reachableM(m), MV(m,v), Alloc(v,h).
+
+ci_hpt(h,o) :- ci_reachableH(h), HeapAllocPtr(h,o).
 ci_hpt(h,o) :- StorePtr(u,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadPtr(u,v), ci_pt(v,h), ci_hpt(h,o).
+
+ci_fpt(h,f,o) :- ci_reachableH(h), HeapAllocFld(h,f,o).
 ci_fpt(h,f,o) :- StoreFld(u,f,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadFld(u,v,f), ci_pt(v,h), ci_fpt(h,f,o).
 

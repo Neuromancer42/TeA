@@ -1,24 +1,16 @@
 package com.neuromancer42.tea.program.cdt.internal.cfg;
 
 import org.eclipse.cdt.codan.internal.core.cfg.ExitNode;
-import org.eclipse.cdt.core.dom.ast.IASTExpression;
 
 public class ReturnNode extends ExitNode implements ICFGNode {
-    private final IASTExpression retExpr;
     private final int retReg;
 
-    public ReturnNode(IASTExpression expr, int reg) {
-        this.retExpr = expr;
+    public ReturnNode(int reg) {
         this.retReg = reg;
     }
 
     public ReturnNode() {
-        this.retExpr = null;
         this.retReg = -1;
-    }
-
-    public IASTExpression getExpression() {
-        return retExpr;
     }
 
     public int getRegister() {
@@ -27,10 +19,10 @@ public class ReturnNode extends ExitNode implements ICFGNode {
 
     @Override
     public String toDebugString() {
-        if (retExpr == null) {
+        if (retReg < 0) {
             return "return:void";
         } else {
-            return "return:" + retExpr.getExpressionType() + "@" + retReg + ":" + retExpr.getClass().getSimpleName() + "[" + retExpr.getRawSignature() + "]";
+            return "return:@" + retReg;
         }
     }
 }
