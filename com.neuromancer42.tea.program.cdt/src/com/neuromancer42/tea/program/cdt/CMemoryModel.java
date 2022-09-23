@@ -168,6 +168,9 @@ public class CMemoryModel extends JavaAnalysis {
     private IMemObj createStackObj(IVariable variable) {
         IType t = variable.getType();
         // Note: special case, make variables of basic type observable
+        while (t instanceof ITypedef) {
+            t = ((ITypedef) t).getType();
+        }
         if (t instanceof IBasicType || t instanceof IPointerType) {
             StackObj obj = new StackObj(variable);
             stackObjs.add(obj);
@@ -178,6 +181,9 @@ public class CMemoryModel extends JavaAnalysis {
     }
 
     private IMemObj createStackObj(String name, IType type) {
+        while (type instanceof ITypedef) {
+            type = ((ITypedef) type).getType();
+        }
         if (type instanceof IBasicType || type instanceof IPointerType) {
             IMemObj obj = new StackObj(name, type);
             stackObjs.add(obj);
@@ -216,7 +222,7 @@ public class CMemoryModel extends JavaAnalysis {
 
                 Map<IField, IMemObj> fieldPtrMap = new LinkedHashMap<>();
                 for (IField field : compType.getFields()) {
-                    String fieldName = name + field.getName();
+                    String fieldName = name + "." + field.getName();
                     IType fieldType = field.getType();
                     IMemObj fieldObj = createStackObj(fieldName, fieldType);
 
@@ -232,7 +238,7 @@ public class CMemoryModel extends JavaAnalysis {
                 return structObj;
             }
         }
-        Messages.error("CMemoryModel: [TODO] no extra handling of object [%s] of type [%s]", name, type);
+        Messages.error("CMemoryModel: [TODO] no extra handling of object [%s] of type %s[%s]", name, type.getClass().getSimpleName(), type);
         IMemObj obj = new StackObj(name, type);
         stackObjs.add(obj);
         return obj;

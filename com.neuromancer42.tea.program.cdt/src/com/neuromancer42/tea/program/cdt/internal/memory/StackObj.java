@@ -39,7 +39,7 @@ public class StackObj implements IMemObj {
 
     @Override
     public String toDebugString() {
-        return "alloca:" + (type == null ? "unknown" : type) + "$" + (name == null ? ("anon" + hashCode()) : name);
+        return "alloca:(" + (type == null ? "unknown" : type) + ")$" + (name == null ? ("anon" + hashCode()) : name);
     }
 
     @Override

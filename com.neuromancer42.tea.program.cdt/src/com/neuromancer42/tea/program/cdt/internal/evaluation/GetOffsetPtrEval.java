@@ -2,7 +2,6 @@ package com.neuromancer42.tea.program.cdt.internal.evaluation;
 
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IType;
-import org.eclipse.cdt.core.dom.ast.IVariable;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 import org.eclipse.cdt.internal.core.dom.parser.c.CPointerType;
 
@@ -11,28 +10,20 @@ public class GetOffsetPtrEval extends GetElementPtrEval {
     private final int offsetReg;
     private final int literalOffset;
 
-    // common offset expression
-    public GetOffsetPtrEval(IASTExpression baseExpr, int baseReg, IASTExpression offsetExpr, int offsetReg) {
-        super(baseExpr, baseReg);
+    // offset as a offset
+    public GetOffsetPtrEval(IType baseType, int baseReg, IASTExpression offsetExpr, int offsetReg) {
+        super(baseType, baseReg);
         this.offsetExpr = offsetExpr;
         this.offsetReg = offsetReg;
         this.literalOffset = -1;
     }
 
     // common list initialization
-    public GetOffsetPtrEval(IVariable baseVar, int baseReg, int literalOffset) {
-        super(baseVar, baseReg);
+    public GetOffsetPtrEval(IType baseType, int baseReg, int literalOffset) {
+        super(baseType, baseReg);
         this.offsetExpr = null;
         this.offsetReg = -1;
         this.literalOffset = literalOffset;
-    }
-
-    // designated initialization
-    public GetOffsetPtrEval(IVariable baseVar, int baseReg, IASTExpression offsetExpr, int offsetReg) {
-        super(baseVar, baseReg);
-        this.offsetExpr = offsetExpr;
-        this.offsetReg = offsetReg;
-        this.literalOffset = -1;
     }
 
     public int getOffset() {

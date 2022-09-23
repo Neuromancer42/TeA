@@ -107,8 +107,8 @@ public class CParser {
         relStorePtr = new ProgramRel("StorePtr", domV, domV);
         relLoadFld = new ProgramRel("LoadFld", domV, domV, domF);
         relStoreFld = new ProgramRel("StoreFld", domV, domF, domV);
-        relLoadArr = new ProgramRel("LoadArr", domV, domV, domV);
-        relStoreArr = new ProgramRel("StoreArr", domV, domV, domV);
+        relLoadArr = new ProgramRel("LoadArr", domV, domV);
+        relStoreArr = new ProgramRel("StoreArr", domV, domV);
 
         // invocations
         relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
@@ -180,11 +180,7 @@ public class CParser {
             domC.add(c);
         }
         for (IVariable var : builder.getGlobalVars()) {
-            domT.add(var.getType());
             domA.add(var);
-        }
-        for (IFunction func : builder.getDeclaredFuncs()) {
-            domT.add(func.getType());
         }
         int maxNumArg = 0;
         for (IFunction meth : builder.getDeclaredFuncs()) {
@@ -193,7 +189,6 @@ public class CParser {
             if (numMargs > maxNumArg)
                 maxNumArg = numMargs;
             for (IVariable var : builder.getMethodVars(meth)) {
-                domT.add(var.getType());
                 domA.add(var);
             }
             CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
@@ -221,6 +216,7 @@ public class CParser {
         for (int i = 0; i < maxNumArg; ++i) {
             domZ.add(i);
         }
+        domT.addAll(builder.getTypes());
         domF.addAll(builder.getFields());
         saveDomains();
 
@@ -303,7 +299,7 @@ public class CParser {
                         int o = ((GetOffsetPtrEval) e).getOffset();
                         Messages.debug("CParser: get offset address #%d = [%s]", v, e.toDebugString());
                         relPload.add(p, v);
-                        relLoadArr.add(v, u, o);
+                        relLoadArr.add(v, u);
                     } else if (e instanceof GetFieldPtrEval) {
                         int u = ((GetFieldPtrEval) e).getBasePtr();
                         IField f = ((GetFieldPtrEval) e).getField();

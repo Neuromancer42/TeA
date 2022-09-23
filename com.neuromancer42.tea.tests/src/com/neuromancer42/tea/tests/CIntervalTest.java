@@ -19,8 +19,8 @@ import org.osgi.framework.FrameworkUtil;
 import java.io.File;
 import java.util.Set;
 
-public class CcipaTest {
-    static BundleContext context = FrameworkUtil.getBundle(CcipaTest.class).getBundleContext();
+public class CIntervalTest {
+    static BundleContext context = FrameworkUtil.getBundle(CIntervalTest.class).getBundleContext();
 
     @BeforeAll
     public static void registerAnalyses() {
@@ -67,7 +67,6 @@ public class CcipaTest {
         taskSet[0] = "ciPointerAnalysis";
         taskSet[1] = "interval";
         Project.g().run(taskSet);
-        //TODO: souffle-generated relations cannot be loaded, need to fix this
         Project.g().printRels(new String[]{"MP", "ci_hpt", "ci_Hval", "ci_Vval"});
 
         Assertions.assertEquals(6, OsgiProject.g().getDoneTasks().size());

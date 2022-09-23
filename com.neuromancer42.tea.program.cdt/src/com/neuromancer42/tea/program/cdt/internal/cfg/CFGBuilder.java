@@ -7,8 +7,10 @@ import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
 import org.eclipse.cdt.core.dom.ast.*;
+import org.eclipse.cdt.core.dom.ast.c.ICASTArrayDesignator;
 import org.eclipse.cdt.core.dom.ast.c.ICASTDesignatedInitializer;
 import org.eclipse.cdt.core.dom.ast.c.ICASTDesignator;
+import org.eclipse.cdt.core.dom.ast.c.ICASTFieldDesignator;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
@@ -42,10 +44,13 @@ public class CFGBuilder {
     // 3. <Pair<IFunction, Integer>> the value of a function parameter
     // 4. <String> a pointer points to the address of a string literal
     // 5. <GetElementPtrEval> inserted gep result for field/offset access
+    // 6. <Pair<Integer, IArrayType>> inserted load instruction to get base pointer of an array reference
 
     private final Set<IFunction> funcs;
     private final Map<IFunction, Set<IVariable>> funcVars;
     private final Set<IVariable> staticVars;
+
+    private final Set<IType> types;
     private final Set<IField> fields;
 
     private final Map<IFunction, int[]> funcArgsMap;
@@ -75,6 +80,7 @@ public class CFGBuilder {
         funcs = new LinkedHashSet<>();
         funcVars = new HashMap<>();
         staticVars = new LinkedHashSet<>();
+        types = new LinkedHashSet<>();
         fields = new LinkedHashSet<>();
 
         funcArgsMap = new HashMap<>();
@@ -131,6 +137,7 @@ public class CFGBuilder {
             } else {
                 funcVars.get(curFunc).add(var);
             }
+            processType(var.getType());
             Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%d in (%s)", var.getType(), vReg, var.getName(), var.hashCode(), var.getOwner());
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
@@ -139,6 +146,7 @@ public class CFGBuilder {
                 Messages.warn("CParser: re-declare function %s[%s] at line#%d: (%s)", func.getClass().getSimpleName(), func, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
             int fReg = registers.indexOf(func);
             funcs.add(func);
+            types.add(func.getType());
             refRegMap.put(func, fReg);
             funcVars.putIfAbsent(func, new LinkedHashSet<>());
             Messages.debug("CParser: alloc stack location (funPtr)@%d for function %s[%s]", fReg, func.getClass().getSimpleName(), func);
@@ -159,11 +167,29 @@ public class CFGBuilder {
             }
         } else if (binding instanceof ITypedef) {
             ITypedef typedef = (ITypedef) binding;
-            Messages.warn("CParser: [TODO] collect fields of %s[%s]", typedef.getClass().getSimpleName(), typedef);
+            Messages.warn("CParser: skip typedef %s[%s]", typedef.getClass().getSimpleName(), typedef);
         } else {
             Messages.error("CParser: unhandled declaration %s[%s] (%s[%s])", binding.getClass().getSimpleName(), binding, declarator.getClass().getSimpleName(), declarator.getRawSignature());
         }
         return binding;
+    }
+
+    private void processType(IType type) {
+        types.add(type);
+        if (type instanceof IArrayType) {
+            processType(((IArrayType) type).getType());
+        } else if (type instanceof IPointerType) {
+            processType(((IPointerType) type).getType());
+        } else if (type instanceof ITypedef) {
+            processType(((ITypedef) type).getType());
+        } else if (type instanceof ICompositeType) {
+            for (IField f : ((ICompositeType) type).getFields()) {
+                fields.add(f);
+                processType(f.getType());
+            }
+        } else if (!(type instanceof IBasicType)) {
+            Messages.error("CParser: unhandled type %s[%s]", type.getClass().getSimpleName(), type);
+        }
     }
 
     public IndexMap<Object> getRegisters() {
@@ -193,7 +219,6 @@ public class CFGBuilder {
         return reg;
     }
 
-
     public Set<IFunction> getDeclaredFuncs() {
         return funcs;
     }
@@ -201,10 +226,17 @@ public class CFGBuilder {
     public Set<IVariable> getGlobalVars() {
         return staticVars;
     }
-    public Set<IField> getFields() { return fields; }
 
     public Set<IVariable> getMethodVars(IFunction func) {
         return funcVars.get(func);
+    }
+
+    public Set<IType> getTypes() {
+        return types;
+    }
+
+    public Set<IField> getFields() {
+        return fields;
     }
 
     public IntraCFG buildIntraCFG(IASTFunctionDefinition fDef) {
@@ -416,6 +448,9 @@ public class CFGBuilder {
     }
 
     private void handleInitializerClause(int refReg, IType refType, IASTInitializerClause initClause) {
+        while (refType instanceof ITypedef) {
+            refType = ((ITypedef) refType).getType();
+        }
         if (initClause instanceof IASTExpression) {
             // scalar expression
             IASTExpression initExpr = unparenthesize((IASTExpression) initClause);
@@ -440,23 +475,89 @@ public class CFGBuilder {
                 if (subCls instanceof ICASTDesignatedInitializer) {
                     ICASTDesignatedInitializer designatedInit = (ICASTDesignatedInitializer) subCls;
                     ICASTDesignator[] designators = designatedInit.getDesignators();
-                    StringBuffer sb = new StringBuffer();
-                    sb.append("{");
-                    for (var designator : designators) {
-                        sb.append(designator.getClass().getSimpleName());
-                        sb.append("[");
-                        sb.append(designator.getRawSignature());
-                        sb.append("]");
+
+                    int elemPtr = refReg;
+                    IType elemType = refType;
+
+                    for (int i = 0; i < designators.length; ++i) {
+                        ICASTDesignator designator = designators[i];
+                        IEval gepEval = null;
+                        IType subElemType = null;
+                        if (designator instanceof ICASTFieldDesignator) {
+                            String fieldName = ((ICASTFieldDesignator) designator).getName().toString();
+                            ICompositeType cType = (ICompositeType) elemType;
+                            IField field = cType.findField(fieldName);
+                            IField[] fields = cType.getFields();
+                            gepEval = new GetFieldPtrEval(elemType, elemPtr, field);
+                            subElemType = field.getType();
+                            if (i == 0) {
+                                for (int fId = 0; fId < fields.length; ++fId) {
+                                    if (fields[fId].equals(field)) {
+                                        pos = fId;
+                                        break;
+                                    }
+                                }
+                            }
+                        } else if (designator instanceof ICASTArrayDesignator) {
+                            IASTExpression offsetExpr = ((ICASTArrayDesignator) designator).getSubscriptExpression();
+                            if (offsetExpr instanceof IASTLiteralExpression) {
+                                String offsetStr = String.valueOf(((IASTLiteralExpression) offsetExpr).getValue());
+                                int offset = Integer.parseInt(offsetStr);
+                                Pair<Integer, IArrayType> basePtrObj = new Pair<>(elemPtr, (IArrayType) elemType);
+                                if (!registers.contains(basePtrObj)) {
+                                    registers.add(basePtrObj);
+                                    int basePtr = registers.indexOf(basePtrObj);
+                                    Messages.debug("CParser: load base address of ptr-to-array @%d <- *@%d", basePtr, elemPtr);
+                                    IBasicBlock loadNode = new LoadNode(basePtr, elemPtr);
+                                    prevNode = connect(prevNode, loadNode);
+                                }
+                                int basePtr = registers.indexOf(basePtrObj);
+                                gepEval = new GetOffsetPtrEval(elemType, basePtr, offset);
+                                subElemType = ((IArrayType) elemType).getType();
+                                if (i == 0)
+                                    pos = offset;
+                            }
+                        }
+                        if (gepEval != null) {
+                            registers.add(gepEval);
+                            elemPtr = registers.indexOf(gepEval);
+                            Messages.debug("CParser: get element ptr for initialize @%d = {%s}", elemPtr, gepEval.toDebugString());
+                            IBasicBlock gepNode = new EvalNode(gepEval, elemPtr);
+                            prevNode = connect(prevNode, gepNode);
+                        }
+                        while (subElemType instanceof ITypedef) {
+                            subElemType = ((ITypedef) subElemType).getType();
+                        }
+                        elemType = subElemType;
                     }
-                    sb.append("}");
                     IASTInitializerClause cls = designatedInit.getOperand();
-                    Messages.error("CParser: skip unhandled designated initializer %s = %s[%s]", sb, cls.getClass().getSimpleName(), cls.getRawSignature());
+                    handleInitializerClause(elemPtr, elemType, cls);
                 } else {
                     ++pos;
-                    GetElementPtrEval gepEval = new GetOffsetPtrEval(null, refReg, pos);
+                    GetElementPtrEval gepEval;
+                    IType subType;
+                    if (refType instanceof IArrayType) {
+                        Pair<Integer, IArrayType> basePtrObj = new Pair<>(refReg, (IArrayType) refType);
+                        if (!registers.contains(basePtrObj)) {
+                            registers.add(basePtrObj);
+                            int basePtr = registers.indexOf(basePtrObj);
+                            Messages.debug("CParser: load base address of ptr-to-array @%d <- *@%d", basePtr, refReg);
+                            IBasicBlock loadNode = new LoadNode(basePtr, basePtr);
+                            prevNode = connect(prevNode, loadNode);
+                        }
+                        int basePtr = registers.indexOf(basePtrObj);
+                        gepEval = new GetOffsetPtrEval(refType, basePtr, pos);
+                        subType = ((ITypeContainer) refType).getType();
+                    } else {
+                        ICompositeType cType = (ICompositeType) refType;
+                        IField field = cType.getFields()[pos];
+                        gepEval = new GetFieldPtrEval(refType, refReg, field);
+                        subType = field.getType();
+                    }
                     registers.add(gepEval);
                     int subReg = registers.indexOf(gepEval);
-                    IType subType = ((ITypeContainer) refType).getType();
+                    Messages.debug("CParser: get element ptr for initialize @%d = {%s}", subReg, gepEval.toDebugString());
+
                     handleInitializerClause(subReg, subType, subCls);
                 }
             }
@@ -918,7 +1019,7 @@ public class CFGBuilder {
         } else {
             basePtr = handleLvalue(baseExpr);
         }
-        GetElementPtrEval gepEval = new GetFieldPtrEval(baseExpr, basePtr, field);
+        GetElementPtrEval gepEval = new GetFieldPtrEval(baseExpr.getExpressionType(), basePtr, field);
         registers.add(gepEval);
         int fieldPtr = registers.indexOf(gepEval);
         Messages.debug("CParser: compute field pointer %d = &(%d->%s)", fieldPtr, basePtr, field);
@@ -934,9 +1035,9 @@ public class CFGBuilder {
 
         GetElementPtrEval gepEval;
         if (expr1.getExpressionType() instanceof ITypeContainer) {
-            gepEval = new GetOffsetPtrEval(expr1, reg1, expr2, reg2);
+            gepEval = new GetOffsetPtrEval(expr1.getExpressionType(), reg1, expr2, reg2);
         } else {
-            gepEval = new GetOffsetPtrEval(expr2, reg2, expr1, reg1);
+            gepEval = new GetOffsetPtrEval(expr2.getExpressionType(), reg2, expr1, reg1);
         }
         registers.add(gepEval);
         int offsetPtr = registers.indexOf(gepEval);

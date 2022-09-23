@@ -16,4 +16,4 @@
     bnd.identity;id='org.apache.felix.scr'
 
 -runproperties.cdt:\
-    headerfile="example.h", sourcefile="aplusb.c"
+    headerfile="example.h", sourcefile="array.c"
