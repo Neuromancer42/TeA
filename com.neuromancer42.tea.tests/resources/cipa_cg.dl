@@ -74,6 +74,9 @@
 .output ci_fpt
 // arrays are handled as pointers
 
+.decl ci_MH(m:M, h:H)
+.output ci_MH
+
 /*************
  *   Rules   *
  *************/
@@ -105,3 +108,6 @@ ci_fpt(h,f,o) :- ci_reachableH(h), HeapAllocFld(h,f,o).
 ci_fpt(h,f,o) :- StoreFld(u,f,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadFld(u,v,f), ci_pt(v,h), ci_fpt(h,f,o).
 
+ci_MH(m,h) :- MV(m,v), ci_pt(v,h).
+ci_MH(m,o) :- ci_MH(m,h), ci_hpt(h,o).
+ci_MH(m,o) :- ci_MH(m,h), ci_fpt(h,_,o).

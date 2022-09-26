@@ -90,4 +90,46 @@ public class Interval {
         }
         return "Itv:[" + lower + "," + upper + "]";
     }
+
+    public boolean isEmpty() {
+        return this.lower > this.upper;
+    }
+
+    public boolean isSingleton() {
+        return lower >= min_bound && upper <= max_bound && lower == upper;
+    }
+
+    public boolean mayEQ(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        return (this.lower <= that.upper && that.lower <= that.upper);
+    }
+
+    public boolean mayNE(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        return !(this.isSingleton() && that.isSingleton() && this.lower == that.lower);
+    }
+
+    public boolean mayGE(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        return this.upper >= that.lower;
+    }
+
+    public boolean mayLE(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        return this.lower <= that.upper;
+    }
+
+    public boolean mayGT(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        if (this.lower > max_bound) return true;
+        if (that.upper < min_bound) return true;
+        return this.upper > that.lower;
+    }
+
+    public boolean mayLT(Interval that) {
+        if (this.isEmpty() || that.isEmpty()) return true;
+        if (this.upper < min_bound) return true;
+        if (that.lower > max_bound) return true;
+        return this.lower < that.upper;
+    }
 }

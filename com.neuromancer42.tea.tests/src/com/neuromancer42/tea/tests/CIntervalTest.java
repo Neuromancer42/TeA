@@ -9,6 +9,7 @@ import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
 import com.neuromancer42.tea.program.cdt.CMemoryModel;
 import com.neuromancer42.tea.program.cdt.CParserAnalysis;
+import com.neuromancer42.tea.program.cdt.PreDataflowAnalysis;
 import com.neuromancer42.tea.program.cdt.PreIntervalAnalysis;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
@@ -32,14 +33,18 @@ public class CIntervalTest {
         CMemoryModel cMemModel = new CMemoryModel();
         AnalysesUtil.registerAnalysis(context, cMemModel);
 
+        Messages.log("Registering PreDataflow");
+        PreDataflowAnalysis preDataflow = new PreDataflowAnalysis();
+        AnalysesUtil.registerAnalysis(context, preDataflow);
+
         Messages.log("Registering PreInterval");
         PreIntervalAnalysis preInterval = new PreIntervalAnalysis();
         AnalysesUtil.registerAnalysis(context, preInterval);
 
         Messages.log("Registering pre_pt.dl");
         String dlogName0 = System.getProperty("dlog0");
-        SouffleAnalysis pre = SouffleRuntime.g().createSouffleAnalysisFromFile("PrePointer", "pre_pt", new File(dlogName0));
-        AnalysesUtil.registerAnalysis(context, pre);
+        SouffleAnalysis prePT = SouffleRuntime.g().createSouffleAnalysisFromFile("PrePointer", "pre_pt", new File(dlogName0));
+        AnalysesUtil.registerAnalysis(context, prePT);
 
         Messages.log("Registering cipa_cg.dl");
         String dlogName1 = System.getProperty("dlog1");
@@ -67,9 +72,9 @@ public class CIntervalTest {
         taskSet[0] = "ciPointerAnalysis";
         taskSet[1] = "interval";
         Project.g().run(taskSet);
-        Project.g().printRels(new String[]{"MP", "ci_hpt", "ci_Hval", "ci_Vval"});
+        Project.g().printRels(new String[]{"MP", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval"});
 
-        Assertions.assertEquals(6, OsgiProject.g().getDoneTasks().size());
+        Assertions.assertEquals(7, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("ciPointerAnalysis");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,

@@ -11,6 +11,7 @@ import com.neuromancer42.tea.program.cdt.internal.evaluation.BinaryEval;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.ConstantEval;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.IEval;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.UnaryEval;
+import com.neuromancer42.tea.program.cdt.internal.memory.IMemObj;
 import org.eclipse.cdt.core.dom.ast.IType;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
 
@@ -18,10 +19,17 @@ import java.util.*;
 
 public class PreIntervalAnalysis extends JavaAnalysis {
     private final Trgt<ProgramDom<Integer>> tDomV;
+    private final Trgt<ProgramDom<IMemObj>> tDomH;
     private final Trgt<ProgramDom<IEval>> tDomE;
     private final Trgt<ProgramDom<String>> tDomOP;
     private final Trgt<ProgramDom<Interval>> tDomU;
 
+    private final Trgt<ProgramDom<ItvPredicate>> tDomUP;
+
+    private final Trgt<ProgramRel> tRelPPtrue;
+    private final Trgt<ProgramRel> tRelPPfalse;
+    private final Trgt<ProgramRel> tRelLoadPtr;
+    private final Trgt<ProgramRel> tRelCIPT;
     private final Trgt<ProgramRel> tRelPeval;
     private final Trgt<ProgramRel> tRelEConst;
     private final Trgt<ProgramRel> tRelEUnary;
@@ -29,6 +37,14 @@ public class PreIntervalAnalysis extends JavaAnalysis {
     private final Trgt<ProgramRel> tRelEConstU;
     private final Trgt<ProgramRel> tRelEvalUnaryU;
     private final Trgt<ProgramRel> tRelEvalBinopU;
+    private final Trgt<ProgramRel> tRelUempty;
+    private final Trgt<ProgramRel> tRelPredUnknown;
+    private final Trgt<ProgramRel> tRelPredL;
+    private final Trgt<ProgramRel> tRelPredR;
+    private final Trgt<ProgramRel> tRelPred2;
+    private final Trgt<ProgramRel> tRelMaySat;
+    private final Trgt<ProgramRel> tRelMayUnsat;
+    private final Trgt<ProgramRel> tRelNofilter;
     
     private final static Interval empty = Interval.EMPTY;
     private final static Interval zero = new Interval(0);
@@ -37,43 +53,76 @@ public class PreIntervalAnalysis extends JavaAnalysis {
     public PreIntervalAnalysis() {
         this.name = "preInterval";
         tDomV = AnalysesUtil.createDomTrgt(name, "V", Integer.class);
+        tDomH = AnalysesUtil.createDomTrgt(name, "H", IMemObj.class);
         tDomE = AnalysesUtil.createDomTrgt(name, "E", IEval.class);
         tDomOP = AnalysesUtil.createDomTrgt(name, "OP", String.class);
         tDomU = AnalysesUtil.createDomTrgt(name, "U", Interval.class);
+        tDomUP = AnalysesUtil.createDomTrgt(name, "UP", ItvPredicate.class);
 
         tRelPeval = AnalysesUtil.createRelTrgt(name, "Peval", "P", "V", "E");
+
+        tRelPPtrue = AnalysesUtil.createRelTrgt(name, "PPtrue", "P", "P", "V");
+        tRelPPfalse = AnalysesUtil.createRelTrgt(name, "PPfalse", "P", "P", "V");
+        tRelLoadPtr = AnalysesUtil.createRelTrgt(name, "LoadPtr", "V", "V");
+        tRelCIPT = AnalysesUtil.createRelTrgt(name, "ci_pt", "V", "H");
+
         tRelEConst = AnalysesUtil.createRelTrgt(name, "Econst", "E");
         tRelEUnary = AnalysesUtil.createRelTrgt(name, "Eunary", "E", "OP", "V");
         tRelEBinop = AnalysesUtil.createRelTrgt(name, "Ebinop", "E", "OP", "V", "V");
         tRelEConstU = AnalysesUtil.createRelTrgt(name, "EConstU", "E", "U");
         tRelEvalUnaryU = AnalysesUtil.createRelTrgt(name, "evalUnaryU", "OP", "U", "U");
         tRelEvalBinopU = AnalysesUtil.createRelTrgt(name, "evalBinopU", "OP", "U", "U", "U");
-        registerConsumers(tDomV, tDomE, tRelPeval);
-        registerProducers(tDomOP, tDomU, tRelEConst, tRelEUnary, tRelEBinop, tRelEConstU, tRelEvalUnaryU, tRelEvalBinopU);
+        tRelUempty = AnalysesUtil.createRelTrgt(name, "Uempty", "U");
+
+        tRelPredUnknown = AnalysesUtil.createRelTrgt(name, "PredUnknown", "V");
+        tRelPredL = AnalysesUtil.createRelTrgt(name, "PredL", "V", "UP", "H", "U");
+        tRelPredR = AnalysesUtil.createRelTrgt(name, "PredR", "V", "UP", "U", "H");
+        tRelPred2 = AnalysesUtil.createRelTrgt(name, "Pred2", "V", "UP", "H", "H");
+        tRelMaySat = AnalysesUtil.createRelTrgt(name, "MaySat", "UP", "U", "U");
+        tRelMayUnsat = AnalysesUtil.createRelTrgt(name, "MayUnsat", "UP", "U", "U");
+        tRelNofilter = AnalysesUtil.createRelTrgt(name, "nofilter", "V", "H");
+        registerConsumers(tDomV, tDomE, tDomH, tRelPeval, tRelPPtrue, tRelPPfalse, tRelLoadPtr, tRelCIPT);
+        registerProducers(tDomOP, tDomU, tDomUP,
+                tRelUempty,
+                tRelEConst, tRelEUnary, tRelEBinop, tRelEConstU, tRelEvalUnaryU, tRelEvalBinopU,
+                tRelPredUnknown, tRelPredL, tRelPredR, tRelPred2, tRelMaySat, tRelMayUnsat, tRelNofilter);
     }
 
     @Override
     public void run() {
-        ProgramDom<Integer> domV = tDomV.get();
-        ProgramDom<IEval> domE = tDomE.get();
+        ProgramRel relLoadPtr = tRelLoadPtr.get();
+        ProgramRel relCIPT = tRelCIPT.get();
+        relLoadPtr.load();
+        relCIPT.load();
+        Map<Integer, IMemObj> regToHeap = buildVal2HeapMap(relLoadPtr, relCIPT);
+        relLoadPtr.close();
+        relCIPT.close();
+
         ProgramRel relPeval = tRelPeval.get();
         relPeval.load();
+        Map<Integer, Integer> regToLiteral = new HashMap<>();
+        Map<Integer, IEval> regToEval = new LinkedHashMap<>();
 
         ProgramDom<String> domOP = ProgramDom.createDom("OP", String.class);
         ProgramDom<Interval> domU = ProgramDom.createDom("U", Interval.class);
-        ProgramDom<?>[] genDoms = new ProgramDom[]{domOP, domU};
+        ProgramDom<ItvPredicate> domUP = ProgramDom.createDom("UP", ItvPredicate.class);
+        domUP.addAll(ItvPredicate.allPredicates());
+        ProgramDom<?>[] genDoms = new ProgramDom[]{domOP, domU, domUP};
         for (ProgramDom<?> dom : genDoms) {
             dom.init();
         }
         Set<Integer> intConstants = new HashSet<>();
         for (Object[] tuple : relPeval.getValTuples()) {
+            Integer reg = (Integer) tuple[1];
             IEval eval = (IEval) tuple[2];
+            regToEval.put(reg, eval);
             if (eval instanceof ConstantEval) {
                 IType type = eval.getType();
                 String constRepr = ((ConstantEval) eval).getValue();
                 if (type.isSameType(CBasicType.INT)) {
                     try {
                         int primVal = Integer.parseInt(constRepr);
+                        regToLiteral.put(reg, primVal);
                         Messages.debug("PreInterval: find new constant integer %d", primVal);
                         intConstants.add(primVal);
                     } catch (NumberFormatException e) {
@@ -90,6 +139,8 @@ public class PreIntervalAnalysis extends JavaAnalysis {
                 domOP.add(op);
             }
         }
+        relPeval.close();
+
         intConstants.add(0);
         intConstants.add(1);
         intConstants.add(Interval.min_bound);
@@ -115,121 +166,219 @@ public class PreIntervalAnalysis extends JavaAnalysis {
             dom.save();
         }
 
+        ProgramDom<Integer> domV = tDomV.get();
+        ProgramDom<IMemObj> domH = tDomH.get();
+        ProgramDom<IEval> domE = tDomE.get();
         ProgramRel relEConst = new ProgramRel("Econst", domE);
         ProgramRel relEUnary = new ProgramRel("Eunary", domE, domOP, domV);
         ProgramRel relEBinop = new ProgramRel("EBinop", domE, domOP, domV, domV);
         ProgramRel relEConstU = new ProgramRel("EConstU", domE, domU);
         ProgramRel relEvalUnaryU = new ProgramRel("evalUnaryU", domOP, domU, domU);
         ProgramRel relEvalBinopU = new ProgramRel("evalBinopU", domOP, domU, domU, domU);
-
-        ProgramRel[] genRels = new ProgramRel[]{relEConst, relEUnary, relEBinop, relEConstU, relEvalUnaryU, relEvalBinopU};
-
+        ProgramRel relUempty = new ProgramRel("Uempty", domU);
+        ProgramRel relPredUnknown = new ProgramRel("PredUnknown", domV);
+        ProgramRel relPredL = new ProgramRel("PredL", domV, domUP, domH, domU);
+        ProgramRel relPredR = new ProgramRel("PredR", domV, domUP, domU, domH);
+        ProgramRel relPred2 = new ProgramRel("Pred2", domV, domUP, domH, domH);
+        ProgramRel relMaySat = new ProgramRel("MaySat", domUP, domU, domU);
+        ProgramRel relMayUnsat = new ProgramRel("MayUnsat", domUP, domU, domU);
+        ProgramRel relNofilter = new ProgramRel("nofilter", domV, domH);
+        // TODO: lift generated rels as private member of JavaAnalysis
+        ProgramRel[] genRels = new ProgramRel[]{relEConst, relEUnary, relEBinop, relEConstU, relEvalUnaryU, relEvalBinopU, relUempty, relPredUnknown, relPredL, relPredR, relPred2, relMaySat, relMayUnsat, relNofilter};
         for (ProgramRel rel : genRels) {
             rel.init();
         }
-        for (Object[] tuple : relPeval.getValTuples()) {
-            IEval eval = (IEval) tuple[2];
-            if (eval instanceof ConstantEval) {
-                relEConst.add(eval);
-                IType type = eval.getType();
-                String constRepr = ((ConstantEval) eval).getValue();
-                if (type.isSameType(CBasicType.INT)) {
-                    try {
-                        int primVal = Integer.parseInt(constRepr);
-                        relEConstU.add(eval, new Interval(primVal));
-                        continue;
-                    } catch (NumberFormatException ignored) {}
+
+        {
+            // build arithmetics
+            assert domU.contains(empty);
+            assert domU.contains(zero);
+            assert domU.contains(one);
+            relUempty.add(empty);
+            for (String op : domOP) {
+                switch (op) {
+                    case UnaryEval.op_plus:
+                        for (Interval x : domU)
+                            relEvalUnaryU.add(op, x, x);
+                        break;
+                    case UnaryEval.op_minus:
+                        relEvalUnaryU.add(op, empty, empty);
+                        for (Interval x : sortedITVs) {
+                            int l = -x.upper;
+                            int r = -x.lower;
+                            List<Interval> res = filterInterval(sortedITVs, l, r);
+                            for (Interval z : res)
+                                relEvalUnaryU.add(op, x, z);
+                        }
+                        break;
+                    case UnaryEval.op_incr:
+                        computeIncr(sortedITVs, relEvalUnaryU);
+                        break;
+                    case UnaryEval.op_decr:
+                        computeDecr(sortedITVs, relEvalUnaryU);
+                        break;
+                    case UnaryEval.op_not:
+                        computeNot(sortedITVs, relEvalUnaryU);
+                        break;
+                    case BinaryEval.op_and:
+                        computeAnd(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_or:
+                        computeOr(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_plus:
+                        computePlus(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_minus:
+                        computeMinus(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_multiply:
+                        computeMultiply(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_eq:
+                        computeEQ(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_ne:
+                        computeNE(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_lt:
+                        computeLT(sortedITVs, relEvalBinopU);
+                        break;
+                    case BinaryEval.op_le:
+                        computeLE(sortedITVs, relEvalBinopU);
+                        break;
+                    default:
+                        for (Interval x : domU) {
+                            relEvalUnaryU.add(op, x, empty);
+                            for (Interval y : domU)
+                                relEvalBinopU.add(op, x, y, empty);
+                        }
                 }
-                relEConstU.add(eval, Interval.EMPTY);
-            } else if (eval instanceof UnaryEval) {
-                UnaryEval uEval = (UnaryEval) eval;
-                String op = uEval.getOperator();
-                int inner = uEval.getOperand();
-                relEUnary.add(eval, op, inner);
-            } else if (eval instanceof BinaryEval) {
-                BinaryEval bEval = (BinaryEval) eval;
-                String op = bEval.getOperator();
-                int l = bEval.getLeftOperand();
-                int r = bEval.getRightOperand();
-                relEBinop.add(eval, op, l, r);
-            } else {
-                Messages.warn("PreInterval: mark unhandled eval as EMPTY %s[%s]", eval.getClass().getSimpleName(), eval.toDebugString());
-                relEConst.add(eval);
-                relEConstU.add(eval, Interval.EMPTY);
+            }
+            for (var entry : regToEval.entrySet()) {
+                Integer reg = entry.getKey();
+                IEval eval = entry.getValue();
+                if (eval instanceof ConstantEval) {
+                    relEConst.add(eval);
+                    Integer literal = regToLiteral.get(reg);
+                    if (literal != null) {
+                        relEConstU.add(eval, new Interval(literal));
+                    } else {
+                        relEConstU.add(eval, Interval.EMPTY);
+                    }
+                } else if (eval instanceof UnaryEval) {
+                    UnaryEval uEval = (UnaryEval) eval;
+                    String op = uEval.getOperator();
+                    int inner = uEval.getOperand();
+                    relEUnary.add(eval, op, inner);
+                } else if (eval instanceof BinaryEval) {
+                    BinaryEval bEval = (BinaryEval) eval;
+                    String op = bEval.getOperator();
+                    int l = bEval.getLeftOperand();
+                    int r = bEval.getRightOperand();
+                    relEBinop.add(eval, op, l, r);
+                } else {
+                    Messages.warn("PreInterval: mark unhandled eval as EMPTY %s[%s]", eval.getClass().getSimpleName(), eval.toDebugString());
+                    relEConst.add(eval);
+                    relEConstU.add(eval, Interval.EMPTY);
+                }
             }
         }
 
-        assert domU.contains(empty);
-        assert domU.contains(zero);
-        assert domU.contains(one);
-        for (String op : domOP) {
-            switch (op) {
-                case UnaryEval.op_plus:
-                    for (Interval x : domU)
-                        relEvalUnaryU.add(op, x, x);
-                    break;
-                case UnaryEval.op_minus:
-                    relEvalUnaryU.add(op, empty, empty);
-                    for (Interval x : sortedITVs) {
-                        int l = -x.upper;
-                        int r = -x.lower;
-                        List<Interval> res = filterInterval(sortedITVs, l, r);
-                        for (Interval z : res)
-                            relEvalUnaryU.add(op, x, z);
+        {
+            // build predicates
+            for (ItvPredicate up : domUP) {
+                for (Interval u1 : domU) {
+                    for (Interval u2 : domU) {
+                        if (up.maysat(u1, u2))
+                            relMaySat.add(up, u1, u2);
+                        if (up.mayunsat(u1, u2))
+                            relMayUnsat.add(up, u1, u2);
                     }
-                    break;
-                case UnaryEval.op_incr:
-                    computeIncr(sortedITVs, relEvalUnaryU);
-                    break;
-                case UnaryEval.op_decr:
-                    computeDecr(sortedITVs, relEvalUnaryU);
-                    break;
-                case UnaryEval.op_not:
-                    computeNot(sortedITVs, relEvalUnaryU);
-                    break;
-                case BinaryEval.op_and:
-                    computeAnd(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_or:
-                    computeOr(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_plus:
-                    computePlus(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_minus:
-                    computeMinus(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_multiply:
-                    computeMultiply(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_eq:
-                    computeEq(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_ne:
-                    computeNe(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_lt:
-                    computeLt(sortedITVs, relEvalBinopU);
-                    break;
-                case BinaryEval.op_le:
-                    computeLe(sortedITVs, relEvalBinopU);
-                    break;
-                default:
-                    for (Interval x : domU) {
-                        relEvalUnaryU.add(op, x, empty);
-                        for (Interval y : domU)
-                            relEvalBinopU.add(op, x, y, empty);
-                    }
+                }
             }
+            ProgramRel relPPtrue = tRelPPtrue.get();
+            ProgramRel relPPfalse = tRelPPfalse.get();
+            relPPtrue.load();
+            relPPfalse.load();
+            for (Object[] tuple : relPPtrue.getValTuples()) {
+                Interval u1 = null;
+                Interval u2 = null;
+                IMemObj h1 = null;
+                IMemObj h2 = null;
+                ItvPredicate pred = null;
+                Integer condv = (Integer) tuple[2];
+
+                // strip out outermost negations
+                boolean negated = false;
+                IEval eval = regToEval.get(condv);
+                while (eval instanceof UnaryEval && ((UnaryEval) eval).getOperator().equals(UnaryEval.op_not)) {
+                    condv = ((UnaryEval) eval).getOperand();
+                    eval = regToEval.get(condv);
+                    negated = !negated;
+                }
+
+                if (regToLiteral.containsKey(condv)) {
+                    int l1 = regToLiteral.get(condv);
+                    u1 = new Interval(l1);
+                    u2 = new Interval(0);
+                } else if (regToHeap.containsKey(condv)) {
+                    h1 = regToHeap.get(condv);
+                    u2 = new Interval(0);
+                    pred = new ItvPredicate(BinaryEval.op_ne, negated);
+                } else if (eval instanceof BinaryEval) {
+                    pred = new ItvPredicate(((BinaryEval) eval).getOperator(), negated);
+                    int v1 = ((BinaryEval) eval).getLeftOperand();
+                    Integer l1 = regToLiteral.get(v1);
+                    if (l1 != null) u1 = new Interval(l1);
+                    h1 = regToHeap.get(v1);
+                    int v2 = ((BinaryEval) eval).getRightOperand();
+                    Integer l2 = regToLiteral.get(v2);
+                    if (l2 != null) u2 = new Interval(l2);
+                    h2 = regToHeap.get(v2);
+                }
+                assert ((u1 == null || h1 == null) && (u2 == null || h2 == null));
+                if (pred == null) {
+                    relPredUnknown.add(condv);
+                } else {
+                    if (h1 != null && h2 != null) {
+                        for (IMemObj h : domH) {
+                            if (!h.equals(h1) && !h.equals(h2))
+                                relNofilter.add(condv, h);
+                        }
+                        relPred2.add(condv, pred, h1, h2);
+                    } else if (h1 != null && u2 != null) {
+                        for (IMemObj h : domH) {
+                            if (!h.equals(h1))
+                                relNofilter.add(condv, h);
+                        }
+                        relPredL.add(condv, pred, h1, u2);
+                    } else if (u1 != null && h2 != null) {
+                        for (IMemObj h : domH) {
+                            if (!h.equals(h2))
+                                relNofilter.add(condv, h);
+                        }
+                        relPredR.add(condv, pred, u1, h2);
+                    } else if (u1 != null && u2 != null) {
+                        Messages.error("Interval: cond-val @%d is constant [%d]", condv, regToLiteral.get(condv));
+                        relPredUnknown.add(condv);
+                    } else {
+                        relPredUnknown.add(condv);
+                    }
+                }
+            }
+            // no need to dive into relPPfalse as the condition-values are the same
+            relPPtrue.close();
+            relPPfalse.close();
         }
-        relPeval.close();
-        for (ProgramRel rel : genRels) {
+        for (ProgramRel rel: genRels) {
             rel.save();
             rel.close();
         }
 
         tDomOP.accept(domOP);
         tDomU.accept(domU);
+        tDomUP.accept(domUP);
 
         tRelEConst.accept(relEConst);
         tRelEUnary.accept(relEUnary);
@@ -237,6 +386,36 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         tRelEConstU.accept(relEConstU);
         tRelEvalUnaryU.accept(relEvalUnaryU);
         tRelEvalBinopU.accept(relEvalBinopU);
+        tRelUempty.accept(relUempty);
+
+        tRelPredUnknown.accept(relPredUnknown);
+        tRelPredL.accept(relPredL);
+        tRelPredR.accept(relPredR);
+        tRelPred2.accept(relPred2);
+        tRelNofilter.accept(relNofilter);
+        tRelMaySat.accept(relMaySat);
+        tRelMayUnsat.accept(relMayUnsat);
+    }
+
+    private Map<Integer, IMemObj> buildVal2HeapMap(ProgramRel relLoadPtr, ProgramRel relCIPT) {
+        Map<Integer, Set<IMemObj>> pt = new HashMap<>();
+        for (Object[] tuple : relCIPT.getValTuples()) {
+            Integer v = (Integer) tuple[0];
+            IMemObj h = (IMemObj) tuple[1];
+            pt.computeIfAbsent(v, k -> new HashSet<>()).add(h);
+        }
+        Map<Integer, IMemObj> val2heap = new HashMap<>();
+        for (Object[] tuple : relLoadPtr.getValTuples()) {
+            Integer u = (Integer) tuple[0];
+            Integer ptr = (Integer) tuple[1];
+            Set<IMemObj> objs = pt.get(ptr);
+            if (objs != null && objs.size() == 1) {
+                for (IMemObj obj : objs) {
+                    val2heap.put(u, obj);
+                }
+            }
+        }
+        return val2heap;
     }
 
     private static void computeIncr(IndexSet<Interval> sortedITVs, ProgramRel relEvalUnaryU) {
@@ -391,7 +570,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         }
     }
 
-    private static void computeEq(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeEQ(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = BinaryEval.op_eq;
         relEvalBinopU.add(op, empty, empty, empty);
         for (Interval x : sortedITVs) {
@@ -409,7 +588,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         }
     }
 
-    private static void computeNe(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeNE(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = BinaryEval.op_ne;
         relEvalBinopU.add(op, empty, empty, empty);
         for (Interval x : sortedITVs) {
@@ -427,7 +606,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         }
     }
 
-    private static void computeLt(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeLT(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = BinaryEval.op_lt;
         relEvalBinopU.add(op, empty, empty, empty);
         for (Interval x : sortedITVs) {
@@ -452,7 +631,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         }
     }
 
-    private static void computeLe(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeLE(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = BinaryEval.op_le;
         relEvalBinopU.add(op, empty, empty, empty);
         for (Interval x : sortedITVs) {

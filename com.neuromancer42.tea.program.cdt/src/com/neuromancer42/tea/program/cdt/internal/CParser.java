@@ -45,6 +45,7 @@ public class CParser {
     public final ProgramRel relPstore;
     public final ProgramRel relPalloc;
     public final ProgramRel relPinvk;
+    public final ProgramRel relPnoop;
 
     public final ProgramRel relAlloca;
     public final ProgramRel relGlobalAlloca;
@@ -101,6 +102,7 @@ public class CParser {
         relPstore = new ProgramRel("Pstore", domP, domV);
         relPalloc = new ProgramRel("Palloc", domP, domV);
         relPinvk = new ProgramRel("Pinvk", domP, domI);
+        relPnoop = new ProgramRel("Pnoop", domP);
         relAlloca = new ProgramRel("Alloca", domV, domA);
         relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA);
         relLoadPtr = new ProgramRel("LoadPtr", domV, domV);
@@ -127,7 +129,7 @@ public class CParser {
 
         generatedRels = new ProgramRel[]{
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
-                relPeval, relPload, relPstore, relPalloc, relPinvk,
+                relPeval, relPload, relPstore, relPalloc, relPinvk, relPnoop,
                 relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relFuncRef, relMmethArg, relMmethRet, relEntryM,
@@ -252,6 +254,9 @@ public class CParser {
             Collection<IBasicBlock> nodes = cfg.getNodes();
             nodes.removeAll(cfg.getDeadNodes());
             for (var p : nodes) {
+                if (!(p instanceof EvalNode || p instanceof StoreNode || p instanceof LoadNode || p instanceof AllocNode)) {
+                    relPnoop.add(p);
+                }
                 if (p instanceof ReturnNode) {
                     relMPexit.add(meth, p);
                     int retReg = ((ReturnNode) p).getRegister();

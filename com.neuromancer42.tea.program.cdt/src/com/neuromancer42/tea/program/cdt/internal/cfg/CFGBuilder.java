@@ -7,10 +7,7 @@ import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
 import org.eclipse.cdt.codan.core.model.cfg.*;
 import org.eclipse.cdt.codan.internal.core.cfg.*;
 import org.eclipse.cdt.core.dom.ast.*;
-import org.eclipse.cdt.core.dom.ast.c.ICASTArrayDesignator;
-import org.eclipse.cdt.core.dom.ast.c.ICASTDesignatedInitializer;
-import org.eclipse.cdt.core.dom.ast.c.ICASTDesignator;
-import org.eclipse.cdt.core.dom.ast.c.ICASTFieldDesignator;
+import org.eclipse.cdt.core.dom.ast.c.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
@@ -175,7 +172,9 @@ public class CFGBuilder {
     }
 
     private void processType(IType type) {
-        types.add(type);
+        boolean newFound = types.add(type);
+        if (!newFound)
+            return;
         if (type instanceof IArrayType) {
             processType(((IArrayType) type).getType());
         } else if (type instanceof IPointerType) {
@@ -187,6 +186,10 @@ public class CFGBuilder {
                 fields.add(f);
                 processType(f.getType());
             }
+        } else if (type instanceof ICQualifierType) {
+            processType(((ICQualifierType) type).getType());
+        }  else if (type instanceof IFunctionType) {
+            types.add(type);
         } else if (!(type instanceof IBasicType)) {
             Messages.error("CParser: unhandled type %s[%s]", type.getClass().getSimpleName(), type);
         }
@@ -270,6 +273,9 @@ public class CFGBuilder {
         for (int i = 0; i < paramDtors.length; ++i) {
             IASTDeclarator dtor = paramDtors[i];
             IParameter param = (IParameter) processDeclarator(dtor, false);
+            if (param.getType().isSameType(CBasicType.VOID)) {
+                break;
+            }
             int refReg = getRefReg(param);
             if (refReg < 0) {
                 Messages.fatal("CParser: cannot find reference register for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, param.hashCode(), param.getOwner());
@@ -1388,7 +1394,7 @@ public class CFGBuilder {
 
     private int createRegister(IASTExpression expression) {
         if (expression.getExpressionType().isSameType(CBasicType.VOID)) {
-            Messages.warn("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
             return -1;
         }
         return getRegister(expression, true);
