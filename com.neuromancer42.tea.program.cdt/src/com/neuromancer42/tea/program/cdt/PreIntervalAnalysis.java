@@ -38,6 +38,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
     private final Trgt<ProgramRel> tRelEvalUnaryU;
     private final Trgt<ProgramRel> tRelEvalBinopU;
     private final Trgt<ProgramRel> tRelUempty;
+    private final Trgt<ProgramRel> tRelUinput;
     private final Trgt<ProgramRel> tRelPredUnknown;
     private final Trgt<ProgramRel> tRelPredL;
     private final Trgt<ProgramRel> tRelPredR;
@@ -73,6 +74,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         tRelEvalUnaryU = AnalysesUtil.createRelTrgt(name, "evalUnaryU", "OP", "U", "U");
         tRelEvalBinopU = AnalysesUtil.createRelTrgt(name, "evalBinopU", "OP", "U", "U", "U");
         tRelUempty = AnalysesUtil.createRelTrgt(name, "Uempty", "U");
+        tRelUinput = AnalysesUtil.createRelTrgt(name, "Uinput", "U");
 
         tRelPredUnknown = AnalysesUtil.createRelTrgt(name, "PredUnknown", "V");
         tRelPredL = AnalysesUtil.createRelTrgt(name, "PredL", "V", "UP", "H", "U");
@@ -83,7 +85,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         tRelNofilter = AnalysesUtil.createRelTrgt(name, "nofilter", "V", "H");
         registerConsumers(tDomV, tDomE, tDomH, tRelPeval, tRelPPtrue, tRelPPfalse, tRelLoadPtr, tRelCIPT);
         registerProducers(tDomOP, tDomU, tDomUP,
-                tRelUempty,
+                tRelUempty, tRelUinput,
                 tRelEConst, tRelEUnary, tRelEBinop, tRelEConstU, tRelEvalUnaryU, tRelEvalBinopU,
                 tRelPredUnknown, tRelPredL, tRelPredR, tRelPred2, tRelMaySat, tRelMayUnsat, tRelNofilter);
     }
@@ -125,6 +127,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
                         regToLiteral.put(reg, primVal);
                         Messages.debug("PreInterval: find new constant integer %d", primVal);
                         intConstants.add(primVal);
+                        intConstants.add(-primVal);
                     } catch (NumberFormatException e) {
                         Messages.error("PreInterval: not a constant integer %s", constRepr);
                     }
@@ -143,6 +146,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
 
         intConstants.add(0);
         intConstants.add(1);
+        intConstants.add(-1);
         intConstants.add(Interval.min_bound);
         intConstants.add(Interval.max_bound);
         List<Integer> boundList = new ArrayList<>(intConstants);
@@ -176,6 +180,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         ProgramRel relEvalUnaryU = new ProgramRel("evalUnaryU", domOP, domU, domU);
         ProgramRel relEvalBinopU = new ProgramRel("evalBinopU", domOP, domU, domU, domU);
         ProgramRel relUempty = new ProgramRel("Uempty", domU);
+        ProgramRel relUinput = new ProgramRel("Uinput", domU);
         ProgramRel relPredUnknown = new ProgramRel("PredUnknown", domV);
         ProgramRel relPredL = new ProgramRel("PredL", domV, domUP, domH, domU);
         ProgramRel relPredR = new ProgramRel("PredR", domV, domUP, domU, domH);
@@ -184,7 +189,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         ProgramRel relMayUnsat = new ProgramRel("MayUnsat", domUP, domU, domU);
         ProgramRel relNofilter = new ProgramRel("nofilter", domV, domH);
         // TODO: lift generated rels as private member of JavaAnalysis
-        ProgramRel[] genRels = new ProgramRel[]{relEConst, relEUnary, relEBinop, relEConstU, relEvalUnaryU, relEvalBinopU, relUempty, relPredUnknown, relPredL, relPredR, relPred2, relMaySat, relMayUnsat, relNofilter};
+        ProgramRel[] genRels = new ProgramRel[]{relEConst, relEUnary, relEBinop, relEConstU, relEvalUnaryU, relEvalBinopU, relUempty, relUinput, relPredUnknown, relPredL, relPredR, relPred2, relMaySat, relMayUnsat, relNofilter};
         for (ProgramRel rel : genRels) {
             rel.init();
         }
@@ -195,6 +200,11 @@ public class PreIntervalAnalysis extends JavaAnalysis {
             assert domU.contains(zero);
             assert domU.contains(one);
             relUempty.add(empty);
+            for (Interval u : domU) {
+                if (!(u.equals(empty) || u.equals(Interval.MAX_INF) || u.equals(Interval.MIN_INF))) {
+                    relUinput.add(u);
+                }
+            }
             for (String op : domOP) {
                 switch (op) {
                     case UnaryEval.op_plus:
@@ -387,6 +397,7 @@ public class PreIntervalAnalysis extends JavaAnalysis {
         tRelEvalUnaryU.accept(relEvalUnaryU);
         tRelEvalBinopU.accept(relEvalBinopU);
         tRelUempty.accept(relUempty);
+        tRelUinput.accept(relUinput);
 
         tRelPredUnknown.accept(relPredUnknown);
         tRelPredL.accept(relPredL);

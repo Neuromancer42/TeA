@@ -7,10 +7,7 @@ import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
-import com.neuromancer42.tea.program.cdt.CMemoryModel;
-import com.neuromancer42.tea.program.cdt.CParserAnalysis;
-import com.neuromancer42.tea.program.cdt.PreDataflowAnalysis;
-import com.neuromancer42.tea.program.cdt.PreIntervalAnalysis;
+import com.neuromancer42.tea.program.cdt.*;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
 import com.neuromancer42.tea.souffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
@@ -18,6 +15,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Set;
 
 public class CIntervalTest {
@@ -56,6 +54,9 @@ public class CIntervalTest {
         SouffleAnalysis interval = SouffleRuntime.g().createSouffleAnalysisFromFile("interval", "interval", new File(dlogName2));
         AnalysesUtil.registerAnalysis(context, interval);
 
+        Messages.log("Registering InputMarker");
+        InputMarker marker = new InputMarker();
+        AnalysesUtil.registerAnalysis(context, marker);
         OsgiProject.init();
     }
 
@@ -68,19 +69,21 @@ public class CIntervalTest {
         Assertions.assertTrue(tasks.contains("PrePointer"));
         Assertions.assertTrue(tasks.contains("ciPointerAnalysis"));
         Assertions.assertTrue(tasks.contains("interval"));
-        String[] taskSet = new String[2];
+        String[] taskSet = new String[3];
         taskSet[0] = "ciPointerAnalysis";
         taskSet[1] = "interval";
+        taskSet[2] = "InputMarker";
         Project.g().run(taskSet);
-        Project.g().printRels(new String[]{"ExtMeth", "MP", "ci_IM", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval"});
+        Project.g().printRels(new String[]{"ExtMeth", "MP", "ci_IM", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval", "retInput", "argInput"});
 
-        Assertions.assertEquals(7, OsgiProject.g().getDoneTasks().size());
+        Assertions.assertEquals(8, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("interval");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
                 cons -> new Categorical01(new double[]{0.1,0.5,0.9}),
                 input -> new Categorical01(new double[]{0.1,0.9})
         );
+        causalGraph.dump(Path.of(Config.v().outDirName));
         AbstractCausalDriver causalDriver = new OneShotCausalDriver("test-oneshot-interval", causalGraph);
         // TODO: load observations
     }

@@ -119,6 +119,16 @@
 //.decl ci_Fval(h:H, f:F, c:U)
 //.output ci_Fval
 
+.decl ExtMeth(m:M)
+.input ExtMeth
+// change this marker to meth-related
+.decl argInput(m:M, z:Z)
+.input argInput
+.decl retInput(m:M)
+.input retInput
+.decl Uinput(c:U)
+.input Uinput
+
 ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Econst(e), EConstU(e, u).
 ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Eunary(e, o, v0), ci_Vval(v0, u0), evalUnaryU(o, u0, u).
 ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Ebinop(e, o, v1, v2), ci_Vval(v1, u1), ci_Vval(v2, u2), evalBinopU(o, u1, u2, u).
@@ -154,3 +164,5 @@ ci_PHval(p,h,c) :- MPentry(m,p), ci_MH(m,h), Uempty(c).
 ci_PHval(q,h,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHval(p,h,c), ci_MH(m,h).
 ci_postPHval(p,h,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHval(q,h,c), ci_PHval(p,h,_).
 
+ci_postPHval(p,h,c) :- Pinvk(p,i), ci_IM(i,m), IinvkArg(i,z,u), argInput(m,z), ci_pt(u,h), Uinput(c).
+ci_Vval(v,c) :- Pinvk(_,i), ci_IM(i,m), IinvkRet(i,v), retInput(m), Uinput(c).
