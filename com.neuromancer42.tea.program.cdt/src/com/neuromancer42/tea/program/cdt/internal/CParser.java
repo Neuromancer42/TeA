@@ -5,7 +5,6 @@ import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.program.cdt.internal.cfg.*;
 import com.neuromancer42.tea.program.cdt.internal.evaluation.*;
-import com.neuromancer42.tea.program.cdt.internal.memory.*;
 import org.eclipse.cdt.codan.core.model.cfg.IBasicBlock;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
@@ -28,7 +27,7 @@ public class CParser {
     public final ProgramDom<IEval> domE;
     public final ProgramDom<Integer> domV;
     public final ProgramDom<IField> domF;
-    public final ProgramDom<IASTFunctionCallExpression> domI;
+    public final ProgramDom<IEval> domI;
     public final ProgramDom<Integer> domZ;
     public final ProgramDom<String> domC; // temporarily, use String to represent constants
     public final ProgramDom<IType> domT;
@@ -61,6 +60,7 @@ public class CParser {
     public final ProgramRel relIndirectCall;
     public final ProgramRel relStaticCall;
 
+    public final ProgramRel relExtMeth;
     public final ProgramRel relFuncRef;
     public final ProgramRel relMmethArg;
     public final ProgramRel relMmethRet;
@@ -81,7 +81,7 @@ public class CParser {
         domE = ProgramDom.createDom("E", IEval.class);
         domV = ProgramDom.createDom("V", Integer.class);
         domF = ProgramDom.createDom("F", IField.class);
-        domI = ProgramDom.createDom("I", IASTFunctionCallExpression.class);
+        domI = ProgramDom.createDom("I", IEval.class);
         domZ = ProgramDom.createDom("Z", Integer.class);
         domC = ProgramDom.createDom("C", String.class);
         domT = ProgramDom.createDom("T", IType.class);
@@ -119,6 +119,7 @@ public class CParser {
         relStaticCall = new ProgramRel("StaticCall", domI, domM);
 
         // methods
+        relExtMeth = new ProgramRel("ExtMeth", domM);
         relFuncRef = new ProgramRel("funcRef", domM, domV);
         relMmethArg = new ProgramRel("MmethArg", domM, domZ, domV);
         relMmethRet = new ProgramRel("MmethRet", domM, domV);
@@ -132,7 +133,7 @@ public class CParser {
                 relPeval, relPload, relPstore, relPalloc, relPinvk, relPnoop,
                 relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
-                relFuncRef, relMmethArg, relMmethRet, relEntryM,
+                relExtMeth, relFuncRef, relMmethArg, relMmethRet, relEntryM,
                 relVvalue
         };
     }
@@ -185,7 +186,7 @@ public class CParser {
             domA.add(var);
         }
         int maxNumArg = 0;
-        for (IFunction meth : builder.getDeclaredFuncs()) {
+        for (IFunction meth : builder.getFuncs()) {
             domM.add(meth);
             int numMargs = meth.getParameters().length;
             if (numMargs > maxNumArg)
@@ -195,7 +196,6 @@ public class CParser {
             }
             CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
             if (cfg == null) {
-                Messages.warn("CParser: external function? %s[%s]", meth.getClass().getSimpleName(), meth);
                 continue;
             }
             Collection<IBasicBlock> nodes = cfg.getNodes();
@@ -207,7 +207,7 @@ public class CParser {
                     domE.add(e);
                     if (e instanceof StaticCallEval || e instanceof IndirectCallEval) {
                         IASTFunctionCallExpression invk = (IASTFunctionCallExpression) e.getExpression();
-                        domI.add(invk);
+                        domI.add(e);
                         int numIargs = invk.getArguments().length;
                         if (numIargs > maxNumArg)
                             maxNumArg = numIargs;
@@ -223,7 +223,7 @@ public class CParser {
         saveDomains();
 
         openRelations();
-        for (IFunction func : builder.getDeclaredFuncs()) {
+        for (IFunction func : builder.getFuncs()) {
             int refReg = builder.getRefReg(func);
             relFuncRef.add(func, refReg);
         }
@@ -238,14 +238,17 @@ public class CParser {
                 relVvalue.add(reg, c);
             }
         }
-        for (IFunction meth : builder.getDeclaredFuncs()) {
+        for (IFunction meth : builder.getFuncs()) {
             if (meth.getName().contentEquals("main")) {
                 Messages.debug("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
                 relEntryM.add(meth);
             }
             CFGBuilder.IntraCFG cfg = builder.getIntraCFG(meth);
-            if (cfg == null)
+            if (cfg == null) {
+                Messages.debug("CParser: external function %s[%s]", meth.getClass().getSimpleName(), meth);
+                relExtMeth.add(meth);
                 continue;
+            }
             relMPentry.add(meth, cfg.getStartNode());
             int[] mArgRegs = builder.getFuncArgs(meth);
             for (int i = 0; i < mArgRegs.length; ++i) {
@@ -277,27 +280,27 @@ public class CParser {
                     int v = ((EvalNode) p).getRegister();
                     if (e instanceof StaticCallEval || e instanceof IndirectCallEval) {
                         IASTFunctionCallExpression invk = (IASTFunctionCallExpression) e.getExpression();
-                        relPinvk.add(p, invk);
+                        relPinvk.add(p, e);
                         if (v >= 0) {
-                            relIinvkRet.add(invk, v);
+                            relIinvkRet.add(e, v);
                         } else {
                             Messages.debug("CParser: invocation has no ret-val [%s]", e.toDebugString());
                         }
                         int[] iArgRegs;
                         if (e instanceof StaticCallEval) {
                             IFunction func = ((StaticCallEval) e).getFunction();
-                            relStaticCall.add(invk, func);
+                            relStaticCall.add(e, func);
                             iArgRegs = ((StaticCallEval) e).getArguments();
                         } else {
                             int funcReg = ((IndirectCallEval) e).getFunctionReg();
-                            relIndirectCall.add(invk, funcReg);
+                            relIndirectCall.add(e, funcReg);
                             iArgRegs = ((IndirectCallEval) e).getArguments();
                         }
 
                         IASTInitializerClause[] argExprs = invk.getArguments();
                         assert iArgRegs.length == argExprs.length;
                         for (int i = 0; i < iArgRegs.length; ++i) {
-                            relIinvkArg.add(invk, i, iArgRegs[i]);
+                            relIinvkArg.add(e, i, iArgRegs[i]);
                         }
                     } else if (e instanceof GetOffsetPtrEval) {
                         int u = ((GetOffsetPtrEval) e).getBasePtr();

@@ -72,10 +72,10 @@ public class CIntervalTest {
         taskSet[0] = "ciPointerAnalysis";
         taskSet[1] = "interval";
         Project.g().run(taskSet);
-        Project.g().printRels(new String[]{"MP", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval"});
+        Project.g().printRels(new String[]{"ExtMeth", "MP", "ci_IM", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval"});
 
         Assertions.assertEquals(7, OsgiProject.g().getDoneTasks().size());
-        ITask task = OsgiProject.g().getTask("ciPointerAnalysis");
+        ITask task = OsgiProject.g().getTask("interval");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
                 cons -> new Categorical01(new double[]{0.1,0.5,0.9}),

@@ -124,44 +124,14 @@ public class CFGBuilder {
         IBinding binding = declarator.getName().resolveBinding();
         if (binding instanceof IVariable) {
             IVariable var = (IVariable) binding;
-            boolean notDeclared = registers.add(var);
-            if (!notDeclared)
+            if (refRegMap.containsKey(var))
                 Messages.warn("CParser: re-declare variable %s[%s] at line#%d: (%s)", var.getClass().getSimpleName(), var, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
-            int vReg = registers.indexOf(var);
-            refRegMap.put(var, vReg);
-            if (isStatic) {
-                staticVars.add(var);
-            } else {
-                funcVars.get(curFunc).add(var);
-            }
-            processType(var.getType());
-            Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%d in (%s)", var.getType(), vReg, var.getName(), var.hashCode(), var.getOwner());
+            processVariable(var, isStatic);
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
-            boolean notDeclared = registers.add(func);
-            if (!notDeclared)
+            if (funcs.contains(func))
                 Messages.warn("CParser: re-declare function %s[%s] at line#%d: (%s)", func.getClass().getSimpleName(), func, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
-            int fReg = registers.indexOf(func);
-            funcs.add(func);
-            types.add(func.getType());
-            refRegMap.put(func, fReg);
-            funcVars.putIfAbsent(func, new LinkedHashSet<>());
-            Messages.debug("CParser: alloc stack location (funPtr)@%d for function %s[%s]", fReg, func.getClass().getSimpleName(), func);
-            if (func.getParameters() == null) {
-                Messages.debug("CParser: function %s[%s] has no argument", func.getClass().getSimpleName(), func);
-            } else {
-                // TODO: var-arg?
-                IParameter[] params = func.getParameters();
-                int[] argRegs = new int[params.length];
-                for (int i = 0; i < params.length; ++i) {
-                    Pair<IFunction, Integer> arg = new Pair<>(func, i);
-                    registers.add(arg);
-                    int aReg = registers.indexOf(arg);
-                    argRegs[i] = aReg;
-                    Messages.debug("CParser: reference %s[%s]'s %d-th argument %s[%s] by %s@%d", func.getClass().getSimpleName(), func, i, arg.getClass().getSimpleName(), arg, params[i].getType(), aReg);
-                }
-                funcArgsMap.put(func, argRegs);
-            }
+            processFunction(func);
         } else if (binding instanceof ITypedef) {
             ITypedef typedef = (ITypedef) binding;
             Messages.warn("CParser: skip typedef %s[%s]", typedef.getClass().getSimpleName(), typedef);
@@ -169,6 +139,46 @@ public class CFGBuilder {
             Messages.error("CParser: unhandled declaration %s[%s] (%s[%s])", binding.getClass().getSimpleName(), binding, declarator.getClass().getSimpleName(), declarator.getRawSignature());
         }
         return binding;
+    }
+
+    private int processVariable(IVariable var, boolean isStatic) {
+        registers.add(var);
+        int vReg = registers.indexOf(var);
+        refRegMap.put(var, vReg);
+        if (isStatic) {
+            staticVars.add(var);
+        } else {
+            funcVars.get(curFunc).add(var);
+        }
+        processType(var.getType());
+        Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%d in (%s)", var.getType(), vReg, var.getName(), var.hashCode(), var.getOwner());
+        return vReg;
+    }
+
+    private int processFunction(IFunction func) {
+        registers.add(func);
+        int fReg = registers.indexOf(func);
+        funcs.add(func);
+        types.add(func.getType());
+        refRegMap.put(func, fReg);
+        funcVars.putIfAbsent(func, new LinkedHashSet<>());
+        Messages.debug("CParser: alloc stack location (funPtr)@%d for function %s[%s]", fReg, func.getClass().getSimpleName(), func);
+        if (func.getParameters() == null) {
+            Messages.debug("CParser: function %s[%s] has no argument", func.getClass().getSimpleName(), func);
+        } else {
+            // TODO: var-arg?
+            IParameter[] params = func.getParameters();
+            int[] argRegs = new int[params.length];
+            for (int i = 0; i < params.length; ++i) {
+                Pair<IFunction, Integer> arg = new Pair<>(func, i);
+                registers.add(arg);
+                int aReg = registers.indexOf(arg);
+                argRegs[i] = aReg;
+                Messages.debug("CParser: reference %s[%s]'s %d-th argument %s[%s] by %s@%d", func.getClass().getSimpleName(), func, i, arg.getClass().getSimpleName(), arg, params[i].getType(), aReg);
+            }
+            funcArgsMap.put(func, argRegs);
+        }
+        return fReg;
     }
 
     private void processType(IType type) {
@@ -216,13 +226,13 @@ public class CFGBuilder {
     public int getRefReg(IBinding id) {
         Integer reg = refRegMap.get(id);
         if (reg == null) {
-            Messages.fatal("CParser: referencing undeclared identifier %s[%s]", id.getClass().getSimpleName(), id);
+            Messages.debug("CParser: referencing undeclared identifier %s[%s]", id.getClass().getSimpleName(), id);
             return -1;
         }
         return reg;
     }
 
-    public Set<IFunction> getDeclaredFuncs() {
+    public Set<IFunction> getFuncs() {
         return funcs;
     }
 
@@ -689,7 +699,17 @@ public class CFGBuilder {
             IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
             int refReg = getRefReg(binding);
             if (refReg < 0) {
-                Messages.fatal("CParser: referenced register not found for %s[%s]#%d in (%s)", binding.getClass().getSimpleName(), binding.getName(), binding.hashCode(), binding.getOwner());
+                if (binding instanceof IFunction) {
+                    IFunction f = (IFunction) binding;
+                    Messages.debug("CParser: get address of external function %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                    refReg = processFunction(f);
+                } else if (binding instanceof IVariable) {
+                    IVariable v = (IVariable) binding;
+                    Messages.debug("CParser: get address of external variable %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                    refReg = processVariable(v, true);
+                } else {
+                    Messages.fatal("CParser: referenced register not found for %s[%s]#%d in (%s)", binding.getClass().getSimpleName(), binding.getName(), binding.hashCode(), binding.getOwner());
+                }
             }
             return refReg;
         } else if (expression instanceof IASTUnaryExpression) {
@@ -765,8 +785,11 @@ public class CFGBuilder {
             if (binding instanceof IVariable) {
                 // TODO: special handling of array-to-pointer conversion
                 int refReg = getRefReg(binding);
-                if (refReg < 0)
-                    Messages.fatal("CParser: cannot find variable reference for %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                if (refReg < 0) {
+                    IVariable v = (IVariable) binding;
+                    refReg = processVariable(v, true);
+                    Messages.debug("CParser: reference external variable %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                }
                 Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", expression.getExpressionType(), reg, refReg, expression.getRawSignature());
                 IBasicBlock loadNode = new LoadNode(reg, refReg);
                 prevNode = connect(prevNode, loadNode);
@@ -774,9 +797,12 @@ public class CFGBuilder {
                 return reg;
             } else if (binding instanceof IFunction) {
                 int refReg = getRefReg(binding);
-                if (refReg < 0)
-                    Messages.fatal("CParser: cannot find function reference for %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                if (refReg < 0) {
+                    IFunction f = (IFunction) binding;
 
+                    Messages.debug("CParser: reference external function %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                    refReg = processFunction(f);
+                }
                 return refReg;
             }
         } else if (expression instanceof IASTUnaryExpression) {
@@ -1055,6 +1081,10 @@ public class CFGBuilder {
        IFunction receiver = findReceiver(fNameExpr);
         if (receiver != null) {
             Messages.debug("CParser: resolve static invocation %s[%s] to %s", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), receiver);
+            if (!funcs.contains(receiver)) {
+                Messages.debug("CParser: invoke external function %s[%s] at line#%d (%s)", receiver.getClass().getSimpleName(), receiver, fNameExpr.getFileLocation().getStartingLineNumber(), fNameExpr.getRawSignature());
+                processFunction(receiver);
+            }
             staticInvkMap.put(fNameExpr, receiver);
             return -1;
         } else {
