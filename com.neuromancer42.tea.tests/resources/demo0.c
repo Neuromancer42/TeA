@@ -4,7 +4,7 @@ int main() {
     int a = 0;
     scanf("%d", &a);
     int b;
-    if (a > 0)
+    if (a * a)
         b = 10;
     else
         b = -10;

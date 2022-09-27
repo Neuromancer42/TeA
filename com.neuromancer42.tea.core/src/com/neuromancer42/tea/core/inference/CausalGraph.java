@@ -69,38 +69,46 @@ public class CausalGraph<NodeT> {
             singletonSet.add(nodeId);
         }
 
-        Map<Integer, List<Integer>> sumMap = new HashMap<>();
+        Map<Integer, List<Integer>> sumMap = new LinkedHashMap<>();
         for (NodeT head : sums.keySet()) {
             int headId = nodeList.indexOf(head);
             if (!nodeList.contains(head)) {
                 Messages.fatal("CausalGraph: unmet head " + head);
             }
-            List<Integer> bodyIds = new ArrayList<>();
+            // use Set to eliminate duplicate items
+            Set<Integer> bodyIds = new LinkedHashSet<>();
             for (NodeT sub : sums.get(head)) {
                 int subId = nodeList.indexOf(sub);
                 if (!nodeList.contains(sub)) {
                     Messages.fatal("CausalGraph: unmet sub " + sub + "in head " + head);
                 }
+                if (subId == headId) {
+                    Messages.fatal("CausalGraph: ill-formed, head " + head + " exists in bodies");
+                }
                 bodyIds.add(subId);
             }
-            sumMap.put(headId, bodyIds);
+            sumMap.put(headId, new ArrayList<>(bodyIds));
         }
 
-        Map<Integer, List<Integer>> prodMap = new HashMap<>();
+        Map<Integer, List<Integer>> prodMap = new LinkedHashMap<>();
         for (NodeT head : prods.keySet()) {
             int headId = nodeList.indexOf(head);
             if (!nodeList.contains(head)) {
                 Messages.fatal("CausalGraph: unmet head " + head);
             }
-            List<Integer> bodyIds = new ArrayList<>();
+            // use Set to eliminate duplicate items
+            Set<Integer> bodyIds = new LinkedHashSet<>();
             for (NodeT sub : prods.get(head)) {
                 int subId = nodeList.indexOf(sub);
                 if (!nodeList.contains(sub)) {
-                    Messages.fatal("CausalGraph: skip unmet sub " + sub + " in head " + head);
+                    Messages.fatal("CausalGraph: unmet sub " + sub + " in head " + head);
+                }
+                if (subId == headId) {
+                    Messages.fatal("CausalGraph: ill-formed, head " + head + " exists in bodies");
                 }
                 bodyIds.add(subId);
             }
-            prodMap.put(headId, bodyIds);
+            prodMap.put(headId, new ArrayList<>(bodyIds));
         }
 
         for (NodeT node : nodes) {
@@ -251,6 +259,7 @@ public class CausalGraph<NodeT> {
                 distLines.add(lb.toString());
             }
             Files.write(distFilePath, distLines, StandardCharsets.UTF_8);
+            Messages.debug("CausalGraph: dumping causal graph to path " + netFilePath);
         } catch (IOException e) {
             Messages.error("CausalGraph: failed to dump causal graph, skip");
             e.printStackTrace();

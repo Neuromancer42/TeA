@@ -31,6 +31,7 @@ public class DAIMetaNetwork {
             BufferedWriter bw = Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
             subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats);
+            Messages.debug("DAIFactorGraph: dumping factor graph to path " + fgFilePath);
         } catch (IOException e) {
             Messages.error("DAIFacetorGraph: failed to dump factor graph.");
             Messages.fatal(e);

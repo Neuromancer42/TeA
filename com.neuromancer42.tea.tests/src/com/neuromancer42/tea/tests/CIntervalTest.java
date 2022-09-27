@@ -91,28 +91,39 @@ public class CIntervalTest {
         Tuple cretP = new Tuple("ci_PHval", 22, 4, 11);
         Tuple cretN = new Tuple("ci_PHval", 22, 4, 3);
         Tuple cret0 = new Tuple("ci_PHval", 22, 4, 7);
-        Tuple bretP = new Tuple("ci_PHval", 22, 3, 10);
-        Tuple bretN = new Tuple("ci_PHval", 22, 3, 4);
-        List<String> queries = Arrays.asList(
-                provenance.encodeTuple(bretP),
-                provenance.encodeTuple(bretN),
+        Tuple[] bPs = new Tuple[8];
+        Tuple[] bNs = new Tuple[8];
+        for (int i = 15; i <= 22; ++i) {
+            bPs[i-15] = new Tuple("ci_PHval", i, 3, 10);
+            bNs[i-15] = new Tuple("ci_PHval", i, 3, 4);
+        }
+        List<String> queries = new ArrayList<>(Arrays.asList(
                 provenance.encodeTuple(cret0),
                 provenance.encodeTuple(cretP),
                 provenance.encodeTuple(cretN)
-        );
+        ));
+        for (Tuple t : bPs) {
+            queries.add(provenance.encodeTuple(t));
+        }
+        for (Tuple t: bNs) {
+            queries.add(provenance.encodeTuple(t));
+        }
+
         Map<String, Double> prior = causalDriver.queryPossibilities(queries);
         Messages.log("Prior:");
-        Messages.log("P(c=0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cret0)));
-        Messages.log("P(c>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretP)));
-        Messages.log("P(c<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretN)));
-        Messages.log("P(b>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(bretP)));
-        Messages.log("P(b<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(bretN)));
+        Messages.log("P(ret#c=0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cret0)));
+        Messages.log("P(ret#c>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretP)));
+        Messages.log("P(ret#c<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretN)));
+        for (int i = 15; i <= 22; ++i) {
+            Messages.log("P(%d#b>0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bPs[i-15])));
+            Messages.log("P(%d#b<0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bNs[i-15])));
+        }
 
         ArrayList<Map<String, Boolean>> trace = new ArrayList<>();
         for (int i = 0; i < 10; ++i) {
             Map<String, Boolean> obs = new HashMap<>();
             obs.put(provenance.encodeTuple(cret0), false);
-            if (i % 2 == 0) {
+            if (i % 8 == 0) {
                 obs.put(provenance.encodeTuple(cretN), true);
                 obs.put(provenance.encodeTuple(cretP), false);
             } else {
@@ -124,10 +135,12 @@ public class CIntervalTest {
         causalDriver.run(trace);
         Map<String, Double> post = causalDriver.queryPossibilities(queries);
         Messages.log("Posterior:");
-        Messages.log("P(c=0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cret0)));
-        Messages.log("P(c>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretP)));
-        Messages.log("P(c<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretN)));
-        Messages.log("P(b>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(bretP)));
-        Messages.log("P(b<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(bretN)));
+        Messages.log("P(ret#c=0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cret0)));
+        Messages.log("P(ret#c>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretP)));
+        Messages.log("P(ret#c<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretN)));
+        for (int i = 15; i <= 22; ++i) {
+            Messages.log("P(%d#b>0) = %f%%", i, 100.0 * post.get(provenance.encodeTuple(bPs[i-15])));
+            Messages.log("P(%d#b<0) = %f%%", i, 100.0 * post.get(provenance.encodeTuple(bNs[i-15])));
+        }
     }
 }
