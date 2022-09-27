@@ -200,7 +200,7 @@ public class CausalGraph<NodeT> {
                 // 2. dist id
                 Integer distId = stochMap.get(nodeId);
                 if (distId != null) {
-                    lb.append(distNodes.indexOf(distId));
+                    lb.append(distId);
                 } else {
                     lb.append("D"); // D for determinant
                 }

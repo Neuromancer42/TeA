@@ -138,7 +138,7 @@ public class Provenance {
         }
     }
 
-    private String encodeTuple(Tuple t)  {
+    public String encodeTuple(Tuple t)  {
         return tupleIdMap.get(t);
     }
 

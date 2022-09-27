@@ -6,6 +6,8 @@ import com.neuromancer42.tea.core.inference.Categorical01;
 import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.Provenance;
+import com.neuromancer42.tea.core.provenance.Tuple;
+import com.neuromancer42.tea.libdai.IteratingCausalDriver;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
 import com.neuromancer42.tea.program.cdt.*;
 import com.neuromancer42.tea.souffle.SouffleAnalysis;
@@ -16,7 +18,7 @@ import org.osgi.framework.FrameworkUtil;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.Set;
+import java.util.*;
 
 public class CIntervalTest {
     static BundleContext context = FrameworkUtil.getBundle(CIntervalTest.class).getBundleContext();
@@ -80,11 +82,52 @@ public class CIntervalTest {
         ITask task = OsgiProject.g().getTask("interval");
         Provenance provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
-                cons -> new Categorical01(new double[]{0.1,0.5,0.9}),
-                input -> new Categorical01(new double[]{0.1,0.9})
+                cons -> new Categorical01(new double[]{0.1,0.5,1.0}),
+                input -> new Categorical01(new double[]{0.1,0.5,1.0})
         );
         causalGraph.dump(Path.of(Config.v().outDirName));
-        AbstractCausalDriver causalDriver = new OneShotCausalDriver("test-oneshot-interval", causalGraph);
+        AbstractCausalDriver causalDriver = new IteratingCausalDriver("test-iterating-interval", causalGraph);
         // TODO: load observations
+        Tuple cretP = new Tuple("ci_PHval", 22, 4, 11);
+        Tuple cretN = new Tuple("ci_PHval", 22, 4, 3);
+        Tuple cret0 = new Tuple("ci_PHval", 22, 4, 7);
+        Tuple bretP = new Tuple("ci_PHval", 22, 3, 10);
+        Tuple bretN = new Tuple("ci_PHval", 22, 3, 4);
+        List<String> queries = Arrays.asList(
+                provenance.encodeTuple(bretP),
+                provenance.encodeTuple(bretN),
+                provenance.encodeTuple(cret0),
+                provenance.encodeTuple(cretP),
+                provenance.encodeTuple(cretN)
+        );
+        Map<String, Double> prior = causalDriver.queryPossibilities(queries);
+        Messages.log("Prior:");
+        Messages.log("P(c=0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cret0)));
+        Messages.log("P(c>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretP)));
+        Messages.log("P(c<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretN)));
+        Messages.log("P(b>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(bretP)));
+        Messages.log("P(b<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(bretN)));
+
+        ArrayList<Map<String, Boolean>> trace = new ArrayList<>();
+        for (int i = 0; i < 10; ++i) {
+            Map<String, Boolean> obs = new HashMap<>();
+            obs.put(provenance.encodeTuple(cret0), false);
+            if (i % 2 == 0) {
+                obs.put(provenance.encodeTuple(cretN), true);
+                obs.put(provenance.encodeTuple(cretP), false);
+            } else {
+                obs.put(provenance.encodeTuple(cretN), false);
+                obs.put(provenance.encodeTuple(cretP), true);
+            }
+            trace.add(obs);
+        }
+        causalDriver.run(trace);
+        Map<String, Double> post = causalDriver.queryPossibilities(queries);
+        Messages.log("Posterior:");
+        Messages.log("P(c=0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cret0)));
+        Messages.log("P(c>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretP)));
+        Messages.log("P(c<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretN)));
+        Messages.log("P(b>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(bretP)));
+        Messages.log("P(b<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(bretN)));
     }
 }

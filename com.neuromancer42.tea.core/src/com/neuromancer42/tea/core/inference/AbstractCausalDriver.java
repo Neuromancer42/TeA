@@ -1,6 +1,8 @@
 package com.neuromancer42.tea.core.inference;
 
+import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.util.IndexMap;
+import com.neuromancer42.tea.core.util.Timer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +20,10 @@ public abstract class AbstractCausalDriver {
     }
 
     public void run(List<Map<String, Boolean>> traces) {
+        com.neuromancer42.tea.core.util.Timer timer = new Timer("causal-driver");
+        Messages.log("ENTER: causal-driver at " + (new Date()));
+        timer.init();
+
         Map<String, Double> queryResults = queryAllPossibilities();
         Map<String, Double> priorQueryResults = queryResults;
         //causalGraph.dumpDot("causal_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
@@ -36,6 +42,10 @@ public abstract class AbstractCausalDriver {
             Map<String, Double> curQueryResults = queryResults;
             causalGraph.dumpDot(workDir.resolve("causal_post-" + i + ".dot"), (idx) -> (idx + "\n" + curQueryResults.get(idx)), Categorical01::toString);
         }
+
+        timer.done();
+        Messages.log("LEAVE: causal-driver");
+        Timer.printTimer(timer);
     }
 
 
@@ -48,7 +58,7 @@ public abstract class AbstractCausalDriver {
         return queryPossibilityById(nodeId);
     }
 
-    protected Map<String, Double> queryPossibilities(Collection<String> nodes) {
+    public Map<String, Double> queryPossibilities(Collection<String> nodes) {
         Map<String, Double> queryResults = new HashMap<>();
         for (String node : nodes) {
             Double possibility = queryPossibility(node);

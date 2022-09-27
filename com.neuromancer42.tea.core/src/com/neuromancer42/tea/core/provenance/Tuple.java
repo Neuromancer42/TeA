@@ -5,6 +5,7 @@ import com.neuromancer42.tea.core.bddbddb.Dom;
 import com.neuromancer42.tea.core.project.Messages;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Represents a tuple in the program relation
@@ -19,7 +20,7 @@ public class Tuple {
 	private String relName;
 	private int[] domIndices;
 
-	public Tuple(String relName, int[] indices) {
+	public Tuple(String relName, int ... indices) {
 		this.relName = relName;
 		this.domIndices = indices;
 	}
@@ -50,11 +51,7 @@ public class Tuple {
 
 	@Override
 	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + Arrays.hashCode(domIndices);
-		result = prime * result + relName.hashCode();
-		return result;
+		return Objects.hash(Arrays.hashCode(domIndices), relName);
 	}
 
 	@Override
@@ -66,14 +63,7 @@ public class Tuple {
 		if (getClass() != obj.getClass())
 			return false;
 		Tuple other = (Tuple) obj;
-		if (relName == null) {
-			if (other.relName != null)
-				return false;
-		} else if (!relName.equals(other.relName))
-			return false;
-		if (!Arrays.equals(domIndices, other.domIndices))
-			return false;
-		return true;
+		return Objects.equals(relName, other.relName) && Arrays.equals(domIndices, other.domIndices);
 	}
 
 	public String toString() {
