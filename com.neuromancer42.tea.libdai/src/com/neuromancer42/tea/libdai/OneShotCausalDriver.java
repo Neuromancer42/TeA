@@ -31,6 +31,9 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
     @Override
     protected void appendObservation(Map<String, Boolean> obs) {
         obsHistory.offer(obs);
+        // drop previous results
+        updated = false;
+        metaNetwork = null;
     }
 
     @Override
@@ -54,7 +57,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
 
     private void invokeUpdater() {
         // 1. dump N-factor-graph
-        if (metaNetwork != null) {
+        if (metaNetwork == null) {
             metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size());
         }
         // 2. dump observation

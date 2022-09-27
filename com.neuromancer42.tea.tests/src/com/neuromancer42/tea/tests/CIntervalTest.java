@@ -7,6 +7,7 @@ import com.neuromancer42.tea.core.inference.CausalGraph;
 import com.neuromancer42.tea.core.project.*;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
+import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.libdai.IteratingCausalDriver;
 import com.neuromancer42.tea.libdai.OneShotCausalDriver;
 import com.neuromancer42.tea.program.cdt.*;
@@ -22,6 +23,7 @@ import java.util.*;
 
 public class CIntervalTest {
     static BundleContext context = FrameworkUtil.getBundle(CIntervalTest.class).getBundleContext();
+    private Provenance provenance;
 
     @BeforeAll
     public static void registerAnalyses() {
@@ -80,14 +82,24 @@ public class CIntervalTest {
 
         Assertions.assertEquals(8, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("interval");
-        Provenance provenance = ((SouffleAnalysis) task).getProvenance();
+        provenance = ((SouffleAnalysis) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
                 cons -> new Categorical01(new double[]{0.1,0.5,1.0}),
                 input -> new Categorical01(new double[]{0.1,0.5,1.0})
         );
         causalGraph.dump(Path.of(Config.v().outDirName));
-        AbstractCausalDriver causalDriver = new IteratingCausalDriver("test-iterating-interval", causalGraph);
-        // TODO: load observations
+        AbstractCausalDriver oneShotCausalDriver = new OneShotCausalDriver("test-oneshot-interval", causalGraph);
+        runCausalDriver(oneShotCausalDriver);
+
+        AbstractCausalDriver iteratingCausalDriver = new IteratingCausalDriver("test-iterating-interval", causalGraph);
+        runCausalDriver(iteratingCausalDriver);
+    }
+
+    private void runCausalDriver(AbstractCausalDriver causalDriver) {
+        Timer timer = new Timer(causalDriver.getName());
+        Messages.log("ENTER: "+ causalDriver.getName() + " at " + (new Date()));
+        timer.init();
+
         Tuple cretP = new Tuple("ci_PHval", 22, 4, 11);
         Tuple cretN = new Tuple("ci_PHval", 22, 4, 3);
         Tuple cret0 = new Tuple("ci_PHval", 22, 4, 7);
@@ -97,33 +109,18 @@ public class CIntervalTest {
             bPs[i-15] = new Tuple("ci_PHval", i, 3, 10);
             bNs[i-15] = new Tuple("ci_PHval", i, 3, 4);
         }
-        List<String> queries = new ArrayList<>(Arrays.asList(
-                provenance.encodeTuple(cret0),
-                provenance.encodeTuple(cretP),
-                provenance.encodeTuple(cretN)
-        ));
+        List<String> queries = new ArrayList<>(List.of(provenance.encodeTuple(cretP), provenance.encodeTuple(cretN), provenance.encodeTuple(cret0)));
         for (Tuple t : bPs) {
             queries.add(provenance.encodeTuple(t));
         }
         for (Tuple t: bNs) {
             queries.add(provenance.encodeTuple(t));
         }
-
-        Map<String, Double> prior = causalDriver.queryPossibilities(queries);
-        Messages.log("Prior:");
-        Messages.log("P(ret#c=0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cret0)));
-        Messages.log("P(ret#c>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretP)));
-        Messages.log("P(ret#c<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretN)));
-        for (int i = 15; i <= 22; ++i) {
-            Messages.log("P(%d#b>0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bPs[i-15])));
-            Messages.log("P(%d#b<0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bNs[i-15])));
-        }
-
-        ArrayList<Map<String, Boolean>> trace = new ArrayList<>();
+        List<Map<String, Boolean>> trace = new ArrayList<>();
         for (int i = 0; i < 10; ++i) {
             Map<String, Boolean> obs = new HashMap<>();
             obs.put(provenance.encodeTuple(cret0), false);
-            if (i % 8 == 0) {
+            if (i % 2 == 0) {
                 obs.put(provenance.encodeTuple(cretN), true);
                 obs.put(provenance.encodeTuple(cretP), false);
             } else {
@@ -132,9 +129,19 @@ public class CIntervalTest {
             }
             trace.add(obs);
         }
+
+        Map<String, Double> prior = causalDriver.queryPossibilities(queries);
+        Messages.log("Prior: " + causalDriver.getName());
+        Messages.log("P(ret#c=0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cret0)));
+        Messages.log("P(ret#c>0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretP)));
+        Messages.log("P(ret#c<0) = %f%%", 100.0 * prior.get(provenance.encodeTuple(cretN)));
+        for (int i = 15; i <= 22; ++i) {
+            Messages.log("P(%d#b>0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bPs[i-15])));
+            Messages.log("P(%d#b<0) = %f%%", i, 100.0 * prior.get(provenance.encodeTuple(bNs[i-15])));
+        }
         causalDriver.run(trace);
         Map<String, Double> post = causalDriver.queryPossibilities(queries);
-        Messages.log("Posterior:");
+        Messages.log("Posterior: " + causalDriver.getName());
         Messages.log("P(ret#c=0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cret0)));
         Messages.log("P(ret#c>0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretP)));
         Messages.log("P(ret#c<0) = %f%%", 100.0 * post.get(provenance.encodeTuple(cretN)));
@@ -142,5 +149,10 @@ public class CIntervalTest {
             Messages.log("P(%d#b>0) = %f%%", i, 100.0 * post.get(provenance.encodeTuple(bPs[i-15])));
             Messages.log("P(%d#b<0) = %f%%", i, 100.0 * post.get(provenance.encodeTuple(bNs[i-15])));
         }
+
+
+        timer.done();
+        Messages.log("LEAVE: " + causalDriver.getName());
+        Timer.printTimer(timer);
     }
 }

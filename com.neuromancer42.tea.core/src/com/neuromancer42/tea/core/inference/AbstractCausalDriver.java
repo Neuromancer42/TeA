@@ -20,15 +20,6 @@ public abstract class AbstractCausalDriver {
     }
 
     public void run(List<Map<String, Boolean>> traces) {
-        com.neuromancer42.tea.core.util.Timer timer = new Timer("causal-driver");
-        Messages.log("ENTER: causal-driver at " + (new Date()));
-        timer.init();
-
-        Map<String, Double> queryResults = queryAllPossibilities();
-        Map<String, Double> priorQueryResults = queryResults;
-        //causalGraph.dumpDot("causal_prior.dot", (idx) -> (provenance.unfoldId(idx) + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
-        causalGraph.dumpDot(workDir.resolve("causal_prior.dot"), (idx) -> (idx + "\n" + priorQueryResults.get(idx)), Categorical01::toString);
-
         // For debug only
 //        Map<String, Boolean> obsTrace = new HashMap<>();
 //        for (String tupleId : allTupleIds) {
@@ -36,16 +27,9 @@ public abstract class AbstractCausalDriver {
 //                obsTrace.put(tupleId, true);
 //            }
 //        }
-        for (int i = 0; i < traces.size(); i++) {
-            appendObservation(traces.get(i));
-            queryResults = queryAllPossibilities();
-            Map<String, Double> curQueryResults = queryResults;
-            causalGraph.dumpDot(workDir.resolve("causal_post-" + i + ".dot"), (idx) -> (idx + "\n" + curQueryResults.get(idx)), Categorical01::toString);
+        for (Map<String, Boolean> trace : traces) {
+            appendObservation(trace);
         }
-
-        timer.done();
-        Messages.log("LEAVE: causal-driver");
-        Timer.printTimer(timer);
     }
 
 
@@ -82,4 +66,7 @@ public abstract class AbstractCausalDriver {
         }
     }
 
+    public String getName() {
+        return name;
+    }
 }
