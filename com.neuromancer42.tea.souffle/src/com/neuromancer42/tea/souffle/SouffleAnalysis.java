@@ -24,12 +24,10 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
     private final Path analysisDir;
     private final Path factDir;
     private final Path outDir;
+    private final Set<String> domNames;
     private final List<String> inputRelNames;
     private final List<String> outputRelNames;
     private final Map<String, RelSign> relSignMap;
-    private final Map<String, SouffleRelTrgt> inputRelTrgts;
-    private final Map<String, SouffleRelTrgt> outputRelTrgts;
-    private final Map<String, Trgt<ProgramDom<Object>>> domTrgtMap;
 
     private boolean activated = false;
 
@@ -55,7 +53,7 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
         outputRelNames = new ArrayList<>();
         outputRelNames.addAll(souffleProgram.getOutputRelNames());
         relSignMap = new HashMap<>();
-        domTrgtMap = new HashMap<>();
+        domNames = new LinkedHashSet<>();
         for (String souffleSign : souffleProgram.getRelSigns()) {
             int idx = souffleSign.indexOf('<');
             String relName = souffleSign.substring(0, idx);
@@ -69,24 +67,20 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
                 // keep subtype name only
                 relAttrs[i] = relAttrs[i].substring(colonIdx + 1);
                 String domName = relAttrs[i];
-                Trgt<ProgramDom<Object>> domTrgt = createDomConsumer(domName, Object.class);
-                domTrgtMap.put(domName, domTrgt);
+                createDomConsumer(domName, Object.class);
+                domNames.add(domName);
             }
             RelSign relSign = ProgramRel.genDefaultRelSign(relAttrs);
             relSignMap.put(relName, relSign);
         }
-        inputRelTrgts = new HashMap<>();
         for (String relName: inputRelNames) {
             RelSign relSign = relSignMap.get(relName);
             SouffleRelTrgt relTrgt = createSouffleRelTrgt(relName, relSign, name);
-            inputRelTrgts.put(relName, relTrgt);
             registerConsumer(relTrgt);
         }
-        outputRelTrgts = new HashMap<>();
         for (String relName: outputRelNames) {
             RelSign relSign = relSignMap.get(relName);
             SouffleRelTrgt relTrgt = createSouffleRelTrgt(relName, relSign, name);
-            outputRelTrgts.put(relName, relTrgt);
             registerProducer(relTrgt);
         }
 
@@ -100,11 +94,6 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
     private SouffleRelTrgt createSouffleRelTrgt(String relName, RelSign relSign, String location) {
         RelInfo relInfo = new RelInfo(location, relSign);
         return new SouffleRelTrgt(relName, relInfo);
-    }
-
-    public ProgramRel getOutputRel(String relName) {
-        SouffleRelTrgt relTrgt = outputRelTrgts.get(relName);
-        return relTrgt.get();
     }
 
     public Path getAnalysisDir() {
@@ -387,7 +376,7 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
             Dom<?>[] doms = new Dom[domNum];
             for (int i = 0; i < doms.length; ++i) {
                 String domKind = Utils.trimNumSuffix(domNames[i]);
-                doms[i] = domTrgtMap.get(domKind).get();
+                doms[i] = consume(domKind);
             }
 
             val = new ProgramRel(relName, doms, relSign);
