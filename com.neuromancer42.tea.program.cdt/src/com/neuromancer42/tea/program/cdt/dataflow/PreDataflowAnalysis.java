@@ -29,14 +29,14 @@ public class PreDataflowAnalysis extends JavaAnalysis {
 
     @Override
     public void run() {
-        ProgramDom<IBasicBlock> domP = consumeTrgt("P");
-        ProgramDom<IMemObj> domH = consumeTrgt("H");
+        ProgramDom<IBasicBlock> domP = consume("P");
+        ProgramDom<IMemObj> domH = consume("H");
 
-        ProgramRel relMP = consumeTrgt("MP");
-        ProgramRel relCIMH = consumeTrgt("ci_MH");
-        ProgramRel relPstore = consumeTrgt("Pstore");
-        ProgramRel relStorePtr = consumeTrgt("StorePtr");
-        ProgramRel relCIPT = consumeTrgt("ci_pt");
+        ProgramRel relMP = consume("MP");
+        ProgramRel relCIMH = consume("ci_MH");
+        ProgramRel relPstore = consume("Pstore");
+        ProgramRel relStorePtr = consume("StorePtr");
+        ProgramRel relCIPT = consume("ci_pt");
         ProgramRel[] consumedRels = new ProgramRel[]{relMP, relCIMH, relPstore, relStorePtr, relCIPT};
         for (var rel : consumedRels)
             rel.load();

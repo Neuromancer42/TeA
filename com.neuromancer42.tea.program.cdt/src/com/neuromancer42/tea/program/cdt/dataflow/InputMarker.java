@@ -21,8 +21,8 @@ public class InputMarker extends JavaAnalysis {
     @Override
     public void run() {
 
-        ProgramDom<IFunction> domM = consumeTrgt("M");
-        ProgramDom<Integer> domZ = consumeTrgt("Z");
+        ProgramDom<IFunction> domM = consume("M");
+        ProgramDom<Integer> domZ = consume("Z");
         ProgramRel relRetInput = new ProgramRel("retInput", domM);
         ProgramRel relArgInput = new ProgramRel("argInput", domM, domZ);
         ProgramRel[] genRels = new ProgramRel[]{relRetInput, relArgInput};
@@ -30,7 +30,7 @@ public class InputMarker extends JavaAnalysis {
             rel.init();
         }
 
-        ProgramRel relExtMeth = consumeTrgt("ExtMeth");
+        ProgramRel relExtMeth = consume("ExtMeth");
         relExtMeth.load();
         for (Object[] tuple : relExtMeth.getValTuples()) {
             IFunction meth = (IFunction) tuple[0];

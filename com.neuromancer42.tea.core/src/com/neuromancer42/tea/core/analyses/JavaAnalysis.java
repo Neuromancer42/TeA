@@ -51,7 +51,7 @@ public abstract class JavaAnalysis implements ITask {
         producerMap.put(trgt.getName(), trgt);
     }
 
-    protected final <T> T consumeTrgt(String trgtName) {
+    protected final <T> T consume(String trgtName) {
         Trgt<?> trgt = consumerMap.get(trgtName);
         if (trgt == null) {
             Messages.fatal("JavaAnalysis %s: consuming trgt %s does not exist", name, trgtName);
@@ -60,7 +60,7 @@ public abstract class JavaAnalysis implements ITask {
         return (T) trgt.get();
     }
 
-    protected final <T> void produceTrgt(String trgtName, T obj) {
+    protected final <T> void produce(String trgtName, T obj) {
         Trgt<T> trgt = (Trgt<T>) producerMap.get(trgtName);
         if (trgt == null) {
             Messages.fatal("JavaAnalysis %s: producing trgt %s does not exist", name, trgtName);
@@ -139,10 +139,10 @@ public abstract class JavaAnalysis implements ITask {
     }
 
     protected final void produceDom(ProgramDom<?> dom) {
-        produceTrgt(dom.getName(), dom);
+        produce(dom.getName(), dom);
     }
 
     protected final void produceRel(ProgramRel rel) {
-        produceTrgt(rel.getName(), rel);
+        produce(rel.getName(), rel);
     }
 }

@@ -56,15 +56,15 @@ public class PreIntervalAnalysis extends JavaAnalysis {
 
     @Override
     public void run() {
-        ProgramRel relLoadPtr = consumeTrgt("LoadPtr");
-        ProgramRel relCIPT = consumeTrgt("ci_pt");
+        ProgramRel relLoadPtr = consume("LoadPtr");
+        ProgramRel relCIPT = consume("ci_pt");
         relLoadPtr.load();
         relCIPT.load();
         Map<Integer, IMemObj> regToHeap = buildVal2HeapMap(relLoadPtr, relCIPT);
         relLoadPtr.close();
         relCIPT.close();
 
-        ProgramRel relPeval = consumeTrgt("Peval");
+        ProgramRel relPeval = consume("Peval");
         relPeval.load();
         Map<Integer, Integer> regToLiteral = new HashMap<>();
         Map<Integer, IEval> regToEval = new LinkedHashMap<>();
@@ -134,9 +134,9 @@ public class PreIntervalAnalysis extends JavaAnalysis {
             dom.save();
         }
 
-        ProgramDom<Integer> domV = consumeTrgt("V");
-        ProgramDom<IMemObj> domH = consumeTrgt("H");
-        ProgramDom<IEval> domE = consumeTrgt("E");
+        ProgramDom<Integer> domV = consume("V");
+        ProgramDom<IMemObj> domH = consume("H");
+        ProgramDom<IEval> domE = consume("E");
         ProgramRel relEConst = new ProgramRel("Econst", domE);
         ProgramRel relEUnary = new ProgramRel("Eunary", domE, domOP, domV);
         ProgramRel relEBinop = new ProgramRel("Ebinop", domE, domOP, domV, domV);
@@ -271,8 +271,8 @@ public class PreIntervalAnalysis extends JavaAnalysis {
                     }
                 }
             }
-            ProgramRel relPPtrue = consumeTrgt("PPtrue");
-            ProgramRel relPPfalse = consumeTrgt("PPfalse");
+            ProgramRel relPPtrue = consume("PPtrue");
+            ProgramRel relPPfalse = consume("PPfalse");
             relPPtrue.load();
             relPPfalse.load();
             for (Object[] tuple : relPPtrue.getValTuples()) {

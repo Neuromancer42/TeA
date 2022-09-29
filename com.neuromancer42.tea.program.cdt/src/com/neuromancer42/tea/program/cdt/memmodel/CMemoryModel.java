@@ -41,14 +41,14 @@ public class CMemoryModel extends JavaAnalysis {
 
     @Override
     public void run() {
-        ProgramDom<Integer> domV = consumeTrgt("V");
-        ProgramDom<IFunction> domM = consumeTrgt("M");
-        ProgramDom<IField> domF = consumeTrgt("F");
-        ProgramRel relFuncRef = consumeTrgt("funcRef");
+        ProgramDom<Integer> domV = consume("V");
+        ProgramDom<IFunction> domM = consume("M");
+        ProgramDom<IField> domF = consume("F");
+        ProgramRel relFuncRef = consume("funcRef");
         relFuncRef.load();
-        ProgramRel relGlobalAlloca = consumeTrgt("GlobalAlloca");
+        ProgramRel relGlobalAlloca = consume("GlobalAlloca");
         relGlobalAlloca.load();
-        ProgramRel relAlloca = consumeTrgt("Alloca");
+        ProgramRel relAlloca = consume("Alloca");
         relAlloca.load();
         ProgramDom<IMemObj> domH = ProgramDom.createDom("H", IMemObj.class);
         ProgramRel relGlobalAlloc = new ProgramRel("GlobalAlloc", domV, domH);

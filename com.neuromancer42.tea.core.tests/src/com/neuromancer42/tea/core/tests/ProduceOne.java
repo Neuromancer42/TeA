@@ -17,7 +17,7 @@ public class ProduceOne extends JavaAnalysis {
 	@Override
 	public void run() {
 		one  = 1;
-		produceTrgt("O", one);
+		produce("O", one);
 		Messages.log("test: one produced");
 		done = true;
 	}
