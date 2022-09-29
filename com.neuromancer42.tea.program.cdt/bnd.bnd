@@ -1,9 +1,12 @@
 -buildpath: \
     osgi.core;version:=8.0.0,\
     com.neuromancer42.tea.core,\
+    com.neuromancer42.tea.souffle,\
     org.eclipse.cdt.core,\
     org.eclipse.cdt.codan.core,\
     org.eclipse.equinox.common
 
 Export-Package: \
     com.neuromancer42.tea.program.cdt;-noimport:=true
+
+Bundle-Activator: com.neuromancer42.tea.program.cdt.CDTAnalysesActivator

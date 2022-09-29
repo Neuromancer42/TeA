@@ -1,23 +1,18 @@
 package com.neuromancer42.tea.tests;
 
-import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.core.inference.Categorical01;
 import com.neuromancer42.tea.core.inference.CausalGraph;
+import com.neuromancer42.tea.core.inference.ICausalDriverFactory;
 import com.neuromancer42.tea.core.project.*;
+import com.neuromancer42.tea.core.provenance.IProvable;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.Timer;
-import com.neuromancer42.tea.libdai.IteratingCausalDriver;
-import com.neuromancer42.tea.libdai.OneShotCausalDriver;
-import com.neuromancer42.tea.program.cdt.*;
-import com.neuromancer42.tea.souffle.SouffleAnalysis;
-import com.neuromancer42.tea.souffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -27,40 +22,6 @@ public class CIntervalTest {
 
     @BeforeAll
     public static void registerAnalyses() {
-        Messages.log("Registering CParser");
-        CParserAnalysis cparser = new CParserAnalysis();
-        AnalysesUtil.registerAnalysis(context, cparser);
-
-        Messages.log("Registering CMemModel");
-        CMemoryModel cMemModel = new CMemoryModel();
-        AnalysesUtil.registerAnalysis(context, cMemModel);
-
-        Messages.log("Registering PreDataflow");
-        PreDataflowAnalysis preDataflow = new PreDataflowAnalysis();
-        AnalysesUtil.registerAnalysis(context, preDataflow);
-
-        Messages.log("Registering PreInterval");
-        PreIntervalAnalysis preInterval = new PreIntervalAnalysis();
-        AnalysesUtil.registerAnalysis(context, preInterval);
-
-        Messages.log("Registering pre_pt.dl");
-        String dlogName0 = System.getProperty("dlog0");
-        SouffleAnalysis prePT = SouffleRuntime.g().createSouffleAnalysisFromFile("PrePointer", "pre_pt", new File(dlogName0));
-        AnalysesUtil.registerAnalysis(context, prePT);
-
-        Messages.log("Registering cipa_cg.dl");
-        String dlogName1 = System.getProperty("dlog1");
-        SouffleAnalysis cipa = SouffleRuntime.g().createSouffleAnalysisFromFile("ciPointerAnalysis", "cipa_cg", new File(dlogName1));
-        AnalysesUtil.registerAnalysis(context, cipa);
-
-        Messages.log("Registering interval.dl");
-        String dlogName2 = System.getProperty("dlog2");
-        SouffleAnalysis interval = SouffleRuntime.g().createSouffleAnalysisFromFile("interval", "interval", new File(dlogName2));
-        AnalysesUtil.registerAnalysis(context, interval);
-
-        Messages.log("Registering InputMarker");
-        InputMarker marker = new InputMarker();
-        AnalysesUtil.registerAnalysis(context, marker);
         OsgiProject.init();
     }
 
@@ -82,16 +43,24 @@ public class CIntervalTest {
 
         Assertions.assertEquals(8, OsgiProject.g().getDoneTasks().size());
         ITask task = OsgiProject.g().getTask("interval");
-        provenance = ((SouffleAnalysis) task).getProvenance();
+        provenance = ((IProvable) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
                 cons -> new Categorical01(new double[]{0.1,0.5,1.0}),
                 input -> new Categorical01(new double[]{0.1,0.5,1.0})
         );
         causalGraph.dump(Path.of(Config.v().outDirName));
-        AbstractCausalDriver oneShotCausalDriver = new OneShotCausalDriver("test-oneshot-interval", causalGraph);
+
+        ICausalDriverFactory causalDriverFactory = context.getService(context.getServiceReference(ICausalDriverFactory.class));
+        if (causalDriverFactory == null) {
+            Messages.error("no causal driver loaded");
+            assert false;
+        }
+        assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("oneshot");
+        AbstractCausalDriver oneShotCausalDriver = causalDriverFactory.createCausalDriver("oneshot", "test-oneshot-interval", causalGraph);
         runCausalDriver(oneShotCausalDriver);
 
-        AbstractCausalDriver iteratingCausalDriver = new IteratingCausalDriver("test-iterating-interval", causalGraph);
+        assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("iterating");
+        AbstractCausalDriver iteratingCausalDriver = causalDriverFactory.createCausalDriver("iterating", "test-iterating-interval", causalGraph);
         runCausalDriver(iteratingCausalDriver);
     }
 

@@ -41,7 +41,7 @@ public class Trgt<T> {
         return val;
     }
 
-    public <SubT extends T> void accept(SubT v) {
+    public void accept(T v) {
         if (val != null) {
             Messages.fatal("Trgt %s: multiple setting", name);
         }

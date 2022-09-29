@@ -6,8 +6,6 @@
 
 Fragment-Host: com.neuromancer42.tea.souffle
 
--dependson: com.neuromancer42.tea.souffle
-
 -includeresource:\
     resources/=resources/
 

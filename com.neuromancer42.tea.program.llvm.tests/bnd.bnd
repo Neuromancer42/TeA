@@ -6,8 +6,6 @@
 
 Fragment-Host: com.neuromancer42.tea.program.llvm
 
--dependson: com.neuromancer42.tea.program.llvm
-
 -includeresource:\
     resources/=resources/
 

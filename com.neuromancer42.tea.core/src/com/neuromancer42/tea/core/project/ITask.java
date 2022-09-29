@@ -12,21 +12,20 @@ public interface ITask {
      * @param    name    A name unique across all analyses included
      * in a Chord project.
      */
-    public void setName(String name);
+    void setName(String name);
     /**
      * Provides the name of this analysis.
      * 
      * @return    The name of this analysis.
      */
-    public String getName();
+    String getName();
     /**
      * Executes this analysis in a "classic" project.
-     * 
+     *
      * This method must usually not be called directly.
      * The correct way to call it is to call
-     * {@link chord.project.ClassicProject#runTask(String)} or
-     * {@link chord.project.ClassicProject#runTask(ITask)}, providing
-     * this analysis either by its name or its object.
+     * {@link com.neuromancer42.tea.core.project.Project#run(String[] taskNames)}, providing
+     * this analysis either by its name.
      */
-    public void run();
+    void run();
 }

@@ -4,8 +4,6 @@
     com.google.guava;version:=27.1.0,\
     org.apache.commons.math3;version:=3.6.1
 
--dependson: com.neuromancer42.tea.bddbddb
-
 Export-Package: com.neuromancer42.tea.core.*;-noimport:=true
 
 Bundle-Activator: com.neuromancer42.tea.core.project.CoreActivator

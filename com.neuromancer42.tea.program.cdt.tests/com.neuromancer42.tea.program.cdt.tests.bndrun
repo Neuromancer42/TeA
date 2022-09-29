@@ -15,5 +15,8 @@
 	bnd.identity;id='org.junit.platform.launcher',\
     bnd.identity;id='org.apache.felix.scr'
 
+-runbundles+:\
+    org.apache.felix.scr;startlevel=1
+
 -runproperties.cdt:\
     headerfile="example.h", sourcefile="array.c"

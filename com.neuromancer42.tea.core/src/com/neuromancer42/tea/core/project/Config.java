@@ -36,7 +36,7 @@ public class Config {
 
     // basic properties about program being analyzed (its main class, classpath, command line args, etc.)
 
-    public final String workDirName = System.getProperty("chord.work.dir");
+    public final String workDirName = System.getProperty("chord.work.dir", "test-out");
     public final String mainClassName = System.getProperty("chord.main.class");
 
     public final String runAnalyses = System.getProperty("chord.run.analyses", "");

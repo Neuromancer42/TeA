@@ -294,6 +294,7 @@ public class OsgiProject extends Project {
         }
         return obj;
     }
+
     private Set<ITask> getTasksProducingTrgtName(String trgtName) {
         Set<ITask> tasks = trgtNameToProducingTasksMap.get(trgtName);
         if (tasks == null || tasks.size() == 0) {

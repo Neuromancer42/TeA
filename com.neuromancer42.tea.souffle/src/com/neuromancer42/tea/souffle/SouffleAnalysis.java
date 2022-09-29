@@ -4,10 +4,7 @@ import com.neuromancer42.tea.core.analyses.*;
 import com.neuromancer42.tea.core.bddbddb.Dom;
 import com.neuromancer42.tea.core.bddbddb.RelSign;
 import com.neuromancer42.tea.core.project.*;
-import com.neuromancer42.tea.core.provenance.AbstractProvenanceBuilder;
-import com.neuromancer42.tea.core.provenance.ConstraintItem;
-import com.neuromancer42.tea.core.provenance.Provenance;
-import com.neuromancer42.tea.core.provenance.Tuple;
+import com.neuromancer42.tea.core.provenance.*;
 import com.neuromancer42.tea.core.util.Utils;
 import com.neuromancer42.tea.souffle.swig.SWIGSouffleProgram;
 
@@ -18,7 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-public final class SouffleAnalysis extends JavaAnalysis {
+public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
     private SWIGSouffleProgram souffleProgram;
 
     private final SouffleProvenanceBuilder provBuilder;
@@ -72,9 +69,8 @@ public final class SouffleAnalysis extends JavaAnalysis {
                 // keep subtype name only
                 relAttrs[i] = relAttrs[i].substring(colonIdx + 1);
                 String domName = relAttrs[i];
-                Trgt<ProgramDom<Object>> domTrgt = AnalysesUtil.createDomTrgt(name, domName, Object.class);
+                Trgt<ProgramDom<Object>> domTrgt = createDomConsumer(domName, Object.class);
                 domTrgtMap.put(domName, domTrgt);
-                registerConsumer(domTrgt);
             }
             RelSign relSign = ProgramRel.genDefaultRelSign(relAttrs);
             relSignMap.put(relName, relSign);
@@ -163,6 +159,26 @@ public final class SouffleAnalysis extends JavaAnalysis {
         return provBuilder.getProvenance();
     }
 
+    static List<int[]> loadTableFromFile(Path outPath) {
+        List<int[]> table = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(outPath);
+            for (String line : lines) {
+                String[] tuple = line.split("\t");
+                int width = tuple.length;
+                int[] indexes = new int[width];
+                for (int i = 0; i < width; ++i) {
+                    indexes[i] = Integer.parseInt(tuple[i]);
+                }
+                table.add(indexes);
+            }
+        } catch (IOException e) {
+            Messages.error("SouffleAnalysis: failed to read table from %s", outPath.toString());
+            Messages.fatal(e);
+        }
+        return table;
+    }
+
     private class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
         private SWIGSouffleProgram provenanceProgram;
         private final Path provenanceDir;
@@ -196,7 +212,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             inputTuples = new ArrayList<>();
             for (String relName : inputRelNames) {
                 Path factPath = factDir.resolve(relName + ".facts");
-                List<int[]> table = SouffleRuntime.loadTableFromFile(factPath);
+                List<int[]> table = loadTableFromFile(factPath);
                 for (int[] row : table) {
                     inputTuples.add(new Tuple(relName, row));
                 }
@@ -206,7 +222,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             outputTuples = new ArrayList<>();
             for (String relName : outputRelNames) {
                 Path outPath = outDir.resolve(relName + ".csv");
-                List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
+                List<int[]> table = loadTableFromFile(outPath);
                 for (int[] row : table) {
                     outputTuples.add(new Tuple(relName, row));
                 }
@@ -323,7 +339,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
         }
 
         @Override
-        public <SubT extends ProgramRel> void accept(SubT v) {
+        public void accept(ProgramRel v) {
             super.accept(v);
             dumpRel();
         }
@@ -379,7 +395,7 @@ public final class SouffleAnalysis extends JavaAnalysis {
             val.init();
             Path outPath = outDir.resolve(relName+".csv");
             Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
-            List<int[]> table = SouffleRuntime.loadTableFromFile(outPath);
+            List<int[]> table = loadTableFromFile(outPath);
             for (int[] row: table) {
                 val.add(row);
             }

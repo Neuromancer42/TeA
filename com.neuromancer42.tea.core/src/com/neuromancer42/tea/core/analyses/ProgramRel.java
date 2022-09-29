@@ -8,6 +8,7 @@ import com.neuromancer42.tea.core.project.ITask;
 
 import com.neuromancer42.tea.core.bddbddb.Rel;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -49,6 +50,22 @@ public class ProgramRel implements ITask {
             Messages.fatal("ProgramRel %s: iterating detached rel", getName());
         }
         return rel.getAryNIntTuples();
+    }
+
+    public Object[] getValTuple(int[] intTuple) {
+        Dom<?>[] doms = rel.getDoms();
+        if (intTuple.length != doms.length) {
+            Messages.fatal("ProgramRel %s: arity mismatch for tuple (%s)", getName(), Arrays.toString(intTuple));
+        }
+
+        Object[] valTuple = new Object[intTuple.length];
+        if (!contains(intTuple)) {
+            Messages.error("ProgramRel %s: tuple (%s) does not exist in this rel", getName(), Arrays.toString(intTuple));
+        }
+        for (int i = 0; i < intTuple.length; ++i) {
+            valTuple[i] = doms[i].get(intTuple[i]);
+        }
+        return valTuple;
     }
 
     public Dom<?>[] getDoms() {
@@ -158,6 +175,7 @@ public class ProgramRel implements ITask {
         save();
         close();
     }
+
     public void init() {
         if (status != Status.UnInit) {
             Messages.warn("ProgramRel %s: Overriding initialized rel", getName());
@@ -222,43 +240,82 @@ public class ProgramRel implements ITask {
         }
         rel.print(Config.v().outDirName);
     }
+
     public String toString() {
         return rel.getName();
     }
 
-    public void skip(Object elem, ProgramDom<?> dom) {
-        Messages.log(SKIP_TUPLE, getClass().getName(), elem, dom.getClass().getName());
-    }
-
     public int size() {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+        }
         return rel.size();
     }
 
     public void add(Object... vals) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+        }
         rel.add(vals);
         status = Status.UnSync;
     }
 
     public void remove(Object... vals) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+        }
         rel.remove(vals);
         status = Status.UnSync;
     }
 
     public boolean contains(Object... vals) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+        }
         return rel.contains(vals);
     }
 
     public void add(int[] idxs) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+        }
         rel.add(idxs);
         status = Status.UnSync;
     }
 
     public void remove(int[] idxs) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+        }
         rel.remove(idxs);
         status = Status.UnSync;
     }
 
     public boolean contains(int[] idxs) {
+        if (status == Status.UnInit) {
+            Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
+        }
+        if (status == Status.Detach) {
+            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+        }
         return rel.contains(idxs);
     }
 }

@@ -44,10 +44,10 @@ public class CDTTest {
 
         List<IASTBinaryExpression> binExprs = new ArrayList<>();
         printTree(translationUnit, 1, binExprs);
-        for (var binExpr: binExprs) {
-            instrPeek(binExpr.getOperand2());
-        }
-        dumpToSource(translationUnit, "example_new.h");
+//        for (var binExpr: binExprs) {
+//            instrPeek(binExpr.getOperand2());
+//        }
+//        dumpToSource(translationUnit, "example_new.h");
     }
 
     private void dumpToSource(IASTTranslationUnit translationUnit, String filename) {

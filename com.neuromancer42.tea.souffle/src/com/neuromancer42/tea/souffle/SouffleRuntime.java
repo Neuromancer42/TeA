@@ -1,27 +1,32 @@
 package com.neuromancer42.tea.souffle;
 
+import com.neuromancer42.tea.core.analyses.IDlogAnalysisBuilder;
+import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.souffle.swig.SWIGSouffleProgram;
 import com.neuromancer42.tea.souffle.swig.SwigInterface;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-public final class SouffleRuntime {
+public final class SouffleRuntime implements IDlogAnalysisBuilder {
     private static SouffleRuntime runtime = null;
 
     public static SouffleRuntime g() {
         if (runtime == null) {
-            Messages.fatal("SouffleRuntime: souffle runtime should be inited first");
+            init();
         }
         return runtime;
     }
 
     public static void init() {
+        Timer timer = new Timer("Souffle");
+        Messages.log("ENTER: Souffle Runtime Initialization started at " + (new Date()));
+        timer.init();
         if (runtime != null) {
             Messages.warn("SouffleRuntime: runtime has been built before, are you sure to rebuild it?");
         }
@@ -96,6 +101,9 @@ public final class SouffleRuntime {
             Messages.error("SouffleRuntime: failed to initialize souffle runtime.");
             Messages.fatal(e);
         }
+        timer.done();
+        Messages.log("LEAVE: Souffle Runtime Initialization finished");
+        Timer.printTimer(timer);
     }
 
     private static void executeExternal(List<String> cmd, Path path) throws IOException, InterruptedException {
@@ -125,7 +133,7 @@ public final class SouffleRuntime {
     private final Set<String> loadedLibraries;
     private final Map<String, String> loadedProvenances;
 
-    private SouffleRuntime(Path workDir) {
+    public SouffleRuntime(Path workDir) {
         this.workDir = workDir;
         loadedLibraries = new HashSet<>();
         loadedProvenances = new HashMap<>();
@@ -140,6 +148,7 @@ public final class SouffleRuntime {
             // 0. copy files
             String dlogFileName = analysis + ".dl";
             Path dlogFilePath = workDir.resolve(dlogFileName);
+            Messages.debug("SouffleRuntime: dumping dlog to file " + dlogFilePath);
             Files.copy(dlogStream, dlogFilePath, StandardCopyOption.REPLACE_EXISTING);
 
             // 1. get target name for specific OS
@@ -250,23 +259,13 @@ public final class SouffleRuntime {
         return new SouffleAnalysis(name, analysis, program, provProgram);
     }
 
-    static List<int[]> loadTableFromFile(Path outPath) {
-        List<int[]> table = new ArrayList<>();
-        try {
-            List<String> lines = Files.readAllLines(outPath);
-            for (String line : lines) {
-                String[] tuple = line.split("\t");
-                int width = tuple.length;
-                int[] indexes = new int[width];
-                for (int i = 0; i < width; ++i) {
-                    indexes[i] = Integer.parseInt(tuple[i]);
-                }
-                table.add(indexes);
-            }
-        } catch (IOException e) {
-            Messages.error("SouffleAnalysis: failed to read table from %s", outPath.toString());
-            Messages.fatal(e);
-        }
-        return table;
+    @Override
+    public JavaAnalysis createAnalysisFromFile(String name, String analysis, File dlogFile) {
+        return createSouffleAnalysisFromFile(name, analysis, dlogFile);
+    }
+
+    @Override
+    public JavaAnalysis createAnalysisFromStream(String name, String analysis, InputStream dlogStream) {
+        return createSouffleAnalysisFromStream(name, analysis, dlogStream);
     }
 }

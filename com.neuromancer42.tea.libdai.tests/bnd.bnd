@@ -6,8 +6,6 @@
 
 Fragment-Host: com.neuromancer42.tea.libdai
 
--dependson: com.neuromancer42.tea.libdai
-
 -includeresource:\
     resources/=resources/
 

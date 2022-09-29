@@ -8,17 +8,17 @@ public class ConsumeOne extends JavaAnalysis {
 	
 	private boolean done = false;
 
-	private final Trgt<Integer> oneTrgt;
+	private Integer one = null;
 	
 	public ConsumeOne() {
 		this.name = "ConsumeOne";
-		oneTrgt = Trgt.createTrgt("O", Integer.class, name);
-		registerConsumer(oneTrgt);
+		createConsumer("O", Integer.class);
 	}
 	
 	@Override
 	public void run() {
-		Messages.log("test: " + oneTrgt + " consumed");
+		one = consumeTrgt("O");
+		Messages.log("test: " + one + " consumed");
 		done = true;
 	}
 
@@ -26,7 +26,7 @@ public class ConsumeOne extends JavaAnalysis {
 		if (!done) {
 			return null;
 		} else {
-			return oneTrgt.g();
+			return one;
 		}
 	}
 }

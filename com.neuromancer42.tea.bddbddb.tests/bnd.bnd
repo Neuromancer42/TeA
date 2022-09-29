@@ -4,8 +4,6 @@
 
 Fragment-Host: com.neuromancer42.tea.bddbddb
 
--dependson: com.neuromancer42.tea.bddbddb
-
 -includeresource:\
     resources/=resources/
 

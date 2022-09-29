@@ -1,6 +1,6 @@
 package com.neuromancer42.tea.program.cdt.tests;
 
-import com.neuromancer42.tea.program.cdt.internal.CParser;
+import com.neuromancer42.tea.program.cdt.parser.CParser;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,8 +14,8 @@ public class CParserTest {
         URL fileURL = this.getClass().getResource("/resources/aplusb.c");
         assert fileURL != null;
         String filename = System.getProperty("sourcefile", fileURL.toString());
-        CParser cParser = new CParser(filename);
-        cParser.run();
+        CParser cParser = new CParser();
+        cParser.run(filename);
         Assertions.assertNotEquals(cParser.domM.size(), 0);
     }
 }

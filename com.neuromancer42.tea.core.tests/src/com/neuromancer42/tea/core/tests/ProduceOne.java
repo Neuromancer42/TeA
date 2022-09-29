@@ -2,23 +2,22 @@ package com.neuromancer42.tea.core.tests;
 
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.project.Trgt;
 
 public class ProduceOne extends JavaAnalysis {
 	
 	private boolean done = false;
 
-	private final Trgt<Integer> oneTrgt;
+	private Integer one = null;
 	
 	public ProduceOne() {
 		this.name = "ProduceOne";
-		oneTrgt = Trgt.createTrgt("O", Integer.class, name);
-		registerProducer(oneTrgt);
+		createProducer("O", Integer.class);
 	}
 	
 	@Override
 	public void run() {
-		oneTrgt.accept(1);
+		one  = 1;
+		produceTrgt("O", one);
 		Messages.log("test: one produced");
 		done = true;
 	}
@@ -28,7 +27,7 @@ public class ProduceOne extends JavaAnalysis {
 		if (!done) {
 			return null;
 		} else {
-			return oneTrgt.g();
+			return one;
 		}
 	}
 }
