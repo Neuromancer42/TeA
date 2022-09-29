@@ -1,10 +1,8 @@
 package com.neuromancer42.tea.program.cdt.dataflow;
 
-import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
-import com.neuromancer42.tea.core.project.Trgt;
 import org.eclipse.cdt.core.dom.ast.IFunction;
 
 public class InputMarker extends JavaAnalysis {

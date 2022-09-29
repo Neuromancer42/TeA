@@ -1,11 +1,9 @@
 package com.neuromancer42.tea.program.cdt.memmodel;
 
-import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.project.Trgt;
 import com.neuromancer42.tea.program.cdt.memmodel.object.FuncObj;
 import com.neuromancer42.tea.program.cdt.memmodel.object.IMemObj;
 import com.neuromancer42.tea.program.cdt.memmodel.object.StackObj;

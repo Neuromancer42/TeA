@@ -15,7 +15,6 @@ import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
 
 import com.neuromancer42.tea.core.util.Timer;
-import com.neuromancer42.tea.core.util.tuple.object.Pair;
 
 /**
  * Osgi-style of processing Tasks and Trgts,
@@ -57,6 +56,15 @@ public class OsgiProject extends Project {
     
     private boolean isBuilt = false;
 	private Set<String> scheduledTaskNames;
+
+    // register an analysis instance to Osgi Runtime
+    public static void registerAnalysis(BundleContext context, JavaAnalysis task) {
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put("name", task.getName());
+        props.put("input", task.getConsumerMap());
+        props.put("output", task.getProducerMap());
+        context.registerService(JavaAnalysis.class, task, props);
+    }
 
     @Override
     public void build() {

@@ -1,9 +1,9 @@
 package com.neuromancer42.tea.program.cdt;
 
-import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.analyses.IDlogAnalysisBuilder;
 import com.neuromancer42.tea.core.analyses.JavaAnalysis;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.core.project.OsgiProject;
 import com.neuromancer42.tea.core.util.Timer;
 import com.neuromancer42.tea.program.cdt.dataflow.InputMarker;
 import com.neuromancer42.tea.program.cdt.dataflow.PreDataflowAnalysis;
@@ -51,7 +51,7 @@ public class CDTAnalysesActivator implements BundleActivator {
     private void registerParser(BundleContext bundleContext) {
         Messages.log("CDTAnalyses: Registering CParser");
         CParserAnalysis cparser = new CParserAnalysis();
-        AnalysesUtil.registerAnalysis(bundleContext, cparser);
+        OsgiProject.registerAnalysis(bundleContext, cparser);
         registeredAnalyses.add(cparser);
     }
 
@@ -59,19 +59,19 @@ public class CDTAnalysesActivator implements BundleActivator {
     private void registerMemModel(BundleContext bundleContext, IDlogAnalysisBuilder souffleBuilder) {
         Messages.log("CDTAnalyses: Registering CMemModel");
         CMemoryModel cMemModel = new CMemoryModel();
-        AnalysesUtil.registerAnalysis(bundleContext, cMemModel);
+        OsgiProject.registerAnalysis(bundleContext, cMemModel);
         registeredAnalyses.add(cMemModel);
 
         Messages.log("CDTAnalyses: Registering pre_pt.dl");
         InputStream prePTstream = CDTAnalysesActivator.class.getResourceAsStream("memmodel/pre_pt.dl");
         JavaAnalysis prePT = souffleBuilder.createAnalysisFromStream("PrePointer", "pre_pt", prePTstream);
-        AnalysesUtil.registerAnalysis(bundleContext, prePT);
+        OsgiProject.registerAnalysis(bundleContext, prePT);
         registeredAnalyses.add(prePT);
 
         Messages.log("CDTAnalyses: Registering cipa_cg.dl");
         InputStream cipaCGstream = CDTAnalysesActivator.class.getResourceAsStream("memmodel/cipa_cg.dl");
         JavaAnalysis cipa = souffleBuilder.createAnalysisFromStream("ciPointerAnalysis", "cipa_cg", cipaCGstream);
-        AnalysesUtil.registerAnalysis(bundleContext, cipa);
+        OsgiProject.registerAnalysis(bundleContext, cipa);
         registeredAnalyses.add(cipa);
     }
 
@@ -79,23 +79,23 @@ public class CDTAnalysesActivator implements BundleActivator {
     private void registerDataflowAnalyses(BundleContext bundleContext, IDlogAnalysisBuilder souffleBuilder) {
         Messages.log("CDTAnalyses: Registering PreDataflow");
         PreDataflowAnalysis preDataflow = new PreDataflowAnalysis();
-        AnalysesUtil.registerAnalysis(bundleContext, preDataflow);
+        OsgiProject.registerAnalysis(bundleContext, preDataflow);
         registeredAnalyses.add(preDataflow);
 
         Messages.log("CDTAnalyses: Registering InputMarker");
         InputMarker marker = new InputMarker();
-        AnalysesUtil.registerAnalysis(bundleContext, marker);
+        OsgiProject.registerAnalysis(bundleContext, marker);
         registeredAnalyses.add(marker);
 
         Messages.log("CDTAnalyses: Registering PreInterval");
         PreIntervalAnalysis preInterval = new PreIntervalAnalysis();
-        AnalysesUtil.registerAnalysis(bundleContext, preInterval);
+        OsgiProject.registerAnalysis(bundleContext, preInterval);
         registeredAnalyses.add(preInterval);
 
         Messages.log("CDTAnalyses: Registering interval.dl");
         InputStream intervalStream = CDTAnalysesActivator.class.getResourceAsStream("dataflow/interval.dl");
         JavaAnalysis interval = souffleBuilder.createAnalysisFromStream("interval", "interval", intervalStream);
-        AnalysesUtil.registerAnalysis(bundleContext, interval);
+        OsgiProject.registerAnalysis(bundleContext, interval);
         registeredAnalyses.add(interval);
     }
 }

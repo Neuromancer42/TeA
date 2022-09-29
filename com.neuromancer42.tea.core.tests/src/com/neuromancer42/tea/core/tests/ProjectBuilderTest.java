@@ -2,7 +2,6 @@ package com.neuromancer42.tea.core.tests;
 
 import java.util.Set;
 
-import com.neuromancer42.tea.core.analyses.AnalysesUtil;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.project.Project;
 import org.osgi.framework.BundleContext;
@@ -24,13 +23,13 @@ public class ProjectBuilderTest {
 	public void test() {
 		Messages.log("Registerring Empty task!!");
 		Empty task = new Empty();
-		AnalysesUtil.registerAnalysis(context, task);
+		OsgiProject.registerAnalysis(context, task);
 		
 		ProduceOne task1 = new ProduceOne();
-		AnalysesUtil.registerAnalysis(context, task1);
+		OsgiProject.registerAnalysis(context, task1);
 		
 		ConsumeOne task2 = new ConsumeOne();
-		AnalysesUtil.registerAnalysis(context, task2);
+		OsgiProject.registerAnalysis(context, task2);
 
 		OsgiProject.init();
 		Set<String> tasks = Project.g().getTasks();
