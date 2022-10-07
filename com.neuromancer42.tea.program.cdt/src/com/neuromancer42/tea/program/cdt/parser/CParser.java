@@ -136,17 +136,15 @@ public class CParser {
     }
 
 
-    public void run(String fileName) {
+    public void run(String fileName, Map<String, String> definedSymbols, String[] includePaths) {
         File sourceFile = new File(fileName);
         if (!sourceFile.isFile()) {
             Messages.fatal("CParser: the referenced path %s is not a source file", sourceFile.toString());
         }
         FileContent fileContent = FileContent.createForExternalFileLocation(fileName);
-        Map<String, String> definedSymbols = new HashMap<>();
-        String[] includePaths = new String[0];
         IScannerInfo scannerInfo = new ScannerInfo(definedSymbols, includePaths);
         IParserLogService log = new DefaultLogService();
-        IncludeFileContentProvider emptyIncludes = IncludeFileContentProvider.getEmptyFilesProvider();
+        IncludeFileContentProvider emptyIncludes = IncludeFileContentProvider.getSavedFilesProvider();
         int opts = 8; //TODO: read documents?
 
         IASTTranslationUnit translationUnit = null;

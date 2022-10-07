@@ -19,4 +19,4 @@
     org.apache.felix.scr;startlevel=1
 
 -runproperties.cdt:\
-    headerfile="example.h", sourcefile="array.c"
+    sourcefile0="aplusb.c", includepath0="", headerfile="example.h", sourcefile="array.c"

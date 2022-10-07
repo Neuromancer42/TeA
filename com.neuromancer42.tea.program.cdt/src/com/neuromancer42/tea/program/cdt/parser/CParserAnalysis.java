@@ -5,6 +5,8 @@ import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.project.Messages;
 
+import java.util.HashMap;
+
 public class CParserAnalysis extends JavaAnalysis {
     private final CParser cParser;
 
@@ -23,7 +25,8 @@ public class CParserAnalysis extends JavaAnalysis {
         if (fileName == null) {
             Messages.fatal("CParser: no source file is given. Use -Dchord.source.path=<path> to set.");
         }
-        cParser.run(fileName);
+        String[] includePaths = System.getProperty("chord.source.includes", "").split(";");
+        cParser.run(fileName, new HashMap<>(), includePaths);
         for (ProgramDom<?> dom : cParser.generatedDoms)
             produceDom(dom);
         for (ProgramRel rel : cParser.generatedRels)

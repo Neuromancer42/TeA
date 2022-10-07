@@ -91,6 +91,7 @@ public class CFGBuilder {
             // add declared variables and functions into registers
             if (decl instanceof IASTFunctionDefinition) {
                 IASTDeclarator dtor = ((IASTFunctionDefinition) decl).getDeclarator();
+                Messages.debug("CParser: declare func [%s] at %s:#%d", dtor.getName(), dtor.getFileLocation().getFileName(), dtor.getFileLocation().getStartingLineNumber());
                 processDeclarator(dtor, true);
             } else if (decl instanceof IASTSimpleDeclaration) {
                 IASTDeclarator[] dtors = ((IASTSimpleDeclaration) decl).getDeclarators();
