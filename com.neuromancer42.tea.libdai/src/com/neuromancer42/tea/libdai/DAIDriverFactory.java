@@ -19,7 +19,9 @@ public class DAIDriverFactory implements ICausalDriverFactory {
 
     @Override
     public AbstractCausalDriver createCausalDriver(String type, String name, CausalGraph<String> causalGraph) {
-        if (type.equals("iterating")){
+        if (type.equals("dynaboost") || type.equals("baseline")){
+            return new DynaboostCausalDriver(name, causalGraph);
+        } else if (type.equals("iterating")){
             return new IteratingCausalDriver(name, causalGraph);
         } else if (type.equals("oneshot")) {
             return new OneShotCausalDriver(name, causalGraph);

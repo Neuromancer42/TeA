@@ -16,7 +16,7 @@ public abstract class AbstractCausalDriver {
 
     protected AbstractCausalDriver(String name, CausalGraph<String> causalGraph) {
         this.name = name;
-        this.causalGraph = causalGraph;
+        this.causalGraph = new CausalGraph<>(causalGraph);
     }
 
     public void run(List<Map<String, Boolean>> traces) {

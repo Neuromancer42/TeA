@@ -153,7 +153,11 @@ public class CausalGraph<NodeT> {
         return name;
     }
 
-    private final String name;
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    private String name;
 
     private CausalGraph(
             String name,
@@ -163,12 +167,32 @@ public class CausalGraph<NodeT> {
             Map<Integer, List<Integer>> prods
     ) {
         this.name = name;
-        this.nodes = nodes;
-        this.singletons = singletons;
-        this.sums = sums;
-        this.prods = prods;
+        this.nodes = new IndexMap<>();
+        for (var n : nodes)
+            this.nodes.add(n);
+        this.singletons = new LinkedHashSet<>(singletons);
+        this.sums = new HashMap<>();
+        for (var entry: sums.entrySet()) {
+            int sumHead = entry.getKey();
+            List<Integer> sumBody = new ArrayList<>(entry.getValue());
+            this.sums.put(sumHead, sumBody);
+        }
+        this.prods = new HashMap<>();
+        for (var entry: prods.entrySet()) {
+            int prodHead = entry.getKey();
+            List<Integer> prodBody = new ArrayList<>(entry.getValue());
+            this.prods.put(prodHead, prodBody);
+        }
         this.stochMap = new HashMap<>();
         this.distNodes = new IndexMap<>();
+    }
+
+    public CausalGraph(CausalGraph<NodeT> cg) {
+        this(cg.name, cg.nodes, cg.singletons, cg.sums, cg.prods);
+        for (Categorical01 distNode : cg.distNodes) {
+            this.distNodes.add(new Categorical01(distNode));
+        }
+        this.stochMap.putAll(cg.stochMap);
     }
 
     public void setStochNode(NodeT node, Categorical01 dist) {
@@ -378,6 +402,10 @@ public class CausalGraph<NodeT> {
             return nodeId;
     }
 
+    public NodeT getNode(Integer nodeId) {
+        return nodes.get(nodeId);
+    }
+
     public Set<NodeT> getAllNodes() {
         Set<NodeT> allNodes = new HashSet<>();
         for (NodeT node: nodes) {
@@ -420,6 +448,27 @@ public class CausalGraph<NodeT> {
 
     public Iterator<Integer> getSingletonIter() {
         return singletons.iterator();
+    }
+
+    public Integer addNode(NodeT node) {
+        this.nodes.add(node);
+        return this.nodes.indexOf(node);
+    }
+
+    public void addProd(Integer prodHead, List<Integer> prodBody) {
+        this.prods.put(prodHead, new ArrayList<>(prodBody));
+    }
+
+    public void addSum(Integer sumHead, List<Integer> sumBody) {
+        this.sums.put(sumHead, new ArrayList<>(sumBody));
+    }
+
+    public List<Integer> getProd(Integer prodHead) {
+        return this.prods.get(prodHead);
+    }
+
+    public List<Integer> getSum(Integer sumHead) {
+        return this.sums.get(sumHead);
     }
 }
 

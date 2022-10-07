@@ -27,7 +27,7 @@ public class Categorical01 {
         }
     }
 
-    public Categorical01(double[] values) {
+    public Categorical01(double ... values) {
         dist = new EnumeratedRealDistribution(values);
         Set<Double> supportValues = new HashSet<>();
         for (double v : values) {

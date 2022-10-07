@@ -45,8 +45,8 @@ public class CIntervalTest {
         ITask task = OsgiProject.g().getTask("interval");
         provenance = ((IProvable) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
-                cons -> new Categorical01(new double[]{0.1,0.5,1.0}),
-                input -> new Categorical01(new double[]{0.1,0.5,1.0})
+                cons -> new Categorical01(0.1,0.5,1.0),
+                input -> new Categorical01(0.1,0.5,1.0)
         );
         causalGraph.dump(Path.of(Config.v().outDirName));
 
@@ -56,12 +56,16 @@ public class CIntervalTest {
             assert false;
         }
         assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("oneshot");
-        AbstractCausalDriver oneShotCausalDriver = causalDriverFactory.createCausalDriver("oneshot", "test-oneshot-interval", causalGraph);
-        runCausalDriver(oneShotCausalDriver);
+//        AbstractCausalDriver oneShotCausalDriver = causalDriverFactory.createCausalDriver("oneshot", "test-oneshot-interval", causalGraph);
+//        runCausalDriver(oneShotCausalDriver);
 
         assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("iterating");
-        AbstractCausalDriver iteratingCausalDriver = causalDriverFactory.createCausalDriver("iterating", "test-iterating-interval", causalGraph);
-        runCausalDriver(iteratingCausalDriver);
+//        AbstractCausalDriver iteratingCausalDriver = causalDriverFactory.createCausalDriver("iterating", "test-iterating-interval", causalGraph);
+//        runCausalDriver(iteratingCausalDriver);
+
+
+        AbstractCausalDriver dynaDriver = causalDriverFactory.createCausalDriver("dynaboost", "test-dynaboost-interval", causalGraph);
+        runCausalDriver(dynaDriver);
     }
 
     private void runCausalDriver(AbstractCausalDriver causalDriver) {
@@ -89,7 +93,7 @@ public class CIntervalTest {
         for (int i = 0; i < 10; ++i) {
             Map<String, Boolean> obs = new HashMap<>();
             obs.put(provenance.encodeTuple(cret0), false);
-            if (i % 2 == 0) {
+            if (i % 4 == 0) {
                 obs.put(provenance.encodeTuple(cretN), true);
                 obs.put(provenance.encodeTuple(cretP), false);
             } else {

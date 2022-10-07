@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class OneShotCausalDriver extends AbstractCausalDriver {
-    private final Queue<Map<String, Boolean>> obsHistory = new LinkedList<>();
+    private final List<Map<String, Boolean>> obsHistory = new ArrayList<>();
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
@@ -20,7 +20,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
         try {
             workDir1 = Files.createDirectories(DAIRuntime.g().getWorkDir().resolve(name));
         } catch (IOException e) {
-            Messages.error("IteratingInferer: failed to create working directory");
+            Messages.error("OneShotInferer: failed to create working directory");
             Messages.fatal(e);
         }
         workDir = workDir1;
@@ -30,7 +30,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
 
     @Override
     protected void appendObservation(Map<String, Boolean> obs) {
-        obsHistory.offer(obs);
+        obsHistory.add(obs);
         // drop previous results
         updated = false;
         metaNetwork = null;
@@ -56,13 +56,11 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
 
 
     private void invokeUpdater() {
-        // 1. dump N-factor-graph
-        if (metaNetwork == null) {
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size());
-        }
+        // 1. dump full N-factor-graph for each time of inference
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size());
         // 2. dump observation
-        for (int timeId = 1; !obsHistory.isEmpty(); timeId++) {
-            Map<String, Boolean> obs = obsHistory.poll();
+        for (int timeId = 1; timeId <= obsHistory.size(); timeId++) {
+            Map<String, Boolean> obs = obsHistory.get(timeId - 1);
             for (var obsEntry : obs.entrySet()) {
                 Integer nodeId = causalGraph.getNodeId(obsEntry.getKey());
                 metaNetwork.observeNode(nodeId, timeId, obsEntry.getValue());

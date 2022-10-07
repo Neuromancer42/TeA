@@ -9,4 +9,7 @@
 -includeresource:\
     resources/=resources/
 
+-dependson: \
+    com.neuromancer42.tea.libdai
+
 Test-Cases:${classes;NAMED;*Test}
