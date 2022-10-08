@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.tests;
+package com.neuromancer42.tea.applications.cinterval;
 
 import com.neuromancer42.tea.core.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.core.inference.Categorical01;
@@ -9,40 +9,54 @@ import com.neuromancer42.tea.core.provenance.IProvable;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.Timer;
-import org.junit.jupiter.api.*;
+import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.BundleException;
+import org.osgi.framework.ServiceReference;
+import org.osgi.util.tracker.ServiceTracker;
 
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
-public class CIntervalTest {
-    static BundleContext context = FrameworkUtil.getBundle(CIntervalTest.class).getBundleContext();
-    private Provenance provenance;
+public class CIntervalAnalysis implements BundleActivator {
 
-    @BeforeAll
-    public static void registerAnalyses() {
-        OsgiProject.init();
+    private BundleContext context = null;
+    private ServiceTracker<OsgiProject, OsgiProject> coreTracker = null;
+    @Override
+    public void start(BundleContext bundleContext) throws Exception {
+        context = bundleContext;
+        coreTracker = new ServiceTracker<>(context, OsgiProject.class, null) {
+            @Override
+            public OsgiProject addingService(ServiceReference<OsgiProject> reference) {
+                OsgiProject project = context.getService(reference);
+                CompletableFuture.runAsync(() -> runAnalyses(project));
+                return project;
+            }
+        };
+        Messages.log("CIntervalAnalysis: Starting!!!");
+        coreTracker.open();
     }
 
-    @Test
-    @DisplayName("Run analysis")
-    public void runAnalyses() {
-        Set<String> tasks = Project.g().getTasks();
-        Messages.log("Found %d tasks", tasks.size());
-        Assertions.assertTrue(tasks.contains("CParser"));
-        Assertions.assertTrue(tasks.contains("PrePointer"));
-        Assertions.assertTrue(tasks.contains("ciPointerAnalysis"));
-        Assertions.assertTrue(tasks.contains("interval"));
+    @Override
+    public void stop(BundleContext bundleContext) throws Exception {
+        Messages.log("CIntervalAnalysis: Stoping!!!");
+    }
+
+    private Provenance provenance;
+
+    public void runAnalyses(OsgiProject project) {
+        project.requireTasks("ciPointerAnalysis", "interval", "InputMarker");
+        Set<String> tasks = project.getTasks();
+        Messages.log("CIntervalAnalysis: Found %d tasks", tasks.size());
         String[] taskSet = new String[3];
         taskSet[0] = "ciPointerAnalysis";
         taskSet[1] = "interval";
         taskSet[2] = "InputMarker";
-        Project.g().run(taskSet);
-        Project.g().printRels(new String[]{"ExtMeth", "MP", "ci_IM", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval", "retInput", "argInput"});
+        project.run(taskSet);
+        project.printRels(new String[]{"ExtMeth", "MP", "ci_IM", "ci_hpt", "ci_pt", "StorePtr", "MaySat", "MayUnsat", "evalBinopU", "evalUnaryU", "P_strong_update", "P_weak_update", "PredL", "PredR", "Pred2", "ci_PHval", "ci_Vval", "retInput", "argInput"});
 
-        Assertions.assertEquals(8, OsgiProject.g().getDoneTasks().size());
-        ITask task = OsgiProject.g().getTask("interval");
+        ITask task = project.getTask("interval");
         provenance = ((IProvable) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
                 cons -> new Categorical01(0.1,0.5,1.0),
@@ -55,17 +69,24 @@ public class CIntervalTest {
             Messages.error("no causal driver loaded");
             assert false;
         }
+
+        String driverType = System.getProperty("tea.inference.driver", "oneshot");
+
         assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("oneshot");
-//        AbstractCausalDriver oneShotCausalDriver = causalDriverFactory.createCausalDriver("oneshot", "test-oneshot-interval", causalGraph);
-//        runCausalDriver(oneShotCausalDriver);
-
         assert Arrays.asList(causalDriverFactory.getAlgorithms()).contains("iterating");
-//        AbstractCausalDriver iteratingCausalDriver = causalDriverFactory.createCausalDriver("iterating", "test-iterating-interval", causalGraph);
-//        runCausalDriver(iteratingCausalDriver);
 
 
-        AbstractCausalDriver dynaDriver = causalDriverFactory.createCausalDriver("dynaboost", "test-dynaboost-interval", causalGraph);
-        runCausalDriver(dynaDriver);
+        AbstractCausalDriver driver = causalDriverFactory.createCausalDriver(driverType, "test-" + driverType + "-interval", causalGraph);
+        runCausalDriver(driver);
+
+        Messages.log("CIntervalAnalyses: project complete, quit");
+        if (System.getProperty("tea.osgi.debug", "false").equals("false")) {
+            try {
+                context.getBundle(0).stop();
+            } catch (BundleException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void runCausalDriver(AbstractCausalDriver causalDriver) {
