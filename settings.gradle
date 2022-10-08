@@ -26,4 +26,4 @@ include 'com.neuromancer42.tea.souffle.tests'
 include 'com.neuromancer42.tea.libdai.tests'
 include 'com.neuromancer42.tea.program.llvm.tests'
 
-include 'com.neuromancer42.tea.tests'
+include 'com.neuromancer42.tea.applications.cinterval'

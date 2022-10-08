@@ -8,11 +8,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.neuromancer42.tea.core.analyses.*;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
-import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
+import com.neuromancer42.tea.core.util.StringUtil;
+import org.osgi.framework.*;
 
 import com.neuromancer42.tea.core.util.Timer;
 
@@ -22,29 +19,103 @@ import com.neuromancer42.tea.core.util.Timer;
  *
  * @author Yifan Chen
  */
-public class OsgiProject extends Project {
+public class OsgiProject extends Project implements ServiceListener {
 
+    private Map<String, ITask> nameToTaskMap = new HashMap<>();
+    private Map<String, Map<String, Trgt<?>>> nameToInputs = new HashMap<>();
+    private Map<String, Map<String, Trgt<?>>> nameToOutputs = new HashMap<>();
+    private final BundleContext context;
 
-    private OsgiProject() { }
+    @Override
+    public synchronized void serviceChanged(ServiceEvent event) {
+        if (event.getType() == ServiceEvent.REGISTERED) {
+            ServiceReference<JavaAnalysis> taskRef = (ServiceReference<JavaAnalysis>) event.getServiceReference();
+            receiveTask(taskRef);
+            notifyAll();
+        } else if (event.getType() == ServiceEvent.UNREGISTERING) {
+            ServiceReference<JavaAnalysis> taskRef = (ServiceReference<JavaAnalysis>) event.getServiceReference();
+            JavaAnalysis task = context.getService(taskRef);
+            String name = (String) taskRef.getProperty("name");
+            if (name == null) {
+                Messages.warn("OsgiProject: Anonymous task %s, using class simplename instead.", task.getClass().toString());
+                name = task.getClass().getSimpleName();
+            }
+            if (nameToTaskMap.containsKey(name)) {
+                nameToTaskMap.remove(name);
+                nameToInputs.remove(name);
+                nameToOutputs.remove(name);
+                context.ungetService(event.getServiceReference());
+            }
+        }
+    }
+
+    public void receiveTask(ServiceReference<JavaAnalysis> taskRef) {
+        JavaAnalysis task = context.getService(taskRef);
+        String name = (String) taskRef.getProperty("name");
+
+        if (name == null) {
+            Messages.warn("OsgiProject: Anonymous task %s, using class simplename instead.", task.getClass().toString());
+            name = task.getClass().getSimpleName();
+        }
+        Messages.log("OsgiProject: Receive task %s", name);
+        if (nameToTaskMap.put(name, task) != null) {
+            Messages.fatal("OsgiProject: Multiple tasks named '%s' found in project.", name);
+        }
+
+        Map<String, Trgt<?>> inputs = (Map<String, Trgt<?>>) taskRef.getProperty("input");
+        nameToInputs.put(name, inputs);
+        Map<String, Trgt<?>> outputs = (Map<String, Trgt<?>>) taskRef.getProperty("output");
+        nameToOutputs.put(name, outputs);
+    }
+
+    // register an analysis instance to Osgi Runtime
+    public static void registerAnalysis(BundleContext context, JavaAnalysis task) {
+        Messages.debug("OsgiProject: registering analysis %s from context %s", task.getName(), context.getBundle().getSymbolicName());
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put("name", task.getName());
+        props.put("input", task.getConsumerMap());
+        props.put("output", task.getProducerMap());
+        context.registerService(JavaAnalysis.class, task, props);
+    }
+
+    public synchronized void requireTasks(String ... taskNames) {
+        Messages.log("OsgiProject: requiring tasks [%s]", StringUtil.join(List.of(taskNames), ","));
+        while (!nameToTaskMap.keySet().containsAll(Set.of(taskNames))) {
+            try {
+                Messages.debug("OsgiProject: requirements [%s] not meet yet", StringUtil.join(List.of(taskNames), ","));
+                wait();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Messages.log("OsgiProject: found all required tasks [%s]", StringUtil.join(List.of(taskNames), ","));
+            }
+        }
+        notifyAll();
+    }
+
+    private OsgiProject(BundleContext context) {
+        this.context = context;
+    }
 
     private static OsgiProject project = null;
 
-	public static void init()
+	public static void init(BundleContext context)
 	{
-        project = new OsgiProject();
+        project = new OsgiProject(context);
         Project.setProject(project);
 	}
 
     public static OsgiProject g()
 	{
+        if (project == null) {
+            Messages.fatal("OsgiProject: project not initialized");
+        }
         return project;
     }
 
     // record dependency info
-    private Map<String, ITask> nameToTaskMap = new HashMap<>();
     private Map<ITask, Map<String, Supplier<Object>>> taskToTrgtProducersMap = new HashMap<>();
     private Map<ITask, Map<String, Consumer<Object>>> taskToTrgtConsumersMap = new HashMap<>();
-    
+
     private Map<String, Set<ITask>> trgtNameToProducingTasksMap = new HashMap<>();
     //private Map<ITask, Set<String>> taskToConsumedTrgtNamesMap = new HashMap<>();
 
@@ -57,63 +128,22 @@ public class OsgiProject extends Project {
     private boolean isBuilt = false;
 	private Set<String> scheduledTaskNames;
 
-    // register an analysis instance to Osgi Runtime
-    public static void registerAnalysis(BundleContext context, JavaAnalysis task) {
-        Dictionary<String, Object> props = new Hashtable<>();
-        props.put("name", task.getName());
-        props.put("input", task.getConsumerMap());
-        props.put("output", task.getProducerMap());
-        context.registerService(JavaAnalysis.class, task, props);
-    }
-
     @Override
     public void build() {
         if (isBuilt)
             return;
         //doneTrgts = new HashSet<Object>();
-        
-    	BundleContext context = FrameworkUtil.getBundle(this.getClass()).getBundleContext();
-        if (context == null) {
-        	Messages.fatal("OsgiProject: No bundle context, is it running in a osgi framework?");
-            assert false;
-        }
-
-        // build nameToTaskMap 
-        // along with registered target getter/setters
-        Collection<ServiceReference<JavaAnalysis>> taskRefs = null;
-		try {
-			taskRefs = context.getServiceReferences(JavaAnalysis.class, null);
-		} catch (InvalidSyntaxException e) {
-            Messages.error("OsgiProject: failed to fetch available tasks.");
-			Messages.fatal(e);
-            assert false;
-		}
 		
 		// for typecheck 
 		Map<String, Set<TrgtInfo>> nameToProducerInfosMap = new HashMap<>();
         Map<String, Set<TrgtInfo>> nameToConsumerInfosMap = new HashMap<>();
-		
-        for (ServiceReference<JavaAnalysis> taskRef : taskRefs) {
-        	JavaAnalysis task = context.getService(taskRef);
-        	String name = (String) taskRef.getProperty("name");
-        	String location = taskRef.getProperty(Constants.OBJECTCLASS).toString();
-        	
-        	if (name == null) {
-                Messages.warn("OsgiProject: Anonymous task %s, using class simplename instead.", task.getClass().toString());
-        		name = task.getClass().getSimpleName();
-        	}
-        	if (nameToTaskMap.put(name, task) != null) {
-        		Messages.fatal("OsgiProject: Multiple tasks named '%s' found in project.", name);
-        	}
 
+        for (var entry : nameToTaskMap.entrySet()) {
+            String name = entry.getKey();
+            ITask task = entry.getValue();
         	// first, find signatures in the registered properties
         	// note that both should be exact
-        	Map<String, Trgt<?>> production = null;
-        	try {
-        		production = (Map<String, Trgt<?>>) taskRef.getProperty("output");
-        	} catch (ClassCastException e) {
-        		Messages.warn("OsgiProject: Error in casting configuration of task %s: %s", location, e);
-        	}
+        	Map<String, Trgt<?>> production = nameToOutputs.get(name);
         	Map<String, Supplier<Object>> producerMap = new HashMap<>();
         	if (production != null) {
 	        	for (String trgtName : production.keySet()) {
@@ -127,16 +157,11 @@ public class OsgiProject extends Project {
                     trgtNameToProducingTasksMap.computeIfAbsent(trgtName, k -> new HashSet<>()).add(task);
 	        	}
         	} else {
-        		Messages.debug("OsgiProject: Task %s registers no output", location);
+        		Messages.debug("OsgiProject: Task %s registers no output", name);
         	}
         	taskToTrgtProducersMap.put(task, producerMap);
-        	
-        	Map<String, Trgt<?>> consumption = null;
-        	try {
-        		consumption = (Map<String, Trgt<?>>) taskRef.getProperty("input");
-        	} catch (ClassCastException e) {
-        		Messages.warn("OsgiProject: Error in casting configuration of task %s: %s", location, e);
-        	}
+
+        	Map<String, Trgt<?>> consumption = nameToInputs.get(name);
         	Map<String, Consumer<Object>> consumerMap = new HashMap<>();
 	        if (consumption != null) {
 	        	for (String trgtName : consumption.keySet()) {
@@ -148,7 +173,7 @@ public class OsgiProject extends Project {
 	        		consumerMap.put(trgtName, trgtConsumer);
 	        	}
         	} else {
-        		Messages.debug("OsgiProject: Task %s registers no input", location);
+        		Messages.debug("OsgiProject: Task %s registers no input", name);
         	}
 	        taskToTrgtConsumersMap.put(task, consumerMap);
         }
@@ -173,25 +198,33 @@ public class OsgiProject extends Project {
         
         isBuilt = true;
     }
+
+    private void reset() {
+        if (!isBuilt) {
+            return;
+        }
+        nameToTaskMap = new HashMap<>();
+        taskToTrgtProducersMap = new HashMap<>();
+        taskToTrgtConsumersMap = new HashMap<>();
+
+        trgtNameToProducingTasksMap = new HashMap<>();
+
+        doneTasks = new HashSet<>();
+        doneNameToTrgtProducerMap = new HashMap<>();
+        doneCachedNameToTrgtMap = new HashMap<>();
+        doneTrgtToConsumingTasksMap = new HashMap<>();
+
+        isBuilt = false;
+    }
     
     public void refresh() {
-    	nameToTaskMap = new HashMap<>();
-    	taskToTrgtProducersMap = new HashMap<>();
-    	taskToTrgtConsumersMap = new HashMap<>();
-    	
-    	trgtNameToProducingTasksMap = new HashMap<>();
-    	
-    	doneTasks = new HashSet<>();
-    	doneNameToTrgtProducerMap = new HashMap<>();
-    	doneCachedNameToTrgtMap = new HashMap<>();
-    	doneTrgtToConsumingTasksMap = new HashMap<>();
-    	
-    	isBuilt = false;
+        reset();
     	build();
     }
 
     @Override
-    public void run(String[] taskNames) {
+    public void run(String ... taskNames) {
+        build();
     	scheduledTaskNames = new HashSet<>();
         scheduledTaskNames.addAll(Arrays.asList(taskNames));
         for (String name : taskNames)
@@ -269,6 +302,7 @@ public class OsgiProject extends Project {
 
     @Override
     public void printRels(String[] relNames) {
+        build();
         // build(); similarly, only done jobs are considered
         for (String relName : relNames) {
             Object obj = getTrgt(relName);
@@ -291,6 +325,7 @@ public class OsgiProject extends Project {
     }
 
     public Object getTrgt(String name) {
+        build();
     	Object obj = doneCachedNameToTrgtMap.get(name);
         if (obj == null) { 
         	Supplier<Object> producer = doneNameToTrgtProducerMap.get(name);

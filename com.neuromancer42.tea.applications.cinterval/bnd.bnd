@@ -3,8 +3,7 @@
     com.neuromancer42.tea.core;version:=latest,\
     org.eclipse.cdt.core,\
     org.eclipse.cdt.codan.core,\
-    org.eclipse.equinox.common,\
-    ${junit}
+    org.eclipse.equinox.common
 
 -includeresource:\
     resources/=resources/
@@ -12,4 +11,6 @@
 -dependson: \
     com.neuromancer42.tea.libdai
 
-Test-Cases:${classes;NAMED;*Test}
+Bundle-Activator: com.neuromancer42.tea.applications.cinterval.CIntervalAnalysis
+
+Export-Package: com.neuromancer42.tea.applications.cinterval.*
