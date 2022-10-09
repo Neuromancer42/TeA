@@ -6,9 +6,10 @@ package com.neuromancer42.tea.core.project;
  * @author Mayur Naik (mhn@cs.stanford.edu)
  */
 public class Messages {
+    private static final String debug = System.getProperty("tea.debug", "false");
     private Messages() { }
     public static void debug(String format, Object... args) {
-        if (Config.v().verbose == 0)
+        if (debug.equals("false"))
             return;
         String msg = String.format(format, args);
         System.out.println("DEBUG: " + msg);

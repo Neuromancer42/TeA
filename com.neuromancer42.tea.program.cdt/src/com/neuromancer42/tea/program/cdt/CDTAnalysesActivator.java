@@ -16,13 +16,15 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class CDTAnalysesActivator implements BundleActivator {
     private final List<JavaAnalysis> registeredAnalyses = new ArrayList<>();
 
     @Override
     public void start(BundleContext bundleContext) throws Exception {
-        registerAnalyses(bundleContext);
+        CompletableFuture.runAsync(() -> registerAnalyses(bundleContext));
+        Messages.log("CDTAnalysis: started to register analyses");
     }
 
     @Override

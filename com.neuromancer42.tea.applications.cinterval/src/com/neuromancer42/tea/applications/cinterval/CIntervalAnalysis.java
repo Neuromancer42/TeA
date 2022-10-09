@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.applications.cinterval;
 
+import com.neuromancer42.tea.core.application.AbstractApplication;
 import com.neuromancer42.tea.core.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.core.inference.Categorical01;
 import com.neuromancer42.tea.core.inference.CausalGraph;
@@ -9,42 +10,20 @@ import com.neuromancer42.tea.core.provenance.IProvable;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.Timer;
-import org.osgi.framework.BundleActivator;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.BundleException;
-import org.osgi.framework.ServiceReference;
-import org.osgi.util.tracker.ServiceTracker;
 
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
-public class CIntervalAnalysis implements BundleActivator {
-
-    private BundleContext context = null;
-    private ServiceTracker<OsgiProject, OsgiProject> coreTracker = null;
-    @Override
-    public void start(BundleContext bundleContext) throws Exception {
-        context = bundleContext;
-        coreTracker = new ServiceTracker<>(context, OsgiProject.class, null) {
-            @Override
-            public OsgiProject addingService(ServiceReference<OsgiProject> reference) {
-                OsgiProject project = context.getService(reference);
-                CompletableFuture.runAsync(() -> runAnalyses(project));
-                return project;
-            }
-        };
-        Messages.log("CIntervalAnalysis: Starting!!!");
-        coreTracker.open();
-    }
-
-    @Override
-    public void stop(BundleContext bundleContext) throws Exception {
-        Messages.log("CIntervalAnalysis: Stoping!!!");
-    }
+public class CIntervalAnalysis extends AbstractApplication {
 
     private Provenance provenance;
 
+    @Override
+    protected String getName() {
+        return "CInterval";
+    }
+
+    @Override
     public void runAnalyses(OsgiProject project) {
         project.requireTasks("ciPointerAnalysis", "interval", "InputMarker");
         Set<String> tasks = project.getTasks();
@@ -78,15 +57,6 @@ public class CIntervalAnalysis implements BundleActivator {
 
         AbstractCausalDriver driver = causalDriverFactory.createCausalDriver(driverType, "test-" + driverType + "-interval", causalGraph);
         runCausalDriver(driver);
-
-        Messages.log("CIntervalAnalyses: project complete, quit");
-        if (System.getProperty("tea.osgi.debug", "false").equals("false")) {
-            try {
-                context.getBundle(0).stop();
-            } catch (BundleException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     private void runCausalDriver(AbstractCausalDriver causalDriver) {

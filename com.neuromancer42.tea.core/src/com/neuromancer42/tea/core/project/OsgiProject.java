@@ -21,9 +21,9 @@ import com.neuromancer42.tea.core.util.Timer;
  */
 public class OsgiProject extends Project implements ServiceListener {
 
-    private Map<String, ITask> nameToTaskMap = new HashMap<>();
-    private Map<String, Map<String, Trgt<?>>> nameToInputs = new HashMap<>();
-    private Map<String, Map<String, Trgt<?>>> nameToOutputs = new HashMap<>();
+    private final Map<String, ITask> cachedNameToTaskMap = new HashMap<>();
+    private final Map<String, Map<String, Trgt<?>>> cachedNameToInputs = new HashMap<>();
+    private final Map<String, Map<String, Trgt<?>>> cachedNameToOutputs = new HashMap<>();
     private final BundleContext context;
 
     @Override
@@ -40,10 +40,10 @@ public class OsgiProject extends Project implements ServiceListener {
                 Messages.warn("OsgiProject: Anonymous task %s, using class simplename instead.", task.getClass().toString());
                 name = task.getClass().getSimpleName();
             }
-            if (nameToTaskMap.containsKey(name)) {
-                nameToTaskMap.remove(name);
-                nameToInputs.remove(name);
-                nameToOutputs.remove(name);
+            if (cachedNameToTaskMap.containsKey(name)) {
+                cachedNameToTaskMap.remove(name);
+                cachedNameToInputs.remove(name);
+                cachedNameToOutputs.remove(name);
                 context.ungetService(event.getServiceReference());
             }
         }
@@ -58,14 +58,14 @@ public class OsgiProject extends Project implements ServiceListener {
             name = task.getClass().getSimpleName();
         }
         Messages.log("OsgiProject: Receive task %s", name);
-        if (nameToTaskMap.put(name, task) != null) {
+        if (cachedNameToTaskMap.put(name, task) != null) {
             Messages.fatal("OsgiProject: Multiple tasks named '%s' found in project.", name);
         }
 
         Map<String, Trgt<?>> inputs = (Map<String, Trgt<?>>) taskRef.getProperty("input");
-        nameToInputs.put(name, inputs);
+        cachedNameToInputs.put(name, inputs);
         Map<String, Trgt<?>> outputs = (Map<String, Trgt<?>>) taskRef.getProperty("output");
-        nameToOutputs.put(name, outputs);
+        cachedNameToOutputs.put(name, outputs);
     }
 
     // register an analysis instance to Osgi Runtime
@@ -80,7 +80,7 @@ public class OsgiProject extends Project implements ServiceListener {
 
     public synchronized void requireTasks(String ... taskNames) {
         Messages.log("OsgiProject: requiring tasks [%s]", StringUtil.join(List.of(taskNames), ","));
-        while (!nameToTaskMap.keySet().containsAll(Set.of(taskNames))) {
+        while (!cachedNameToTaskMap.keySet().containsAll(Set.of(taskNames))) {
             try {
                 Messages.debug("OsgiProject: requirements [%s] not meet yet", StringUtil.join(List.of(taskNames), ","));
                 wait();
@@ -113,6 +113,7 @@ public class OsgiProject extends Project implements ServiceListener {
     }
 
     // record dependency info
+    private Map<String, ITask> nameToTaskMap = new HashMap<>();
     private Map<ITask, Map<String, Supplier<Object>>> taskToTrgtProducersMap = new HashMap<>();
     private Map<ITask, Map<String, Consumer<Object>>> taskToTrgtConsumersMap = new HashMap<>();
 
@@ -122,14 +123,14 @@ public class OsgiProject extends Project implements ServiceListener {
     // record done jobs
     private Set<ITask> doneTasks = new HashSet<>();
     private Map<String, Supplier<Object>> doneNameToTrgtProducerMap = new HashMap<>();
-    private Map<String, Object> doneCachedNameToTrgtMap = new HashMap<>();
+    private Map<String, Object> doneFetchedNameToTrgtMap = new HashMap<>();
     private Map<Object, Set<ITask>> doneTrgtToConsumingTasksMap = new HashMap<>();
     
     private boolean isBuilt = false;
 	private Set<String> scheduledTaskNames;
 
     @Override
-    public void build() {
+    public synchronized void build() {
         if (isBuilt)
             return;
         //doneTrgts = new HashSet<Object>();
@@ -138,12 +139,13 @@ public class OsgiProject extends Project implements ServiceListener {
 		Map<String, Set<TrgtInfo>> nameToProducerInfosMap = new HashMap<>();
         Map<String, Set<TrgtInfo>> nameToConsumerInfosMap = new HashMap<>();
 
-        for (var entry : nameToTaskMap.entrySet()) {
+        for (var entry : cachedNameToTaskMap.entrySet()) {
             String name = entry.getKey();
             ITask task = entry.getValue();
+            nameToTaskMap.put(name, task);
         	// first, find signatures in the registered properties
         	// note that both should be exact
-        	Map<String, Trgt<?>> production = nameToOutputs.get(name);
+        	Map<String, Trgt<?>> production = cachedNameToOutputs.get(name);
         	Map<String, Supplier<Object>> producerMap = new HashMap<>();
         	if (production != null) {
 	        	for (String trgtName : production.keySet()) {
@@ -161,7 +163,7 @@ public class OsgiProject extends Project implements ServiceListener {
         	}
         	taskToTrgtProducersMap.put(task, producerMap);
 
-        	Map<String, Trgt<?>> consumption = nameToInputs.get(name);
+        	Map<String, Trgt<?>> consumption = cachedNameToInputs.get(name);
         	Map<String, Consumer<Object>> consumerMap = new HashMap<>();
 	        if (consumption != null) {
 	        	for (String trgtName : consumption.keySet()) {
@@ -211,7 +213,7 @@ public class OsgiProject extends Project implements ServiceListener {
 
         doneTasks = new HashSet<>();
         doneNameToTrgtProducerMap = new HashMap<>();
-        doneCachedNameToTrgtMap = new HashMap<>();
+        doneFetchedNameToTrgtMap = new HashMap<>();
         doneTrgtToConsumingTasksMap = new HashMap<>();
 
         isBuilt = false;
@@ -297,7 +299,7 @@ public class OsgiProject extends Project implements ServiceListener {
     @Override
     public Map<String, Object> getTrgts() {
         build();
-        return Collections.unmodifiableMap(doneCachedNameToTrgtMap);
+        return Collections.unmodifiableMap(doneFetchedNameToTrgtMap);
     }
 
     @Override
@@ -326,7 +328,7 @@ public class OsgiProject extends Project implements ServiceListener {
 
     public Object getTrgt(String name) {
         build();
-    	Object obj = doneCachedNameToTrgtMap.get(name);
+    	Object obj = doneFetchedNameToTrgtMap.get(name);
         if (obj == null) { 
         	Supplier<Object> producer = doneNameToTrgtProducerMap.get(name);
         	if (producer != null)
@@ -383,7 +385,7 @@ public class OsgiProject extends Project implements ServiceListener {
             }
             Object trgt = getTrgt(trgtName);
             assert (trgt != null);
-            doneCachedNameToTrgtMap.put(trgtName, trgt);
+            doneFetchedNameToTrgtMap.put(trgtName, trgt);
 //            Messages.log("OsgiProject: passing target %s: %s", trgtName, trgt.toString());
             trgtConsumers.get(trgtName).accept(trgt);
             doneTrgtToConsumingTasksMap.computeIfAbsent(trgt, k -> new HashSet<>()).add(task);
@@ -421,7 +423,7 @@ public class OsgiProject extends Project implements ServiceListener {
 
     private void resetAll() {
         doneNameToTrgtProducerMap.clear();
-        doneCachedNameToTrgtMap.clear();
+        doneFetchedNameToTrgtMap.clear();
         doneTrgtToConsumingTasksMap.clear();
     	doneTasks.clear();
     }
@@ -433,7 +435,7 @@ public class OsgiProject extends Project implements ServiceListener {
         		resetTaskDone(task);
         	}
         }
-        doneCachedNameToTrgtMap.remove(name);
+        doneFetchedNameToTrgtMap.remove(name);
         doneNameToTrgtProducerMap.remove(name);
     }
 

@@ -12,6 +12,6 @@
     com.neuromancer42.tea.program.cdt,\
     com.neuromancer42.tea.libdai
 
-Bundle-Activator: com.neuromancer42.tea.applications.cinterval.CIntervalAnalysis
+Bundle-Activator: com.neuromancer42.tea.applications.callgraph.CallGraphAnalysis
 
-Export-Package: com.neuromancer42.tea.applications.cinterval.*
+Export-Package: com.neuromancer42.tea.applications.callgraph.*

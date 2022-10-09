@@ -135,7 +135,6 @@ public final class SouffleAnalysis extends JavaAnalysis implements IProvable {
             Messages.warn("SouffleAnalysis %s: re-close the souffle analysis", name);
         } else {
             Messages.debug("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
-            souffleProgram.delete();
             souffleProgram = null;
         }
     }
