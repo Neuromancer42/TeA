@@ -18,9 +18,10 @@ public class CMemoryModel extends JavaAnalysis {
     private final Map<IMemObj, IMemObj> ptrStoreMap = new LinkedHashMap<>();
     private final Map<IMemObj, IMemObj[]> arrayStoreMap = new LinkedHashMap<>();
     private final Map<IMemObj, Map<IField, IMemObj>> fieldStoreMap = new LinkedHashMap<>();
+    public static final String analysisName = "CMemModel";
 
     public CMemoryModel() {
-        this.name = "CMemModel";
+        this.name = analysisName;
         createDomConsumer("V", Integer.class);
         createDomConsumer("F", IField.class);
         createDomConsumer("M", IFunction.class);

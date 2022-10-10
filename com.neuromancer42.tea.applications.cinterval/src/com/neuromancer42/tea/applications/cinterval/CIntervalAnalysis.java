@@ -26,6 +26,11 @@ public class CIntervalAnalysis extends AbstractApplication {
     }
 
     @Override
+    protected String[] requiredAnalyses() {
+        return new String[]{"ciPointerAnalysis", "interval", "InputMarker"};
+    }
+
+    @Override
     public void runApplication(BundleContext context, OsgiProject project) {
         project.requireTasks("ciPointerAnalysis", "interval", "InputMarker");
         Set<String> tasks = project.getTasks();

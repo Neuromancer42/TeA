@@ -78,6 +78,14 @@ public class OsgiProject extends Project implements ServiceListener {
         context.registerService(JavaAnalysis.class, task, props);
     }
 
+    public static void registerAnalysisBuilder(BundleContext context, IAnalysisBuilder builder) {
+        Messages.debug("OsgiProject: registering analysis builder %s from context %s, available analyses [%s]", builder.getName(), context.getBundle().getSymbolicName(), StringUtil.join(List.of(builder.availableAnalyses()), ","));
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put("name", builder.getName());
+        props.put("analyses", builder.availableAnalyses());
+        context.registerService(IAnalysisBuilder.class, builder, props);
+    }
+
     public synchronized void requireTasks(String ... taskNames) {
         Messages.log("OsgiProject: requiring tasks [%s]", StringUtil.join(List.of(taskNames), ","));
         while (!cachedNameToTaskMap.keySet().containsAll(Set.of(taskNames))) {

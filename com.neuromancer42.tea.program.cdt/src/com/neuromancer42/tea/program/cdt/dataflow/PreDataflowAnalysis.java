@@ -11,8 +11,10 @@ import java.util.*;
 
 public class PreDataflowAnalysis extends JavaAnalysis {
 
+    public static final String analysisName = "preDataflow";
+
     public PreDataflowAnalysis() {
-        this.name = "preDataflow";
+        this.name = analysisName;
         createDomConsumer("P", IBasicBlock.class);
         createDomConsumer("H", IMemObj.class);
 

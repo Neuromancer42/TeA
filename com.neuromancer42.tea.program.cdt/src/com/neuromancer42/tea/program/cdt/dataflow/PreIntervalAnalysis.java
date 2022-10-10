@@ -19,9 +19,10 @@ public class PreIntervalAnalysis extends JavaAnalysis {
     private final static Interval empty = Interval.EMPTY;
     private final static Interval zero = new Interval(0);
     private final static Interval one = new Interval(1);
+    public static final String analysisName = "preInterval";
 
     public PreIntervalAnalysis() {
-        this.name = "preInterval";
+        this.name = analysisName;
         createDomConsumer("V", Integer.class);
         createDomConsumer("H", IMemObj.class);
         createDomConsumer("E", IEval.class);

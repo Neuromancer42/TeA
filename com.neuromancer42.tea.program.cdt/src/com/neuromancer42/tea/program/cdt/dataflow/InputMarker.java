@@ -6,8 +6,11 @@ import com.neuromancer42.tea.core.analyses.ProgramRel;
 import org.eclipse.cdt.core.dom.ast.IFunction;
 
 public class InputMarker extends JavaAnalysis {
+
+    public static final String analysisName = "InputMarker";
+
     public InputMarker() {
-        this.name = "InputMarker";
+        this.name = analysisName;
 
         createDomConsumer("M", IFunction.class);
         createDomConsumer("Z", Integer.class);

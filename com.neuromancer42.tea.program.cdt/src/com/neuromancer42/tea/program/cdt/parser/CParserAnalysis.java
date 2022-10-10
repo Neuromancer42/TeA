@@ -9,9 +9,10 @@ import java.util.HashMap;
 
 public class CParserAnalysis extends JavaAnalysis {
     private final CParser cParser;
+    public static final String analysisName = "CParser";
 
     public CParserAnalysis() {
-        this.name = "CParser";
+        this.name = analysisName;
         this.cParser = new CParser();
         for (ProgramDom<?> dom : cParser.generatedDoms)
             createDomProducer(dom.getName(), dom.getContentType());

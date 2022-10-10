@@ -11,6 +11,11 @@ public class CallGraphAnalysis extends AbstractApplication {
     }
 
     @Override
+    protected String[] requiredAnalyses() {
+        return new String[]{"ciPointerAnalysis"};
+    }
+
+    @Override
     protected void runApplication(BundleContext context, OsgiProject project) {
         project.requireTasks("ciPointerAnalysis");
         project.run("ciPointerAnalysis");
