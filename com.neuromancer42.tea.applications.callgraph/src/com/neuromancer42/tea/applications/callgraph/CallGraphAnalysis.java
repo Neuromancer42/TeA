@@ -2,6 +2,7 @@ package com.neuromancer42.tea.applications.callgraph;
 
 import com.neuromancer42.tea.core.application.AbstractApplication;
 import com.neuromancer42.tea.core.project.OsgiProject;
+import org.osgi.framework.BundleContext;
 
 public class CallGraphAnalysis extends AbstractApplication {
     @Override
@@ -10,7 +11,7 @@ public class CallGraphAnalysis extends AbstractApplication {
     }
 
     @Override
-    protected void runAnalyses(OsgiProject project) {
+    protected void runApplication(BundleContext context, OsgiProject project) {
         project.requireTasks("ciPointerAnalysis");
         project.run("ciPointerAnalysis");
     }

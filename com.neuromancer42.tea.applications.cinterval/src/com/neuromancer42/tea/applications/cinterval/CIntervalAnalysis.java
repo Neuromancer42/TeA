@@ -10,6 +10,8 @@ import com.neuromancer42.tea.core.provenance.IProvable;
 import com.neuromancer42.tea.core.provenance.Provenance;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.Timer;
+import org.osgi.framework.BundleContext;
+import org.osgi.util.tracker.ServiceTracker;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -24,7 +26,7 @@ public class CIntervalAnalysis extends AbstractApplication {
     }
 
     @Override
-    public void runAnalyses(OsgiProject project) {
+    public void runApplication(BundleContext context, OsgiProject project) {
         project.requireTasks("ciPointerAnalysis", "interval", "InputMarker");
         Set<String> tasks = project.getTasks();
         Messages.log("CIntervalAnalysis: Found %d tasks", tasks.size());
@@ -38,14 +40,23 @@ public class CIntervalAnalysis extends AbstractApplication {
         ITask task = project.getTask("interval");
         provenance = ((IProvable) task).getProvenance();
         CausalGraph<String> causalGraph = CausalGraph.buildCausalGraph(provenance,
-                cons -> new Categorical01(0.1,0.5,1.0),
-                input -> new Categorical01(0.1,0.5,1.0)
+                cons -> new Categorical01(0.1, 0.5, 1.0),
+                input -> new Categorical01(0.1, 0.5, 1.0)
         );
         causalGraph.dump(Path.of(Config.v().outDirName));
 
-        ICausalDriverFactory causalDriverFactory = context.getService(context.getServiceReference(ICausalDriverFactory.class));
+        ServiceTracker<ICausalDriverFactory, ICausalDriverFactory> factoryWatcher = new ServiceTracker<>(context, ICausalDriverFactory.class, null);
+        factoryWatcher.open();
+        ICausalDriverFactory causalDriverFactory = null;
+        try {
+            Messages.debug("CIntervalAnalysis: started to wait for a causal driver factory");
+            //ICausalDriverFactory causalDriverFactory = context.getService(context.getServiceReference(ICausalDriverFactory.class));
+            causalDriverFactory = factoryWatcher.waitForService(100000);
+        } catch (InterruptedException e) {
+            Messages.debug("CIntervalAnalysis: interrupted when waiting for causal driver factory");
+        }
         if (causalDriverFactory == null) {
-            Messages.error("no causal driver loaded");
+            Messages.error("CIntervalAnalysis: no causal driver loaded");
             assert false;
         }
 
@@ -57,6 +68,7 @@ public class CIntervalAnalysis extends AbstractApplication {
 
         AbstractCausalDriver driver = causalDriverFactory.createCausalDriver(driverType, "test-" + driverType + "-interval", causalGraph);
         runCausalDriver(driver);
+
     }
 
     private void runCausalDriver(AbstractCausalDriver causalDriver) {

@@ -139,7 +139,7 @@ public final class SouffleRuntime implements IDlogAnalysisBuilder {
         loadedProvenances = new HashMap<>();
     }
 
-    public void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance, boolean withDebug) {
+    private synchronized void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance, boolean withDebug) {
         if (loadedLibraries.contains(analysis)) {
             Messages.warn("SouffleRuntime: analysis %s has been loaded before!", analysis);
             return;
@@ -243,7 +243,7 @@ public final class SouffleRuntime implements IDlogAnalysisBuilder {
         return createSouffleAnalysis(name, analysis);
     }
 
-    public SouffleAnalysis createSouffleAnalysis(String name, String analysis) {
+    public synchronized SouffleAnalysis createSouffleAnalysis(String name, String analysis) {
         if (!hasLoaded(analysis)) {
             Messages.fatal("SouffleRuntime: the analysis %s has not been loaded yet!");
         }

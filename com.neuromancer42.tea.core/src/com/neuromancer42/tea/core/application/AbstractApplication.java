@@ -11,21 +11,18 @@ import org.osgi.util.tracker.ServiceTracker;
 import java.util.concurrent.CompletableFuture;
 
 public abstract class AbstractApplication implements BundleActivator {
-    protected BundleContext context = null;
-
     @Override
     public void start(BundleContext bundleContext) throws Exception {
-        context = bundleContext;
-        ServiceTracker<OsgiProject, OsgiProject> coreTracker = new ServiceTracker<>(context, OsgiProject.class, null) {
+        ServiceTracker<OsgiProject, OsgiProject> coreTracker = new ServiceTracker<>(bundleContext, OsgiProject.class, null) {
             @Override
             public OsgiProject addingService(ServiceReference<OsgiProject> reference) {
-                OsgiProject project = context.getService(reference);
+                OsgiProject project = bundleContext.getService(reference);
                 CompletableFuture.runAsync(() -> {
                     Messages.log("APP %s: Application started", getName());
-                    runAnalyses(project);
+                    runApplication(bundleContext, project);
                     Messages.log("APP %s: Application completed", getName());
                     if (System.getProperty("tea.debug", "false").equals("false")) {
-                        quitApplication();
+                        quitApplication(bundleContext);
                     }
                 });
                 return project;
@@ -40,13 +37,13 @@ public abstract class AbstractApplication implements BundleActivator {
     public void stop(BundleContext bundleContext) throws Exception {
     }
 
-    protected abstract void runAnalyses(OsgiProject project);
+    protected abstract void runApplication(BundleContext context, OsgiProject project);
 
-    private void quitApplication() {
+    private void quitApplication(BundleContext bundleContext) {
 //        System.exit(0);
         CompletableFuture.runAsync(() -> {
             try {
-                context.getBundle(0).stop();
+                bundleContext.getBundle(0).stop();
             } catch (BundleException e) {
                 e.printStackTrace();
             }
