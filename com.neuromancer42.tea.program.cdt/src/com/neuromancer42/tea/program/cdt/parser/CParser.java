@@ -9,6 +9,9 @@ import org.eclipse.cdt.codan.core.model.cfg.IBasicBlock;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.core.internal.resources.Workspace;
+import org.eclipse.core.resources.IWorkspace;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 
 import java.io.BufferedWriter;
@@ -133,6 +136,7 @@ public class CParser {
                 relExtMeth, relFuncRef, relMmethArg, relMmethRet, relEntryM,
                 relVvalue
         };
+
     }
 
 

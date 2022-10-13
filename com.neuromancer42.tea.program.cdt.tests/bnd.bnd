@@ -5,6 +5,9 @@
     org.eclipse.cdt.core,\
     org.eclipse.cdt.codan.core,\
     org.eclipse.equinox.common,\
+    org.eclipse.core.resources,\
+    org.eclipse.core.runtime,\
+    org.eclipse.core.jobs,\
     ${junit}
 
 Fragment-Host: com.neuromancer42.tea.program.cdt

@@ -50,4 +50,8 @@ public class StackObj implements IMemObj {
     public boolean observable() {
         return (variable != null);
     }
+
+    public IVariable getVariable() {
+        return variable;
+    }
 }

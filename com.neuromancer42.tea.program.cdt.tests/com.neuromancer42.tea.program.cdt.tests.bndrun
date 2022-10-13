@@ -7,16 +7,22 @@
 
 -runfw: org.eclipse.osgi
 -runproperties.equinox: \
-    osgi.console=, osgi.console.enable.builtin=false
+    osgi.console=, osgi.console.enable.builtin=false, osgi.noShutdown=false, eclipse.ignoreApp=true, osgi.debug=
 
 -runrequires: \
 	bnd.identity;id='${basename;${.}}',\
 	bnd.identity;id='org.junit.jupiter.engine',\
 	bnd.identity;id='org.junit.platform.launcher',\
+	bnd.identity;id='org.eclipse.osgi',\
     bnd.identity;id='org.apache.felix.scr'
 
 -runbundles+:\
     org.apache.felix.scr;startlevel=1
 
+-resolve: beforelaunch
+
+-runproperties.tester: \
+    tester.trace=true
+
 -runproperties.cdt:\
-    sourcefile0="aplusb.c", includepath0="", headerfile="example.h", sourcefile="array.c"
+    sourcefile0="aplusb.c", includepath0="", headerfile="example.h", sourcefile="array.c", tea.debug=true
