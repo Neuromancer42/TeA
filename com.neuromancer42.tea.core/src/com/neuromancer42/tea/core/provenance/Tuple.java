@@ -94,6 +94,17 @@ public class Tuple {
 		return sb.toString();
 	}
 
+	public Object[] interpret(ProgramRel rel) {
+		if (isSpurious(rel)) {
+			Messages.fatal("Tuple %s: the provided rel %s does not match this tuple", relName, rel.getName());
+		}
+		Object[] valTuple = new Object[domIndices.length];
+		for (int i = 0; i < domIndices.length; i++) {
+			valTuple[i] = rel.getDoms()[i].get(domIndices[i]);
+		}
+		return valTuple;
+	}
+
 	public boolean isSpurious(ProgramRel rel){
 		if (!relName.equals(rel.getName())) {
 			Messages.warn("Tuple %s: <rel %s> has different name", rel.toString(), rel.getName());
