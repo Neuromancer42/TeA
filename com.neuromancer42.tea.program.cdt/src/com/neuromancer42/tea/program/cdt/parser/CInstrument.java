@@ -46,7 +46,7 @@ public class CInstrument {
         return instrPositions.indexOf(astNode.getOriginalNode());
     }
 
-    public int instrumentBeforeLoad(IEval eval) {
+    public int instrumentBeforeInvoke(IEval eval) {
         if (eval instanceof IndirectCallEval) {
             IndirectCallEval indCall = (IndirectCallEval) eval;
             IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) indCall.getExpression();
@@ -54,22 +54,24 @@ public class CInstrument {
             int instrId = genInstrumentId(fNameExpr);
             if (instrId == -1) return -1;
             IASTExpression newFNameExpr = wrapPeekExpr(instrId, fNameExpr);
-            modMap.put(fNameExpr, newFNameExpr);
+            modMap.put(fNameExpr.getOriginalNode(), newFNameExpr);
+            Messages.debug("CInstrument: instrumenting function name expression [%s]#%d (original: %d)", new ASTWriter().write(fNameExpr.getOriginalNode()), fNameExpr.hashCode(), fNameExpr.getOriginalNode().hashCode());
             return instrId;
         }
         return -1;
     }
 
     public int instrumentEnterMethod(IFunction meth) {
-        IASTName[] decls = tu.getDeclarationsInAST(meth);
-        for (IASTName decl: decls) {
-            if (decl.getParent() instanceof IASTFunctionDeclarator || decl.getParent() instanceof ICASTKnRFunctionDeclarator) {
-                if (decl.getParent().getParent() instanceof IASTFunctionDefinition) {
-                    IASTFunctionDefinition fDef = (IASTFunctionDefinition) decl.getParent().getParent();
+        Messages.debug("CInstrument: trying to instrument when entering [%s]", meth);
+        for (IASTDeclaration decl: tu.getDeclarations()) {
+            if (decl instanceof IASTFunctionDefinition) {
+                IASTFunctionDefinition fDef = (IASTFunctionDefinition) decl;
+                if (fDef.getDeclarator().getName().resolveBinding().getName().equals(meth.getName())) {
                     IASTCompoundStatement fBody = (IASTCompoundStatement) fDef.getBody();
                     int instrId = genInstrumentId(fBody);
                     IASTCompoundStatement newBody = peekVarEnterBlock(instrId, meth.getNameCharArray(), fBody);
-                    modMap.put(fBody, newBody);
+                    modMap.put(fBody.getOriginalNode(), newBody);
+                    Messages.debug("CInstrument: instrumenting body of [%s]#%d (original: %d)", meth, fBody.hashCode(), fBody.getOriginalNode().hashCode());
                     return instrId;
                 }
             }
@@ -132,7 +134,7 @@ public class CInstrument {
         Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
 //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
 //        modStore.storeModification(null, mod);
-        modMap.put(origExpr, newExpr);
+        modMap.put(origExpr.getOriginalNode(), newExpr);
 
         return instrPositions.indexOf(origExpr.getOriginalNode());
     }
@@ -142,7 +144,7 @@ public class CInstrument {
         Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
 //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
 //        modStore.storeModification(null, mod);
-        modMap.put(origExpr, newExpr);
+        modMap.put(origExpr.getOriginalNode(), newExpr);
     }
 
     public CASTTranslationUnit instrumented() {
@@ -189,6 +191,7 @@ public class CInstrument {
         public InstrVisitor() {
             this.shouldVisitExpressions = true;
             this.shouldVisitInitializers = true;
+            this.shouldVisitDeclarations = true;
         }
 
         @Override
@@ -222,7 +225,34 @@ public class CInstrument {
                     newDivider.setParent(binExpr);
                 }
             }
+            if (expression instanceof IASTFunctionCallExpression) {
+                IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) expression;
+                IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
+                IASTNode origNode = fNameExpr.getOriginalNode();
+                Messages.debug("CInstrument: visiting function name expression [%s]#%d (original: %d)", new ASTWriter().write(origNode), fNameExpr.hashCode(), origNode.hashCode());
+                if (modMap.containsKey(origNode)) {
+                    IASTNode newNameExpr = modMap.get(origNode);
+                    Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNameExpr));
+                    callExpr.setFunctionNameExpression((IASTExpression) newNameExpr);
+                }
+            }
             return super.visit(expression);
+        }
+
+        @Override
+        public int visit(IASTDeclaration declaration) {
+            if (declaration instanceof IASTFunctionDefinition) {
+                IASTFunctionDefinition fDef = (IASTFunctionDefinition) declaration;
+                IASTStatement fBody  = fDef.getBody();
+                IASTNode origNode = fBody.getOriginalNode();
+                Messages.debug("CInstrument: visiting body of [%s]#%d (original: %d)", fDef.getDeclarator().getName(), fBody.hashCode(), origNode.hashCode());
+                if (modMap.containsKey(origNode)) {
+                    IASTNode newBody = modMap.get(origNode);
+                    Messages.debug("CInstrument: instrumented function body");
+                    fDef.setBody((IASTStatement) newBody);
+                }
+            }
+            return super.visit(declaration);
         }
     }
 
@@ -243,7 +273,7 @@ public class CInstrument {
         assert indices.length == 2;
         IEval eval = domI.get(indices[0]);
         IFunction meth = domM.get(indices[1]);
-        int iInstrId = instrumentBeforeLoad(eval);
+        int iInstrId = instrumentBeforeInvoke(eval);
         int mInstrId = instrumentEnterMethod(meth);
         return false;
     }

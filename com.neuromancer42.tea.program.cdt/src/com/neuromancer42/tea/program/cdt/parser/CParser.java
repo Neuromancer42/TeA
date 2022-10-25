@@ -9,6 +9,7 @@ import org.eclipse.cdt.codan.core.model.cfg.IBasicBlock;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.cdt.internal.core.dom.parser.c.CASTTranslationUnit;
 import org.eclipse.core.internal.resources.Workspace;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -74,6 +75,7 @@ public class CParser {
 
     public final ProgramDom<?>[] generatedDoms;
     public final ProgramRel[] generatedRels;
+    private IASTTranslationUnit translationUnit = null;
 
     public CParser() {
         domM = ProgramDom.createDom("M", IFunction.class);
@@ -151,7 +153,6 @@ public class CParser {
         IncludeFileContentProvider emptyIncludes = IncludeFileContentProvider.getSavedFilesProvider();
         int opts = 8; //TODO: read documents?
 
-        IASTTranslationUnit translationUnit = null;
         try {
             translationUnit = GCCLanguage.getDefault().getASTTranslationUnit(fileContent, scannerInfo, emptyIncludes, null, opts, log);
         } catch (CoreException e) {
@@ -370,4 +371,7 @@ public class CParser {
         }
     }
 
+    public CASTTranslationUnit copyTranslationUnit() {
+        return (CASTTranslationUnit) translationUnit.copy(IASTNode.CopyStyle.withLocations);
+    }
 }
