@@ -25,4 +25,4 @@
     tester.trace=true
 
 -runproperties.cdt:\
-    sourcefile0="aplusb.c", includepath0="", headerfile="example.h", sourcefile="array.c", sourcefile2="aplusb.c", tea.debug=true
+    sourcefile0="aplusb.c", includepath0="", headerfile="example.h", sourcefile="array.c", sourcefile2="latex2rtf-2.1.1.c", tea.debug=true

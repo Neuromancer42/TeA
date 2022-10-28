@@ -33,4 +33,8 @@ public class CParserAnalysis extends JavaAnalysis {
         for (ProgramRel rel : cParser.generatedRels)
             produceRel(rel);
     }
+
+    public CParser getParser() {
+        return cParser;
+    }
 }

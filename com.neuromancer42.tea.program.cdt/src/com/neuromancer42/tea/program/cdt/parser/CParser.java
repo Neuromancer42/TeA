@@ -3,16 +3,20 @@ package com.neuromancer42.tea.program.cdt.parser;
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
 import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.core.provenance.Tuple;
+import com.neuromancer42.tea.core.util.IndexMap;
+import com.neuromancer42.tea.program.cdt.memmodel.object.IMemObj;
+import com.neuromancer42.tea.program.cdt.memmodel.object.StackObj;
 import com.neuromancer42.tea.program.cdt.parser.cfg.*;
 import com.neuromancer42.tea.program.cdt.parser.evaluation.*;
 import org.eclipse.cdt.codan.core.model.cfg.IBasicBlock;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.cdt.internal.core.dom.parser.c.CASTName;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTTranslationUnit;
-import org.eclipse.core.internal.resources.Workspace;
-import org.eclipse.core.resources.IWorkspace;
-import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.cdt.internal.core.dom.parser.c.CNodeFactory;
+import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.eclipse.core.runtime.CoreException;
 
 import java.io.BufferedWriter;
@@ -76,6 +80,8 @@ public class CParser {
     public final ProgramDom<?>[] generatedDoms;
     public final ProgramRel[] generatedRels;
     private IASTTranslationUnit translationUnit = null;
+
+    private String filename;
 
     public CParser() {
         domM = ProgramDom.createDom("M", IFunction.class);
@@ -143,6 +149,7 @@ public class CParser {
 
 
     public void run(String fileName, Map<String, String> definedSymbols, String[] includePaths) {
+        this.filename = fileName;
         File sourceFile = new File(fileName);
         if (!sourceFile.isFile()) {
             Messages.fatal("CParser: the referenced path %s is not a source file", sourceFile.toString());
@@ -371,7 +378,311 @@ public class CParser {
         }
     }
 
-    public CASTTranslationUnit copyTranslationUnit() {
-        return (CASTTranslationUnit) translationUnit.copy(IASTNode.CopyStyle.withLocations);
+    public CInstrument getInstrument() {
+        return new CInstrument();
+    }
+
+    public class CInstrument {
+        private final CASTTranslationUnit instrTU = (CASTTranslationUnit) translationUnit.copy(IASTNode.CopyStyle.withLocations);
+
+    //    private final ASTModificationStore modStore;
+        private final Map<IASTNode, IASTNode> modMap = new LinkedHashMap<>();
+
+        private final IndexMap<IASTNode> instrPositions = new IndexMap<>();
+
+        private int genInstrumentId(IASTNode astNode) {
+            if (instrPositions.contains(astNode)) {
+                Messages.error("CInstrument: position [%s](line#%d) already instrumented", astNode.getRawSignature(), astNode.getFileLocation().getStartingLineNumber());
+                return -1;
+            }
+            instrPositions.add(astNode.getOriginalNode());
+            return instrPositions.indexOf(astNode.getOriginalNode());
+        }
+
+        public int instrumentBeforeInvoke(IEval eval) {
+            if (eval instanceof IndirectCallEval) {
+                IndirectCallEval indCall = (IndirectCallEval) eval;
+                IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) indCall.getExpression();
+                IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
+                int instrId = genInstrumentId(fNameExpr);
+                if (instrId == -1) return -1;
+                IASTExpression newFNameExpr = wrapPeekExpr(instrId, fNameExpr);
+                modMap.put(fNameExpr.getOriginalNode(), newFNameExpr);
+                Messages.debug("CInstrument: instrumenting function name expression [%s]#%d (original: %d)", new ASTWriter().write(fNameExpr.getOriginalNode()), fNameExpr.hashCode(), fNameExpr.getOriginalNode().hashCode());
+                return instrId;
+            }
+            return -1;
+        }
+
+        public int instrumentBeforeInvoke(int iId) {
+            return instrumentBeforeInvoke(domI.get(iId));
+        }
+
+        public int instrumentEnterMethod(IFunction meth) {
+            Messages.debug("CInstrument: trying to instrument when entering [%s]", meth);
+            for (IASTDeclaration decl: instrTU.getDeclarations()) {
+                if (decl instanceof IASTFunctionDefinition) {
+                    IASTFunctionDefinition fDef = (IASTFunctionDefinition) decl;
+                    if (fDef.getDeclarator().getName().resolveBinding().getName().equals(meth.getName())) {
+                        IASTCompoundStatement fBody = (IASTCompoundStatement) fDef.getBody();
+                        int instrId = genInstrumentId(fBody);
+                        IASTCompoundStatement newBody = peekVarEnterBlock(instrId, meth.getNameCharArray(), fBody);
+                        modMap.put(fBody.getOriginalNode(), newBody);
+                        Messages.debug("CInstrument: instrumenting body of [%s]#%d (original: %d)", meth, fBody.hashCode(), fBody.getOriginalNode().hashCode());
+                        return instrId;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        public int instrumentEnterMethod(int mId) {
+            return instrumentEnterMethod(domM.get(mId));
+        }
+
+        private IASTCompoundStatement peekVarEnterBlock(int instrId, char[] nameCharArray, IASTCompoundStatement fBody) {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTLiteralExpression instrIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(instrId));
+            IASTName vName = new CASTName(nameCharArray);
+            IASTIdExpression vNameExpr = CNodeFactory.getDefault().newIdExpression(vName);
+
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{instrIdExpr, vNameExpr};
+            IASTFunctionCallExpression peekExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+            IASTExpressionStatement peekStat = CNodeFactory.getDefault().newExpressionStatement(peekExpr);
+
+            IASTCompoundStatement newBody = CNodeFactory.getDefault().newCompoundStatement();
+            newBody.addStatement(peekStat);
+            for (IASTStatement stat: fBody.getStatements()) {
+                newBody.addStatement(stat.copy(IASTNode.CopyStyle.withLocations));
+            }
+            return newBody;
+        }
+
+        /*
+         * Note: utilizing implicit conversion to and from (void*)
+         */
+        private IASTExpression wrapPeekExpr(int instrId, IASTExpression expr) {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTLiteralExpression instrIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(instrId));
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{instrIdExpr, expr.copy(IASTNode.CopyStyle.withLocations)};
+
+            IASTFunctionCallExpression callExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+            IASTExpressionList exprList = CNodeFactory.getDefault().newExpressionList();
+            exprList.addExpression(callExpr);
+            exprList.addExpression(expr.copy(IASTNode.CopyStyle.withLocations));
+            IASTExpression wrapExpr = CNodeFactory.getDefault().newUnaryExpression(IASTUnaryExpression.op_bracketedPrimary, exprList);
+            return wrapExpr;
+        }
+
+        // TODO: check variable is visible in current point
+        public int instrumentBeforeLoad(ICFGNode cfgNode, IMemObj memObj) {
+            if (!(cfgNode instanceof EvalNode)) {
+                Messages.error("CParser: Instrumenting non-expression position");
+                return -1;
+            }
+            EvalNode evalNode = (EvalNode) cfgNode;
+
+            if (!(memObj instanceof StackObj) || !((StackObj) memObj).observable())
+                return -1;
+
+            IVariable variable = ((StackObj) memObj).getVariable();
+            Messages.debug("CParser: peek value of variable [%s] at {%s}", variable, evalNode.toDebugString());
+
+            IEval eval = evalNode.getEvaluation();
+            IASTExpression origExpr = eval.getExpression();
+
+            IASTExpression newExpr = peekVarBeforeExpression(variable, origExpr);
+            Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
+    //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
+    //        modStore.storeModification(null, mod);
+            modMap.put(origExpr.getOriginalNode(), newExpr);
+
+            return instrPositions.indexOf(origExpr.getOriginalNode());
+        }
+
+        public void instrumentPeekVar(IVariable variable, IASTExpression origExpr) {
+            IASTExpression newExpr = peekVarBeforeExpression(variable, origExpr);
+            Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
+    //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
+    //        modStore.storeModification(null, mod);
+            modMap.put(origExpr.getOriginalNode(), newExpr);
+        }
+
+        public CASTTranslationUnit instrumented() {
+    //        ChangeGenerator changeGenerator = new ChangeGenerator(modStore, new NodeCommentMap());
+    //        changeGenerator.generateChange(tu);
+            instrTU.accept(new InstrVisitor());
+    //        tu.addDeclaration(genPeekVarFunction());
+            return instrTU;
+        }
+
+
+        public void dumpInstrumented() {
+            Path newFilePath = Path.of(filename + ".instrumented");
+            try {
+                List<String> lines = new ArrayList<>();
+                lines.add("extern int printf(const char*restrict  __format, ...); \n" +
+                        "void* peek (int id, void *ptr) { \n" +
+                        "        printf(\"peek %d %ld\\n\", id, (long) ptr); \n" +
+                        "        return ptr; \n" +
+                        "}\n");
+                lines.add(new ASTWriter().write(instrumented()));
+                Files.write(newFilePath, lines, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                Messages.error("CInstrument: failed to dump instrumented source file");
+                Messages.fatal(e);
+            }
+            Messages.log("CInstrument: dump insturmneted c source file to " + newFilePath);
+        }
+
+        public IASTExpression peekVarBeforeExpression(IVariable variable, IASTExpression origExpr) {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTName vName = new CASTName(variable.getNameCharArray());
+            IASTIdExpression vNameExpr = CNodeFactory.getDefault().newIdExpression(vName);
+
+            instrPositions.add(origExpr.getOriginalNode());
+            int peekId = instrPositions.indexOf(origExpr.getOriginalNode());
+            IASTLiteralExpression peekIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(peekId));
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{peekIdExpr, vNameExpr};
+
+            IASTFunctionCallExpression callExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+
+            IASTExpressionList instrList = CNodeFactory.getDefault().newExpressionList();
+            instrList.addExpression(callExpr);
+            instrList.addExpression(origExpr.copy(IASTNode.CopyStyle.withLocations));
+
+            return CNodeFactory.getDefault().newUnaryExpression(IASTUnaryExpression.op_bracketedPrimary, instrList);
+        }
+
+        @Deprecated
+        private IASTDeclaration genPeekVarFunction() {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTFunctionDeclarator fDtor = CNodeFactory.getDefault().newFunctionDeclarator(fName);
+            IASTDeclSpecifier fDeclSpec = CNodeFactory.getDefault().newSimpleDeclSpecifier();
+            IASTSimpleDeclaration fDecl = CNodeFactory.getDefault().newSimpleDeclaration(fDeclSpec);
+            fDecl.addDeclarator(fDtor);
+            Messages.debug("CParser: add declaretion: %s", new ASTWriter().write(fDecl));
+            return fDecl;
+        }
+
+        public class InstrVisitor extends ASTVisitor {
+            public InstrVisitor() {
+                this.shouldVisitExpressions = true;
+                this.shouldVisitInitializers = true;
+                this.shouldVisitDeclarations = true;
+            }
+
+            @Override
+            public int visit(IASTInitializer initializer) {
+                if (initializer instanceof IASTEqualsInitializer) {
+                    IASTEqualsInitializer eqInit = (IASTEqualsInitializer) initializer;
+                    IASTInitializerClause initCls = eqInit.getInitializerClause();
+                    IASTNode origNode = initCls.getOriginalNode();
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newInitCls = modMap.get(origNode);
+                        eqInit.setInitializerClause((IASTInitializerClause) newInitCls);
+                        newInitCls.setParent(eqInit);
+                    }
+                }
+                return super.visit(initializer);
+            }
+
+            @Override
+            public int visit(IASTExpression expression) {
+                if (expression instanceof IASTBinaryExpression) {
+                    IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
+                    IASTNode origNode = binExpr.getOperand2().getOriginalNode();
+                    if (binExpr.getOperator() == IASTBinaryExpression.op_assign && modMap.containsKey(origNode)) {
+                        IASTNode newRhs = modMap.get(origNode);
+                        binExpr.setOperand2((IASTExpression) newRhs);
+                        newRhs.setParent(binExpr);
+                    }
+                    if (binExpr.getOperator() == IASTBinaryExpression.op_divide && modMap.containsKey(origNode)) {
+                        IASTNode newDivider = modMap.get(origNode);
+                        binExpr.setOperand2((IASTExpression) newDivider);
+                        newDivider.setParent(binExpr);
+                    }
+                }
+                if (expression instanceof IASTFunctionCallExpression) {
+                    IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) expression;
+                    IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
+                    IASTNode origNode = fNameExpr.getOriginalNode();
+                    Messages.debug("CInstrument: visiting function name expression [%s]#%d (original: %d)", new ASTWriter().write(origNode), fNameExpr.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNameExpr = modMap.get(origNode);
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNameExpr));
+                        callExpr.setFunctionNameExpression((IASTExpression) newNameExpr);
+                    }
+                }
+                return super.visit(expression);
+            }
+
+            @Override
+            public int visit(IASTDeclaration declaration) {
+                if (declaration instanceof IASTFunctionDefinition) {
+                    IASTFunctionDefinition fDef = (IASTFunctionDefinition) declaration;
+                    IASTStatement fBody  = fDef.getBody();
+                    IASTNode origNode = fBody.getOriginalNode();
+                    Messages.debug("CInstrument: visiting body of [%s]#%d (original: %d)", fDef.getDeclarator().getName(), fBody.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newBody = modMap.get(origNode);
+                        Messages.debug("CInstrument: instrumented function body");
+                        fDef.setBody((IASTStatement) newBody);
+                    }
+                }
+                return super.visit(declaration);
+            }
+        }
+
+        public Set<String> getInstructableRelations() {
+            return Set.of("ci_IM");
+        }
+
+        public boolean instrument(ProgramRel rel, Tuple tuple) {
+            assert rel.getName().equals(tuple.getRelName());
+            switch (rel.getName()) {
+                case "ci_IM":
+                    return instrumentCIIM(tuple.getIndices());
+            }
+            return false;
+        }
+
+        private boolean instrumentCIIM(int[] indices) {
+            assert indices.length == 2;
+            IEval eval = domI.get(indices[0]);
+            IFunction meth = domM.get(indices[1]);
+            int iInstrId = instrumentBeforeInvoke(eval);
+            int mInstrId = instrumentEnterMethod(meth);
+            return false;
+        }
+
+        private List<Tuple> provedTuples;
+        private List<Tuple> deniedTuples;
+        private void processTraceCIIM(List<Trace> traces) {
+            Map<Integer, Integer> methAddrMap = new LinkedHashMap<>();
+            for (Trace trace: traces) {
+                if (trace.getType() == Trace.BEFORE_INVOKE) {
+                    int methId = trace.getContent(0);
+                    int methAddr = trace.getContent(1);
+                    methAddrMap.put(methAddr, methId);
+                }
+            }
+            for (Trace trace: traces) {
+                if (trace.getType() == Trace.ENTER_METHOD) {
+                    int invkId = trace.getContent(0);
+                    int methAddr = trace.getContent(1);
+                    int methId = methAddrMap.get(methAddr);
+                    provedTuples.add(new Tuple("ci_IM", invkId, methId));
+                }
+            }
+        }
+
+
     }
 }

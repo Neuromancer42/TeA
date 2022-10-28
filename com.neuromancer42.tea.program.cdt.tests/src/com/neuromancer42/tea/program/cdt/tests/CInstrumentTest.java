@@ -1,7 +1,8 @@
 package com.neuromancer42.tea.program.cdt.tests;
 
-import com.neuromancer42.tea.program.cdt.parser.CInstrument;
 import com.neuromancer42.tea.program.cdt.parser.CParser;
+import com.neuromancer42.tea.program.cdt.parser.evaluation.IEval;
+import org.eclipse.cdt.core.dom.ast.IFunction;
 import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -26,12 +27,15 @@ public class CInstrumentTest {
         CParser cParser = new CParser();
         cParser.run(filename, new HashMap<>(), includes);
         Assertions.assertNotEquals(cParser.domM.size(), 0);
-        CInstrument cInstr = new CInstrument(cParser.copyTranslationUnit());
+        CParser.CInstrument cInstr = cParser.getInstrument();
         for (int i = 0; i < cParser.domI.size(); i++) {
-            cInstr.instrumentBeforeInvoke(cParser.domI.get(i));
+            IEval invk = cParser.domI.get(i);
+            cInstr.instrumentBeforeInvoke(invk);
         }
         for (int i = 0; i < cParser.domM.size(); i++) {
-            Assertions.assertNotEquals(-1, cInstr.instrumentEnterMethod(cParser.domM.get(i)));
+            IFunction meth = cParser.domM.get(i);
+            if (meth.isExtern()) continue;
+            Assertions.assertNotEquals(-1, cInstr.instrumentEnterMethod(meth));
         }
 
         Path newFilePath = Path.of(filename + ".instrumented");

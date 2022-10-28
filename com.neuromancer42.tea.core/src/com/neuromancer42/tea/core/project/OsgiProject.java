@@ -322,6 +322,7 @@ public class OsgiProject extends Project implements ServiceListener {
                 ProgramRel rel = (ProgramRel) obj;
                 rel.load();
                 rel.print();
+                rel.close();
             }
         }
     }

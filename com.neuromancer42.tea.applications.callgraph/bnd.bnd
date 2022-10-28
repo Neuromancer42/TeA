@@ -1,6 +1,7 @@
 -buildpath: \
     osgi.core;version:=8.0.0,\
     com.neuromancer42.tea.core;version:=latest,\
+    com.neuromancer42.tea.program.cdt,\
     org.eclipse.cdt.core,\
     org.eclipse.cdt.codan.core,\
     org.eclipse.equinox.common
@@ -9,7 +10,6 @@
     resources/=resources/
 
 -dependson: \
-    com.neuromancer42.tea.program.cdt,\
     com.neuromancer42.tea.libdai
 
 Bundle-Activator: com.neuromancer42.tea.applications.callgraph.CallGraphAnalysis

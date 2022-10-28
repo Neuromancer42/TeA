@@ -9,6 +9,7 @@
     org.eclipse.equinox.common
 
 Export-Package: \
-    com.neuromancer42.tea.program.cdt;-noimport:=true
+    com.neuromancer42.tea.program.cdt;-noimport:=true,\
+    com.neuromancer42.tea.program.cdt.parser;-noimport:=true
 
 Bundle-Activator: com.neuromancer42.tea.program.cdt.CDTAnalysesActivator
