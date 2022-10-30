@@ -1,0 +1,89 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.5'
+    id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+    id 'java'
+}
+
+group = 'com.neuromancer42.tea'
+version = '0.1.0'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+
+    implementation project(':core')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+ext {
+    swigJavaPackage = 'com.neuromancer42.tea.libdai.swig'
+    swigJavaSubdir = 'com/neuromancer42/tea/libdai/swig'
+}
+
+tasks.register("genSWIG", SourceTask) {
+    description "Generates swig java bindings of c++ code"
+    ext.srcDir = file("libdai")
+    ext.dstDir = new File(buildDir, 'cmake-build')
+    ext.generatedDir = new File(buildDir, 'generated-java')
+    it.source ext.srcDir
+    it.outputs.dir ext.generatedDir
+    it.doLast {
+        mkdir ext.dstDir
+        exec {
+            workingDir ext.dstDir
+            commandLine "cmake", "-DWRAPPER_ONLY=TRUE",
+                    "-DJAVA_HOME=${System.getProperty("java.home")}",
+                    "-DJAVA_PACKAGE=${swigJavaPackage}",
+                    "-DCMAKE_SWIG_OUTDIR=${ext.generatedDir}/${swigJavaSubdir}",
+                    "${ext.srcDir}"
+        }
+        exec {
+            workingDir ext.dstDir
+            commandLine "make", "-B", "daifg_swig_compilation"
+        }
+    }
+}
+
+tasks.register("compileSWIG") {
+    description "Compiles swig c++ code into jnilib"
+    it.dependsOn genSWIG
+    ext.installDir = "${processResources.destinationDir}/${swigJavaSubdir}"
+    it.outputs.dir "${ext.installDir}/jnilib"
+    it.doLast {
+        exec {
+            workingDir genSWIG.ext.dstDir
+            commandLine "make", "daifg"
+        }
+        exec {
+            workingDir genSWIG.ext.dstDir
+            commandLine "cmake", "--install", ".", "--prefix=${ext.installDir}"
+        }
+    }
+}
+
+tasks.named("compileJava") {
+    configure { dependsOn tasks.named("genSWIG") }
+}
+
+tasks.named("processResources") {
+    configure { dependsOn tasks.named("compileSWIG")}
+}
+
+sourceSets.main {
+    java.srcDir genSWIG.ext.generatedDir
+}

@@ -1,10 +1,4 @@
-[submodule "com.neuromancer42.tea.libdai/libdai"]
-	path = com.neuromancer42.tea.libdai/libdai
-	url = https://github.com/Neuromancer42/libdai
+[submodule "libdai"]
+	path = libdai/libdai
+	url = https://github.com/Neuromancer42/libdai.git
 	branch = master
-	update = rebase
-[submodule "com.neuromancer42.tea.program.llvm/llvm-wrapper"]
-	path = com.neuromancer42.tea.program.llvm/llvm-wrapper
-	url = https://github.com/Neuromancer42/llvm_wrapper.git
-	branch = master
-	update = rebase

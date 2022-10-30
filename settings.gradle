@@ -1,8 +1,8 @@
 pluginManagement {
     plugins {
-        id 'biz.aQute.bnd.workspace' version bnd_version
-        id 'biz.aQute.bnd' version bnd_version
         id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.5"
+        id 'org.springframework.boot' version '2.7.5'
+        id 'io.spring.dependency-management' version '1.1.0'
     }
     repositories {
         mavenCentral()
@@ -10,21 +10,15 @@ pluginManagement {
     }
 }
 
-rootProject.name = "TeA-bndworkspace"
+rootProject.name = "TeA-core"
 
-include 'com.neuromancer42.tea.bddbddb'
-include 'com.neuromancer42.tea.core'
-include 'com.neuromancer42.tea.program.cdt'
-include 'com.neuromancer42.tea.souffle'
-include 'com.neuromancer42.tea.libdai'
-include 'com.neuromancer42.tea.program.llvm'
+include 'bddbddb'
+include 'core'
+include 'souffle'
+include 'libdai'
+//include 'com.neuromancer42.tea.souffle'
+//include 'com.neuromancer42.tea.libdai'
 
-include 'com.neuromancer42.tea.bddbddb.tests'
-include 'com.neuromancer42.tea.core.tests'
-include 'com.neuromancer42.tea.program.cdt.tests'
-include 'com.neuromancer42.tea.souffle.tests'
-include 'com.neuromancer42.tea.libdai.tests'
-include 'com.neuromancer42.tea.program.llvm.tests'
-
-include 'com.neuromancer42.tea.applications.cinterval'
-include 'com.neuromancer42.tea.applications.callgraph'
+//include 'com.neuromancer42.tea.applications.example'
+//include 'com.neuromancer42.tea.applications.cinterval'
+//include 'com.neuromancer42.tea.applications.callgraph'

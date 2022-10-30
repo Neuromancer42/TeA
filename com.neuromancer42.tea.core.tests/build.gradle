@@ -1,6 +1,0 @@
-def resolveTask = tasks.named("resolve.com.neuromancer42.tea.core.tests") {
-    outputBndrun = layout.buildDirectory.file("com.neuromancer42.tea.core.tests.bndrun")
-}
-tasks.named("testOSGi") {
-    bndrun = resolveTask.flatMap { it.outputBndrun }
-}

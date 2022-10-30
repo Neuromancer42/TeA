@@ -1,9 +1,0 @@
--buildpath: \
-    osgi.core;version:=8.0.0,\
-    com.neuromancer42.tea.core,\
-    org.apache.commons.lang3;version:=3.1.0
-
-Export-Package: !com.neuromancer42.tea.libdai.swig, \
-    com.neuromancer42.tea.libdai;-noimport:=true
-
-Bundle-Activator: com.neuromancer42.tea.libdai.DAIActivator

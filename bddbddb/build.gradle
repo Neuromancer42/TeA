@@ -1,0 +1,41 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.5'
+    id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+    id 'java'
+}
+
+group = 'com.neuromancer42.tea'
+version = '0.1.0'
+sourceCompatibility = '1.8'
+
+repositories {
+    mavenCentral()
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'third-party/bddbddb/src'
+            srcDirs 'third-party/JavaBDD/src'
+            srcDirs 'third-party/jwutil/src'
+        }
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation files('third-party/bddbddb/lib/jdom-fixed.jar')
+    implementation files('third-party/bddbddb/lib/weka.jar')
+    implementation files('third-party/JavaBDD/lib/jdd.jar')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
