@@ -465,8 +465,11 @@ public class CFGBuilder {
     }
 
     private void handleInitializerClause(int refReg, IType refType, IASTInitializerClause initClause) {
-        while (refType instanceof ITypedef) {
-            refType = ((ITypedef) refType).getType();
+        while (refType instanceof ITypedef || refType instanceof IQualifierType) {
+            if (refType instanceof ITypedef)
+                refType = ((ITypedef) refType).getType();
+            else
+                refType = ((IQualifierType) refType).getType();
         }
         if (initClause instanceof IASTExpression) {
             // scalar expression
@@ -688,9 +691,10 @@ public class CFGBuilder {
             if (!expression.getExpressionType().isSameType(CBasicType.VOID))
                 Messages.warn("CParser: discard ret-val of expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
             return handleRvalue(expression);
+        } else {
+            Messages.warn("CParser: expression result unused for %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            return handleRvalue(expression);
         }
-        Messages.error("CParser: skip unsupported %s [%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-        return -1;
     }
 
     // Note: this method does not check if the lvalue is modifiable
@@ -1038,6 +1042,12 @@ public class CFGBuilder {
                 prevNode = connect(prevNode, evalNode);
                 return reg;
             }
+        }
+        if (expression == null) {
+            registers.add("literal: 1");
+            int reg = registers.indexOf("literal: 1");
+            Messages.debug("CParser: assign null expression as constant value 1");
+            return reg;
         }
         registers.add(expression);
         int reg = registers.indexOf(expression);
@@ -1425,8 +1435,9 @@ public class CFGBuilder {
 
     private int createRegister(IASTExpression expression) {
         if (expression.getExpressionType().isSameType(CBasicType.VOID)) {
-            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-            return -1;
+//            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+//            return -1;
+            Messages.debug("CParser: create register for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         }
         return getRegister(expression, true);
     }

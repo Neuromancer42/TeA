@@ -28,7 +28,7 @@ tasks.register("genSWIG", SourceTask) {
 }
 
 tasks.register("compileSWIG") {
-    description "Compiles swig c++ code into jnilib"
+    description "Compiles swig c++ code into binary"
     it.dependsOn genSWIG
     ext.installDir = "${processResources.destinationDir}/${swigJavaSubdir}"
     it.outputs.dir "${ext.installDir}/jnilib"

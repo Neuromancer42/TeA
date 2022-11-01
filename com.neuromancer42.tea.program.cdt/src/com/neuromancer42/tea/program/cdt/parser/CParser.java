@@ -2,6 +2,7 @@ package com.neuromancer42.tea.program.cdt.parser;
 
 import com.neuromancer42.tea.core.analyses.ProgramRel;
 import com.neuromancer42.tea.core.analyses.ProgramDom;
+import com.neuromancer42.tea.core.project.Config;
 import com.neuromancer42.tea.core.project.Messages;
 import com.neuromancer42.tea.core.provenance.Tuple;
 import com.neuromancer42.tea.core.util.IndexMap;
@@ -26,6 +27,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class CParser {
@@ -157,11 +159,11 @@ public class CParser {
         FileContent fileContent = FileContent.createForExternalFileLocation(fileName);
         IScannerInfo scannerInfo = new ScannerInfo(definedSymbols, includePaths);
         IParserLogService log = new DefaultLogService();
-        IncludeFileContentProvider emptyIncludes = IncludeFileContentProvider.getSavedFilesProvider();
-        int opts = 8; //TODO: read documents?
+        IncludeFileContentProvider includeContents = IncludeFileContentProvider.getSavedFilesProvider();
+        int opts = 0;
 
         try {
-            translationUnit = GCCLanguage.getDefault().getASTTranslationUnit(fileContent, scannerInfo, emptyIncludes, null, opts, log);
+            translationUnit = GCCLanguage.getDefault().getASTTranslationUnit(fileContent, scannerInfo, includeContents, null, opts, log);
         } catch (CoreException e) {
             Messages.error("CParser: failed to crete parser for file %s, exit.", fileName);
             Messages.fatal(e);
@@ -173,7 +175,7 @@ public class CParser {
 
         String dotName = sourceFile.getName() + ".dot";
         try {
-            BufferedWriter bw = Files.newBufferedWriter(Path.of(dotName), StandardCharsets.UTF_8);
+            BufferedWriter bw = Files.newBufferedWriter(Paths.get(Config.v().workDirName).resolve(dotName), StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
             builder.dumpDot(pw);
         } catch (IOException e) {
@@ -521,16 +523,24 @@ public class CParser {
         }
 
 
-        public void dumpInstrumented() {
-            Path newFilePath = Path.of(filename + ".instrumented");
+        public void dumpInstrumented(Path newFilePath) {
             try {
                 List<String> lines = new ArrayList<>();
                 lines.add("extern int printf(const char*restrict  __format, ...); \n" +
                         "void* peek (int id, void *ptr) { \n" +
-                        "        printf(\"peek %d %ld\\n\", id, (long) ptr); \n" +
+                        "        printf(\"peek\t%d\t%ld\\n\", id, (long) ptr); \n" +
                         "        return ptr; \n" +
                         "}\n");
-                lines.add(new ASTWriter().write(instrumented()));
+                for (IASTPreprocessorIncludeStatement incl : translationUnit.getIncludeDirectives()) {
+                    if (incl.isSystemInclude())
+                        lines.add(incl.toString());
+                }
+                try {
+                    lines.add(new ASTWriter().write(instrumented()));
+                } catch (RuntimeException e) {
+                    Messages.error("CInstrument: error while generating instrumented file");
+                    Messages.fatal(e);
+                }
                 Files.write(newFilePath, lines, StandardCharsets.UTF_8);
             } catch (IOException e) {
                 Messages.error("CInstrument: failed to dump instrumented source file");
@@ -569,6 +579,10 @@ public class CParser {
             fDecl.addDeclarator(fDtor);
             Messages.debug("CParser: add declaretion: %s", new ASTWriter().write(fDecl));
             return fDecl;
+        }
+
+        public String getName() {
+            return "CInstrument";
         }
 
         public class InstrVisitor extends ASTVisitor {

@@ -128,7 +128,7 @@ public class DAIRuntime {
 
         pw.flush();
         pw.close();
-        Messages.debug("DAIRuntime: FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + latentMap.size() + " latent nodes, " + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
+        Messages.log("DAIRuntime: FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + latentMap.size() + " latent nodes, " + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
         return subSize;
     }
 
