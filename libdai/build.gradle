@@ -1,6 +1,8 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
-    id 'org.springframework.boot' version '2.7.5'
-    id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+    id 'org.springframework.boot' apply false
+    id 'io.spring.dependency-management'
     id 'java'
 }
 
@@ -14,19 +16,19 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        mavenBom SpringBootPlugin.BOM_COORDINATES
     }
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
 
     implementation project(':core')
 }
 
-tasks.named('test') {
+test {
     useJUnitPlatform()
 }
 
@@ -76,11 +78,11 @@ tasks.register("compileSWIG") {
     }
 }
 
-tasks.named("compileJava") {
+compileJava {
     configure { dependsOn tasks.named("genSWIG") }
 }
 
-tasks.named("processResources") {
+processResources {
     configure { dependsOn tasks.named("compileSWIG")}
 }
 

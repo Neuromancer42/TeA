@@ -1,6 +1,8 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
-    id 'org.springframework.boot' version '2.7.5'
-    id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+    id 'org.springframework.boot' apply false
+    id 'io.spring.dependency-management'
     id 'java'
 }
 
@@ -24,18 +26,18 @@ sourceSets {
 
 dependencyManagement {
     imports {
-        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        mavenBom SpringBootPlugin.BOM_COORDINATES
     }
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
     implementation files('third-party/bddbddb/lib/jdom-fixed.jar')
     implementation files('third-party/bddbddb/lib/weka.jar')
     implementation files('third-party/JavaBDD/lib/jdd.jar')
 }
 
-tasks.named('test') {
+test {
     useJUnitPlatform()
 }
