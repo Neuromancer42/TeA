@@ -16,9 +16,9 @@ include 'bddbddb'
 include 'core'
 include 'souffle'
 include 'libdai'
-//include 'com.neuromancer42.tea.souffle'
-//include 'com.neuromancer42.tea.libdai'
 
 //include 'com.neuromancer42.tea.applications.example'
 //include 'com.neuromancer42.tea.applications.cinterval'
 //include 'com.neuromancer42.tea.applications.callgraph'
+include 'cfg'
+
