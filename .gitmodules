@@ -2,6 +2,3 @@
 	path = libdai/libdai
 	url = https://github.com/Neuromancer42/libdai.git
 	branch = master
-[submodule "ir"]
-	path = ir
-	url = https://github.com/Neuromancer42/TeA_IR
