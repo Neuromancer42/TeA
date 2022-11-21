@@ -12,8 +12,8 @@ pluginManagement {
 
 rootProject.name = "TeA-core"
 
-include 'bddbddb'
 include 'core'
+include 'core:bddbddb'
 include 'souffle'
 include 'libdai'
 
