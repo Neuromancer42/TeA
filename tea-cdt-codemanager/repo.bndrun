@@ -1,0 +1,37 @@
+-standalone true
+mavencentral: https://repo.maven.apache.org/maven2
+ossrh: https://oss.sonatype.org/content/repositories/snapshots
+
+-plugin.1.MavenCentral:\
+	aQute.bnd.repository.maven.provider.MavenBndRepository;\
+		name="Maven Central";\
+		releaseUrl="${mavencentral}";\
+		snapshotUrl="${ossrh}";\
+		index="${.}/central.mvn";\
+		readOnly=true
+
+-plugin.2.Local:\
+	aQute.bnd.repository.maven.provider.MavenBndRepository;\
+		name="Local";\
+		noupdateOnRelease=true
+
+-buildrepo: Local
+
+#
+# core of eclipse runtime
+#
+
+-plugin.10.Eclipse.Platform:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_Platform_4.25;\
+        url=https://download.eclipse.org/eclipse/updates/4.25/
+
+-plugin.11.Eclipse.Orbit:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_Orbit_Latest_R;\
+        url=https://download.eclipse.org/tools/orbit/downloads/latest-R/
+
+-plugin.12.Eclipse.CDT:\
+    aQute.bnd.repository.p2.provider.P2Repository;\
+        name=Eclipse_CDT_Nightly;\
+        url=https://ci.eclipse.org/cdt/job/cdt/job/main/lastSuccessfulBuild/artifact/releng/org.eclipse.cdt.repo/target/repository/

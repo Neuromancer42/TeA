@@ -1,0 +1,91 @@
+cmake_minimum_required(VERSION 3.20)
+project(souffle_analyses)
+
+set(CMAKE_CXX_STANDARD 17)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+find_program(SOUFFLE_EXE souffle REQUIRED)
+find_path(SOUFFLE_INCLUDE_DIR souffle/SouffleInterface.h REQUIRED)
+message(STATUS "Souffle found: ${SOUFFLE_EXE} (include_path: ${SOUFFLE_INCLUDE_DIR})")
+
+add_compile_definitions(RAM_DOMAIN_SIZE=64) #USE_SQLITE?
+include_directories(${SOUFFLE_INCLUDE_DIR})
+
+find_package(OpenMP COMPONENTS CXX)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found: ${OpenMP_CXX_LIB_NAMES} (version: ${OpenMP_CXX_VERSION})")
+endif()
+
+if(BUILD_WRAPPER)
+    if(NOT DEFINED JAVA_HOME)
+        message(STATUS "Finding java automatically")
+        find_package(Java 11 COMPONENTS Development REQUIRED)
+        message(STATUS "Java found: ${Java_JAVA_EXECUTABLE} (version: ${Java_VERSION})")
+        cmake_path(GET Java_JAVA_EXECUTABLE PARENT_PATH java_bin)
+        cmake_path(GET java_bin PARENT_PATH JAVA_HOME)
+    endif()
+    message(STATUS "Java home: ${JAVA_HOME}")
+    find_package(JNI 11 REQUIRED)
+    message(STATUS "JNI found: ${JNI_INCLUDE_DIRS}")
+
+    if(NOT DEFINED WRAPPER_SRC)
+        set(WRAPPER_SRC "souffle-swig-interface_wrap.cxx")
+    endif()
+    add_library(souffle SHARED ${WRAPPER_SRC})
+    target_include_directories(souffle SYSTEM PRIVATE ${JNI_INCLUDE_DIRS} PRIVATE .)
+    target_compile_definitions(souffle PRIVATE __EMBEDDED_SOUFFLE__)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(souffle PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+
+    install(TARGETS souffle DESTINATION "native")
+endif()
+
+if(DEFINED ANALYSIS_NAME)
+    if(NOT DEFINED ANALYSIS_DLOG)
+        set(ANALYSIS_DLOG "${CMAKE_SOURCE_DIR}/${ANALYSIS_NAME}.dl")
+    endif()
+
+    set(ANALYSIS_LIB "${ANALYSIS_NAME}")
+    set(ANALYSIS_CPP "${ANALYSIS_LIB}.cpp")
+
+    list(APPEND SOUFFLE_ARGS ${ANALYSIS_DLOG} "-g" ${ANALYSIS_CPP})
+    add_custom_command(OUTPUT ${ANALYSIS_CPP}
+                    COMMAND ${SOUFFLE_EXE} ${SOUFFLE_ARGS})
+    add_library(${ANALYSIS_LIB} SHARED ${ANALYSIS_CPP})
+    target_compile_definitions(${ANALYSIS_LIB} PRIVATE __EMBEDDED_SOUFFLE__)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(${ANALYSIS_LIB} PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    install(TARGETS ${ANALYSIS_LIB} DESTINATION "native")
+
+    if(ENABLE_EXE)
+        set(ANALYSIS_EXE "${ANALYSIS_NAME}_debug")
+        add_executable(${ANALYSIS_EXE} ${ANALYSIS_CPP})
+        if(OpenMP_CXX_FOUND)
+            target_link_libraries(${ANALYSIS_EXE} PRIVATE OpenMP::OpenMP_CXX)
+        endif()
+        install(TARGETS ${ANALYSIS_EXE} DESTINATION "native")
+    endif()
+
+    if(ENABLE_PROVENANCE)
+        set(ANALYSIS_PROV_LIB "${ANALYSIS_NAME}_wP")
+        set(ANALYSIS_PROV_CPP "${ANALYSIS_PROV_LIB}.cpp")
+        list(APPEND SOUFFLE_PROV_ARGS ${ANALYSIS_DLOG} "-g" ${ANALYSIS_PROV_CPP} "-t" "none")
+        add_custom_command(OUTPUT ${ANALYSIS_PROV_CPP}
+                        COMMAND ${SOUFFLE_EXE} ${SOUFFLE_PROV_ARGS})
+        add_library(${ANALYSIS_PROV_LIB} SHARED ${ANALYSIS_PROV_CPP})
+        target_compile_definitions(${ANALYSIS_PROV_LIB} PRIVATE __EMBEDDED_SOUFFLE__)
+        if(OpenMP_CXX_FOUND)
+            target_link_libraries(${ANALYSIS_PROV_LIB} PRIVATE OpenMP::OpenMP_CXX)
+        endif()
+        install(TARGETS ${ANALYSIS_PROV_LIB} DESTINATION "native")
+    endif()
+endif()

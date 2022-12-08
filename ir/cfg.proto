@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+import "expr.proto";
+
+package tea.cfg;
+option java_package = 'org.neuromancer42.tea.ir';
+option java_outer_classname = 'CFG';
+
+message Entry {
+  repeated string formal_arg = 1;
+}
+
+message Return {
+  optional string formal_ret = 1;
+}
+
+message Invoke {
+  optional string actual_ret = 1;
+  repeated string actual_arg = 2;
+  oneof function {
+    string static_ref = 3;
+    string func_ptr = 4;
+  }
+}
+
+message Condition {
+  optional string cond_reg = 1;
+}
+
+message Phi {
+//  optional int32 cond_reg = 1;
+}
+
+message Goto {
+  string label = 1;
+}
+
+message Label {
+  string label = 1;
+}
+
+message Alloca {
+  string reg = 1;
+  string type = 2;
+  string variable = 3;
+}
+
+message Load {
+  string reg = 1;
+  string addr = 2;
+}
+
+message Store {
+  string addr = 1;
+  string reg = 2;
+}
+
+message Evaluation {
+  string result_reg = 1;
+  Expression expr = 2;
+}
+/*
+  Each CFGNode represents a node in the control flow graph
+ */
+message CFGNode {
+  string id = 1;
+  oneof node {
+    Entry entry = 2;
+    Return return = 3;
+    Invoke invk = 4;
+    Condition cond = 5;
+    Phi phi = 6;
+    Goto goto = 7;
+    Label label = 8;
+    Alloca alloca = 9;
+    Load load = 10;
+    Store store = 11;
+    Evaluation eval = 12;
+  }
+}

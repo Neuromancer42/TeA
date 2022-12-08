@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package tea.analysis;
+option java_package = 'com.neuromancer42.tea.core.analysis';
+
+import "analysis/trgt.proto";
+
+service Provider {
+    rpc GetFeature (Configs) returns (ProviderInfo) {}
+    rpc RunAnalysis (RunRequest) returns (RunResults) {}
+    rpc Prove (ProveRequest) returns (ProveResponse) {}
+    rpc Instrument (InstrumentRequest) returns (InstrumentResponse) {}
+    rpc Test (TestRequest) returns (TestResponse) {}
+    rpc Shutdown (ShutdownRequest) returns (ShutdownResponse) {}
+}
+
+message Configs {
+    map<string, string> property = 1;
+}
+
+message ProviderInfo {
+    string name = 1;
+    repeated AnalysisInfo analysis = 2;
+    repeated RelInfo provable_rel = 3;
+    repeated RelInfo observable_rel = 4;
+}
+
+message AnalysisInfo {
+    string name = 1;
+    repeated DomInfo consuming_dom = 2;
+    repeated RelInfo consuming_rel = 3;
+    repeated DomInfo producing_dom = 4;
+    repeated RelInfo producing_rel = 5;
+}
+
+message RunRequest {
+    string analysis_name = 1;
+    Configs option = 2;
+    repeated DomTrgt dom_input = 3;
+    repeated RelTrgt rel_input = 4;
+}
+
+message RunResults {
+    string msg = 1;
+    repeated DomTrgt dom_output = 2;
+    repeated RelTrgt rel_output = 3;
+}
+
+
+message InstrumentRequest {
+    Configs option = 1;
+    repeated Tuple instr_tuple = 2;
+}
+
+message InstrumentResponse {
+    repeated Tuple succ_tuple = 1;
+}
+
+message TestRequest {
+    Configs option = 1;
+    repeated string arg = 2;
+}
+
+message TestResponse {
+    repeated Tuple triggered_tuple = 1;
+}
+
+message ProveRequest {
+    Configs option = 1;
+    repeated Tuple target_tuple = 2;
+}
+
+message ProveResponse {
+    repeated Constraint constraint = 1;
+}
+
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
+}

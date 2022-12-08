@@ -1,5 +1,5 @@
 plugins {
-    id 'org.jetbrains.gradle.plugin.idea-ext'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.1.6'
 }
 
 gradle.taskGraph.whenReady {
@@ -7,6 +7,16 @@ gradle.taskGraph.whenReady {
         if (sub.tasks.findByName("genSWIG")) {
             idea.project.settings.taskTriggers {
                 afterSync sub.tasks.named("genSWIG")
+            }
+        }
+        if (sub.tasks.findByName("genarateProto")) {
+            idea.project.settings.taskTriggers {
+                afterSync sub.tasks.named("generateProto")
+            }
+        }
+        if (sub.tasks.findByName("genarateTestProto")) {
+            idea.project.settings.taskTriggers {
+                afterSync sub.tasks.named("generateTestProto")
             }
         }
     }

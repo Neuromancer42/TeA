@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package tea.core;
+option java_package = 'com.neuromancer42.tea.core';
+
+service CoreService {
+    rpc RunAnalyses (ApplicationRequest) returns (stream ApplicationResponse) {}
+}
+
+message Compilation {
+    string source = 1;
+    repeated string flag = 2;
+}
+
+message Test {
+    repeated string arg = 1;
+    optional string test_id = 2;
+}
+
+message ApplicationRequest {
+    map<string, string> option = 1;
+    Compilation source = 2;
+    repeated string analysis = 3;
+    repeated string alarm_rel = 4;
+    optional bool need_rank = 5;
+    repeated Test test_suite = 6;
+}
+
+message ApplicationResponse {
+    optional string msg = 2;
+    repeated string alarm = 3;
+}

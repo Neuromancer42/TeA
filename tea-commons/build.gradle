@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'com.google.protobuf' version '0.9.1'
+}
+
+group = 'com.neuromancer42.tea'
+version = '0.1.0'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
+
+    implementation 'io.grpc:grpc-protobuf:1.51.0'
+    implementation 'io.grpc:grpc-stub:1.51.0'
+
+    implementation "com.google.guava:guava:31.1-jre"
+    implementation files('third-party-libs/bddbddb.jar')
+    implementation files('third-party-libs/javabdd-1.0b2.jar')
+    implementation files('third-party-libs/jwutil.jar')
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.21.7"
+    }
+    plugins {
+        grpc {
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.51.0'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
+}
+
+sourceSets {
+    main {
+        proto {
+            srcDirs '../proto'
+        }
+    }
+}

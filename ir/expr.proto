@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package tea.cfg;
+option java_package = 'org.neuromancer42.tea.ir';
+option java_outer_classname = "Expr";
+
+message LiteralExpr {
+  string literal = 1;
+}
+
+message UnaryExpr {
+  string oprand = 1;
+  string operator = 2;
+}
+
+message BinaryExpr {
+  string oprand1 = 1;
+  string oprand2 = 2;
+  string operator = 3;
+}
+
+message GepExpr {
+  string basePtr = 1;
+  string baseType = 2;
+  oneof offset {
+    string field = 3;
+    string index = 4;
+  }
+}
+
+message SizeOfExpr {
+  string ref = 1;
+}
+
+message CastExpr {
+  string inner = 1;
+}
+
+message Expression {
+  string type = 1;
+  oneof expr {
+    LiteralExpr literal = 2;
+    UnaryExpr unary = 3;
+    BinaryExpr binary = 4;
+    GepExpr gep = 5;
+    SizeOfExpr sizeof = 6;
+    CastExpr cast = 7;
+  }
+}

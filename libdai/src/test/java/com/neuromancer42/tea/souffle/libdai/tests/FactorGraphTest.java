@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.souffle.libdai.tests;
+package com.neuromancer42.tea.jsouffle.libdai.tests;
 
 import com.neuromancer42.tea.core.inference.Categorical01;
 import com.neuromancer42.tea.core.inference.CausalGraph;

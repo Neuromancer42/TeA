@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.neuromancer42.tea'
+version = '0.1.0'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
+
+    implementation 'org.apache.commons:commons-configuration2:2.8.0'
+
+    implementation 'io.grpc:grpc-protobuf:1.51.0'
+    implementation 'io.grpc:grpc-stub:1.51.0'
+    runtimeOnly 'io.grpc:grpc-netty-shaded:1.51.0'
+
+    implementation project(":tea-commons")
+}
+
+test {
+    useJUnitPlatform()
+}
+
+ext {
+    swigJavaPackage = 'com.neuromancer42.tea.jsouffle.swig'
+    swigJavaSubdir = 'com/neuromancer42/tea/jsouffle/swig'
+}
+
+tasks.register("genSWIG", SourceTask) {
+    description "Generates swig java bindings of c++ code"
+    ext.srcDir = file("swig")
+    ext.generatedDir = new File(buildDir, 'generated-java')
+    ext.dstDir = new File("${ext.generatedDir}/${swigJavaSubdir}")
+    it.source ext.srcDir
+    it.outputs.dir ext.generatedDir
+    it.doLast {
+        mkdir "${ext.generatedDir}/${swigJavaSubdir}"
+        exec {
+            workingDir ext.generatedDir
+            commandLine "swig", "-c++", "-java",
+                    "-package", "${swigJavaPackage}",
+                    "-outdir", "${ext.dstDir}",
+                    "-o", "${ext.dstDir}/souffle-swig-interface_wrap.cxx",
+                    "${ext.srcDir}/souffle-swig-interface.i"
+        }
+        copy {
+            from ext.srcDir
+            into ext.dstDir
+            include "CMakeLists.txt"
+            include "*.h"
+        }
+    }
+}
+
+compileJava {
+    configure { dependsOn tasks.named("genSWIG") }
+}
+
+processResources {
+    configure { dependsOn(tasks.named("genSWIG"))}
+    from (genSWIG.ext.generatedDir) {
+        include "**/*.cxx"
+        include "**/*.h"
+        include "**/CMakeLists.txt"
+    }
+}
+
+sourceSets.main {
+    java.srcDir genSWIG.ext.generatedDir
+}
+
+application {
+    mainClass = 'com.neuromancer42.tea.jsouffle.SouffleRuntime'
+}

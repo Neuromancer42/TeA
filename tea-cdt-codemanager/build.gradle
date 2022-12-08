@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.google.protobuf' version '0.9.1'
+}
+
+group = 'com.neuromancer42.tea'
+version = '0.1.0'
+sourceCompatibility = '17'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
+
+    implementation 'org.apache.commons:commons-configuration2:2.8.0'
+
+    implementation 'io.grpc:grpc-protobuf:1.51.0'
+    implementation 'io.grpc:grpc-stub:1.51.0'
+    runtimeOnly 'io.grpc:grpc-netty-shaded:1.51.0'
+
+    implementation project(":tea-commons")
+
+//    implementation 'org.osgi:osgi.core:8.0.0'
+    implementation fileTree(dir: 'p2-compile-bundles', include: ['*.jar'])
+
+    runtimeOnly fileTree(dir: 'p2-runtime-bundles', include: ['*.jar'])
+    testRuntimeOnly fileTree(dir: 'p2-runtime-bundles', include: ['*.jar'])
+}
+
+test {
+    useJUnitPlatform()
+}
+
+sourceSets {
+    main {
+        proto {
+            srcDirs '../ir'
+        }
+    }
+}

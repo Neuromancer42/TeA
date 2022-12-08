@@ -1,24 +1,6 @@
-pluginManagement {
-    plugins {
-        id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.5"
-        id 'org.springframework.boot' version '2.7.5'
-        id 'io.spring.dependency-management' version '1.1.0'
-    }
-    repositories {
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
+rootProject.name = 'TeA'
 
-rootProject.name = "TeA-core"
-
-include 'core'
-include 'core:bddbddb'
-include 'souffle'
-include 'libdai'
-
-//include 'com.neuromancer42.tea.applications.example'
-//include 'com.neuromancer42.tea.applications.cinterval'
-//include 'com.neuromancer42.tea.applications.callgraph'
-include 'cfg'
-
+include 'tea-commons'
+include 'tea-core'
+include 'tea-jsouffle'
+include 'tea-cdt-codemanager'
