@@ -10,14 +10,9 @@ import com.neuromancer42.tea.commons.configs.Messages;
 public class ProgramDom extends Dom<String> {
     private String cacheLocation;
 
-    public ProgramDom() {
+    public ProgramDom(String domName) {
         super();
-    }
-
-    public static ProgramDom createDom(String domName) {
-        ProgramDom dom = new ProgramDom();
-        dom.setName(domName);
-        return dom;
+        super.setName(domName);
     }
 
     public void save(String location) {

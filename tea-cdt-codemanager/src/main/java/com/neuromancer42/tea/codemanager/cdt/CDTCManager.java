@@ -3,6 +3,10 @@ package com.neuromancer42.tea.codemanager.cdt;
 import com.google.common.graph.EndpointPair;
 import com.google.common.graph.ValueGraph;
 import com.google.protobuf.TextFormat;
+import com.neuromancer42.tea.commons.analyses.AbstractAnalysis;
+import com.neuromancer42.tea.commons.analyses.annotations.ProduceDom;
+import com.neuromancer42.tea.commons.analyses.annotations.ProduceRel;
+import com.neuromancer42.tea.commons.analyses.annotations.TeAAnalysis;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Messages;
@@ -18,102 +22,113 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-public class CDTCManager {
-    public static final String[] producedDoms = {
-            "M:functions",
-            "P:program-points",
-            "E:evaluations",
-            "V:registers",
-            "F:fields",
-            "I:invocations",
-            "Z:cardinals",
-            "C:constants",
-            "T:types",
-            "A:allocations"
-    };
-    public static final String[] producedRels = {
-            "MPentry(meth:M,point:P)",
-            "MPexit(meth:M,point:P)",
-            "PPdirect(prev:P,post:P):unconditional edges",
-            "PPtrue(prev:P,post:P,cond:V):if-true edges",
-            "PPfalse(prev:P,post:P,cond:V):if-false edges",
-            "Peval(point:P,dest:V,eval:E):compute eval and store into dest",
-            "Pload(point:P,r:V):update reg r",
-            "Pstore(point:P,r:V):store value to where r points to",
-            "Palloc(point:P,r:V):alloc a address and assign to r",
-            "Pinvk(point:P,invk:I):invoke at this point",
-            "Pnoop(point:P):do nothing or unhandled point",
-            "Alloca(reg:V,alloca:A):allocate with address assigned to reg",
-            "GlobalAlloca(reg:V, alloca:A):allocate for global vars",
-            "LoadPtr(dst:V,src:V):dst = *src",
-            "StorePtr(dst:V,src:V):*dst = src",
-            "LoadFld(dst:V,src:V,field:F):dst=src->field",
-            "StoreFld(dst:V,field:F,src:V):dst->field=src",
-            "LoadArr(dst:V,src:V,idx:V):dst=src[idx]",
-            "StoreArr(dst:V,src:V):dst[]=src",
-            "IinvkArg(invk:I,i:Z,v:V):v is the i-th argument of invocation",
-            "IinvkRet(invk:I,v:V):v is the ret-val of invocation",
-            "IndirectCall(invk:I,v:V):call with function pointer v",
-            "StaticCall(invk:I,meth:M)",
-            "ExtMeth(meth:M):mark external functions",
-            "FuncRef(meth:M,name:V):function name as a function pointer",
-            "MmethArg(meth:M,i:Z,v:V):v is the i-th argument of function",
-            "MmethRet(meth:M,v:V):v is the ret-val of function",
-            "EntryM(meth:M):mark the main function",
-            "Vvalue(v:V,constant:C):mark constants"
-
-    };
+@TeAAnalysis(name = "cmanager")
+public class CDTCManager extends AbstractAnalysis {
     public static final String[] observableRels = {
             // TODO
     };
 
-    public final ProgramDom domM;
-    public final ProgramDom domP;
-    public final ProgramDom domE;
-    public final ProgramDom domV;
-    public final ProgramDom domF;
-    public final ProgramDom domI;
-    public final ProgramDom domZ;
-    public final ProgramDom domC; // temporarily, use String to represent constants
-    public final ProgramDom domT;
-    public final ProgramDom domA;
+    @ProduceDom(description = "functions")
+    public ProgramDom domM;
 
-    public final ProgramRel relMPentry;
-    public final ProgramRel relMPexit;
-    public final ProgramRel relPPdirect;
-    public final ProgramRel relPPtrue;
-    public final ProgramRel relPPfalse;
+    @ProduceDom(description = "program points")
+    public ProgramDom domP;
 
-    public final ProgramRel relPeval;
-    public final ProgramRel relPload;
-    public final ProgramRel relPstore;
-    public final ProgramRel relPalloc;
-    public final ProgramRel relPinvk;
-    public final ProgramRel relPnoop;
+    @ProduceDom(description = "evaluations")
+    public ProgramDom domE;
 
-    public final ProgramRel relAlloca;
-    public final ProgramRel relGlobalAlloca;
-    public final ProgramRel relLoadPtr;
-    public final ProgramRel relStorePtr;
-    public final ProgramRel relLoadFld;
-    public final ProgramRel relStoreFld;
-    public final ProgramRel relLoadArr;
-    public final ProgramRel relStoreArr;
+    @ProduceDom(description = "registers")
+    public ProgramDom domV;
 
-    public final ProgramRel relIinvkArg;
-    public final ProgramRel relIinvkRet;
-    public final ProgramRel relIndirectCall;
-    public final ProgramRel relStaticCall;
+    @ProduceDom(description = "fields")
+    public ProgramDom domF;
 
-    public final ProgramRel relExtMeth;
-    public final ProgramRel relFuncRef;
-    public final ProgramRel relMmethArg;
-    public final ProgramRel relMmethRet;
-    public final ProgramRel relEntryM;
+    @ProduceDom(description = "invocations")
+    public ProgramDom domI;
 
-    public final ProgramRel relVvalue;
+    @ProduceDom(description = "cardinals")
+    public ProgramDom domZ;
+
+    @ProduceDom(description = "constants")
+    public ProgramDom domC; // temporarily, use String to represent constants
+    @ProduceDom(description = "types")
+    public ProgramDom domT;
+    @ProduceDom(description = "allocations")
+    public ProgramDom domA;
+
+    @ProduceRel(doms = {"T", "F", "T"}, description = "field type of structs")
+    public ProgramRel relStructFldType;
+    @ProduceRel(doms = {"T", "T"}, description = "content type of arrays")
+    public ProgramRel relArrContentType;
+
+    @ProduceRel(doms = { "M", "P" }, description = "MPentry(meth,point)")
+    public ProgramRel relMPentry;
+    @ProduceRel(doms = {"M", "P" }, description = "MPexit(meth,point)")
+    public ProgramRel relMPexit;
+    @ProduceRel(doms = {"P", "P" }, description = "PPdirect(prev,post):unconditional edges")
+    public ProgramRel relPPdirect;
+    @ProduceRel(doms = {"P", "P", "V"}, description = "PPtrue(prev,post,cond):if-true edges")
+    public ProgramRel relPPtrue;
+    @ProduceRel(doms = {"P", "P", "V"}, description = "PPfalse(prev,post,cond):if-false edges")
+    public ProgramRel relPPfalse;
+
+    @ProduceRel(doms = {"P", "V", "E"}, description = "Peval(point,dest,eval):compute eval and store into dest")
+    public ProgramRel relPeval;
+    @ProduceRel(doms = {"P", "V"}, description = "Pload(point,r):update reg r")
+    public ProgramRel relPload;
+    @ProduceRel(doms = {"P", "V"}, description = "Pstore(point,r):store value to where r points to")
+    public ProgramRel relPstore;
+    @ProduceRel(doms = {"P", "V"}, description = "Palloc(point,r):alloc a address and assign to r")
+    public ProgramRel relPalloc;
+    @ProduceRel(doms = {"P", "I"}, description = "Pinvk(point,invk):invoke at this point")
+    public ProgramRel relPinvk;
+    @ProduceRel(doms = {"P"}, description = "mark no-op or unhandled point")
+    public ProgramRel relPnoop;
+
+    @ProduceRel(doms = {"V", "A", "T"}, description = "Alloca(reg,variable,type):allocate with address assigned to reg")
+    public ProgramRel relAlloca;
+    @ProduceRel(doms = {"V", "A", "T"}, description = "GlobalAlloca(reg,variable,type):allocate for global vars")
+    public ProgramRel relGlobalAlloca;
+
+    @ProduceRel(doms = {"V", "V"}, description = "LoadPtr(dst,src):dst = *src")
+    public ProgramRel relLoadPtr;
+    @ProduceRel(doms = {"V", "V"}, description = "StorePtr(dst,src):*dst = src")
+    public ProgramRel relStorePtr;
+    @ProduceRel(doms = {"V", "V", "F"}, description = "LoadFld(dst,src,field):dst=src->field")
+    public ProgramRel relLoadFld;
+    @ProduceRel(doms = {"V", "F", "V"}, description = "StoreFld(dst:V,field:F,src:V):dst->field=src")
+    public ProgramRel relStoreFld;
+    @ProduceRel(doms = {"V", "V", "V"}, description = "LoadArr(dst,src,idx):dst=src[idx]")
+    public ProgramRel relLoadArr;
+    @ProduceRel(doms = {"V", "V", "V"}, description = "StoreArr(dst,idx,src):dst[idx]=src")
+    public ProgramRel relStoreArr;
+
+    @ProduceRel(doms = {"I", "Z", "V"}, description = "IinvkArg(invk,i,v):v is the i-th argument of invocation")
+    public ProgramRel relIinvkArg;
+    @ProduceRel(doms = {"I", "V"}, description = "IinvkRet(invk,v):v is the ret-val of invocation")
+    public ProgramRel relIinvkRet;
+    @ProduceRel(doms = {"I", "V"}, description = "IndirectCall(invk,v):call with function pointer v")
+    public ProgramRel relIndirectCall;
+    @ProduceRel(doms = {"I", "M"}, description = "StaticCall(invk,meth)")
+    public ProgramRel relStaticCall;
+
+    @ProduceRel(doms = {"M"}, description = "mark external functions")
+    public ProgramRel relExtMeth;
+    @ProduceRel(name = "funcRef", doms = {"M", "V"}, description = "FuncRef(meth,name):function name as a function pointer")
+    public ProgramRel relFuncRef;
+    @ProduceRel(doms = {"M", "Z", "V"}, description = "MmethArg(meth,i,v):v is the i-th argument of function")
+    public ProgramRel relMmethArg;
+    @ProduceRel(doms = {"M", "V"}, description = "MmethRet(meth,v):v is the ret-val of function")
+    public ProgramRel relMmethRet;
+    @ProduceRel(name = "entryM", doms = {"M"}, description = "mark the main function")
+    public ProgramRel relEntryM;
+
+    @ProduceRel(doms = {"V", "C"}, description = "mark constants")
+    public ProgramRel relVvalue;
     //public final ProgramRel relHvalue;
+
     private IASTTranslationUnit translationUnit = null;
+    private CFGBuilder builder;
 
     private final File sourceFile;
     private Path workPath;
@@ -126,6 +141,7 @@ public class CDTCManager {
 
     public List<ProgramRel> getProducedRels() {
         return List.of(
+                relStructFldType, relArrContentType,
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
                 relPeval, relPload, relPstore, relPalloc, relPinvk, relPnoop,
                 relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
@@ -154,17 +170,23 @@ public class CDTCManager {
             Messages.fatal(e);
             assert false;
         }
+    }
 
-        domM = ProgramDom.createDom("M");
-        domP = ProgramDom.createDom("P");
-        domE = ProgramDom.createDom("E");
-        domV = ProgramDom.createDom("V");
-        domF = ProgramDom.createDom("F");
-        domI = ProgramDom.createDom("I");
-        domZ = ProgramDom.createDom("Z");
-        domC = ProgramDom.createDom("C");
-        domT = ProgramDom.createDom("T");
-        domA = ProgramDom.createDom("A");
+    public void init() {
+        domM = new ProgramDom("M");
+        domP = new ProgramDom("P");
+        domE = new ProgramDom("E");
+        domV = new ProgramDom("V");
+        domF = new ProgramDom("F");
+        domI = new ProgramDom("I");
+        domZ = new ProgramDom("Z");
+        domC = new ProgramDom("C");
+        domT = new ProgramDom("T");
+        domA = new ProgramDom("A");
+
+        // type hierarchy
+        relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
+        relArrContentType = new ProgramRel("ArrFieldType", domT, domT);
 
         // control flow relations
         relMPentry = new ProgramRel("MPentry", domM, domP);
@@ -180,8 +202,8 @@ public class CDTCManager {
         relPalloc = new ProgramRel("Palloc", domP, domV);
         relPinvk = new ProgramRel("Pinvk", domP, domI);
         relPnoop = new ProgramRel("Pnoop", domP);
-        relAlloca = new ProgramRel("Alloca", domV, domA);
-        relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA);
+        relAlloca = new ProgramRel("Alloca", domV, domA, domT);
+        relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA, domT);
         relLoadPtr = new ProgramRel("LoadPtr", domV, domV);
         relStorePtr = new ProgramRel("StorePtr", domV, domV);
         relLoadFld = new ProgramRel("LoadFld", domV, domV, domF);
@@ -207,11 +229,50 @@ public class CDTCManager {
     }
 
     public void run() {
-        CFGBuilder builder = new CFGBuilder(translationUnit);
+        init();
+        openDomains();
+        domPhase();
+        saveDomains();
+
+        openRelations();
+        relPhase();
+        saveRelations();
+    }
+
+    private void openDomains() {
+        for (ProgramDom dom : getProducedDoms()) {
+            dom.init();
+        }
+    }
+    private void saveDomains() {
+        for (ProgramDom dom : getProducedDoms()) {
+            dom.save(workPath.toString());
+        }
+    }
+
+    private void openRelations() {
+        for (ProgramRel rel : getProducedRels()) {
+            rel.init();
+        }
+    }
+
+    private void saveRelations() {
+        for (ProgramRel rel : getProducedRels()) {
+            rel.save(workPath.toString());
+            rel.close();
+        }
+    }
+
+    @Override
+    protected String getOutDir() {
+        return workPath.toAbsolutePath().toString();
+    }
+
+    @Override
+    protected void domPhase() {
+        builder = new CFGBuilder(translationUnit);
         builder.build();
 
-        // TODO: move this into function template
-        openDomains();
         int numRegs = builder.getRegisters().size();
         for (int i = 0; i < numRegs; ++i) {
             domV.add(CDTUtil.regToRepr(i));
@@ -220,7 +281,7 @@ public class CDTCManager {
             domC.add(c);
         }
         for (int refReg : builder.getGlobalRefs()) {
-            domA.add(CDTUtil.allocaToRepr(builder.getAllocaForRef(refReg)));
+            domA.add(builder.getAllocaForRef(refReg).getVariable());
         }
         int maxNumArg = 0;
         for (IFunction meth : builder.getFuncs()) {
@@ -230,7 +291,7 @@ public class CDTCManager {
             if (numMargs > maxNumArg)
                 maxNumArg = numMargs;
             for (int refReg : builder.getMethodVars(meth)) {
-                domA.add(CDTUtil.allocaToRepr(builder.getAllocaForRef(refReg)));
+                domA.add(builder.getAllocaForRef(refReg).getVariable());
             }
             ValueGraph<CFG.CFGNode, Integer> cfg = builder.getIntraCFG(meth);
             if (cfg == null) {
@@ -262,16 +323,32 @@ public class CDTCManager {
         for (IField field : builder.getFields()) {
             domF.add(CDTUtil.fieldToRepr(field));
         }
-        saveDomains();
+    }
 
-        openRelations();
+    @Override
+    protected void relPhase() {
+        for (IType type : builder.getTypes()) {
+            if (type instanceof IArrayType) {
+                IArrayType baseType = (IArrayType) type;
+                IType contentType = baseType.getType();
+                relArrContentType.add(CDTUtil.typeToRepr(baseType), CDTUtil.typeToRepr(contentType));
+            } else if (type instanceof ICompositeType) {
+                ICompositeType baseType = (ICompositeType) type;
+                for (IField f : baseType.getFields()) {
+                    IType fType = f.getType();
+                    relStructFldType.add(CDTUtil.typeToRepr(baseType), CDTUtil.fieldToRepr(f), CDTUtil.typeToRepr(fType));
+                }
+            }
+        }
         for (IFunction func : builder.getFuncs()) {
             int refReg = builder.getRefReg(func);
             relFuncRef.add(CDTUtil.methToRepr(func), CDTUtil.regToRepr(refReg));
         }
         for (int refReg : builder.getGlobalRefs()) {
             CFG.Alloca alloca = builder.getAllocaForRef(refReg);
-            relGlobalAlloca.add(CDTUtil.regToRepr(refReg), CDTUtil.allocaToRepr(alloca));
+            String variable = alloca.getVariable();
+            String type = alloca.getType();
+            relGlobalAlloca.add(CDTUtil.regToRepr(refReg), variable, type);
         }
         for (var entry : builder.getSimpleConstants().entrySet()) {
             int reg = entry.getKey();
@@ -381,8 +458,9 @@ public class CDTCManager {
                 } else if (p.hasAlloca()) {
                     String vRepr = p.getAlloca().getReg();
                     relPalloc.add(pRepr, vRepr);
-                    String allocRepr = CDTUtil.allocaToRepr(p.getAlloca());
-                    relAlloca.add(vRepr, allocRepr);
+                    String variable = p.getAlloca().getVariable();
+                    String type = p.getAlloca().getType();
+                    relAlloca.add(vRepr, variable, type);
                 } else {
                     if (!(p.hasGoto() || p.hasLabel() || p.hasCond() || p.hasEntry()))
                         Messages.warn("CParser: mark unknown program point as no-op (%s)", pRepr);
@@ -390,31 +468,6 @@ public class CDTCManager {
                     relPnoop.add(pRepr);
                 }
             }
-        }
-        saveRelations();
-    }
-
-    private void openDomains() {
-        for (ProgramDom dom : getProducedDoms()) {
-            dom.init();
-        }
-    }
-    private void saveDomains() {
-        for (ProgramDom dom : getProducedDoms()) {
-            dom.save(workPath.toString());
-        }
-    }
-
-    private void openRelations() {
-        for (ProgramRel rel : getProducedRels()) {
-            rel.init();
-        }
-    }
-
-    private void saveRelations() {
-        for (ProgramRel rel : getProducedRels()) {
-            rel.save(workPath.toString());
-            rel.close();
         }
     }
 

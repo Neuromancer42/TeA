@@ -406,7 +406,7 @@ public final class SouffleRuntime {
                 for (Trgt.DomTrgt domTrgt : request.getDomInputList()) {
                     String domName = domTrgt.getInfo().getName();
                     String domLoc = domTrgt.getLocation();
-                    ProgramDom dom = ProgramDom.createDom(domName);
+                    ProgramDom dom = new ProgramDom(domName);
                     dom.load(domLoc);
                     domMap.put(domName, dom);
                 }

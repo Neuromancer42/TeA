@@ -5,7 +5,7 @@ plugins {
 
 group = 'com.neuromancer42.tea'
 version = '0.1.0'
-sourceCompatibility = '11'
+sourceCompatibility = '17'
 
 repositories {
     mavenCentral()

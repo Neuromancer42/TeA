@@ -74,8 +74,4 @@ public class CDTUtil {
     public static String cfgnodeToRepr(CFG.CFGNode node) {
         return TextFormat.shortDebugString(node);
     }
-
-    public static String allocaToRepr(CFG.Alloca alloca) {
-        return TextFormat.shortDebugString(alloca);
-    }
 }

@@ -4,6 +4,7 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
+import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
@@ -14,6 +15,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
 import java.io.FileReader;
@@ -21,10 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class CDTProvider extends ProviderGrpc.ProviderImplBase {
@@ -82,55 +81,18 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName("cdt-codemanager");
         Analysis.AnalysisInfo.Builder analysisBuilder = Analysis.AnalysisInfo.newBuilder();
-        analysisBuilder.setName("cmanager");
-        for (String domInfo : CDTCManager.producedDoms) {
-            String[] entry = domInfo.split(":");
-            assert entry.length == 2;
-            analysisBuilder.addProducingDom(
-                    Trgt.DomInfo.newBuilder()
-                            .setName(entry[0])
-                            .setDescription(entry[1])
-                            .build()
-            );
-        }
-        for (String relInfo : CDTCManager.producedRels) {
-            String relName = relInfo.substring(0, relInfo.indexOf("("));
-            String[] relDoms = relInfo.substring(relInfo.indexOf("(")+1, relInfo.indexOf(")")).split(",");
-            String relDesc = relInfo.substring(relInfo.indexOf(")")+2);
-            analysisBuilder.addProducingRel(
-                    Trgt.RelInfo.newBuilder()
-                            .setName(relName)
-                            .addAllDom(List.of(relDoms))
-                            .setDescription(relDesc)
-                            .build()
-            );
-        }
-        Analysis.AnalysisInfo cmanagerInfo = analysisBuilder.build();
+
+        Analysis.AnalysisInfo cmanagerInfo = AnalysisUtil.parseAnalysisInfo(CDTCManager.class);
         infoBuilder.addAnalysis(cmanagerInfo);
         for (String relInfo : CDTCManager.observableRels) {
-            String relName = relInfo.substring(0, relInfo.indexOf("("));
-            String[] relAttrs = relInfo.substring(relInfo.indexOf("(")+1, relInfo.indexOf(")")).split(",");
-
-            List<String> attrNames = new ArrayList<>();
-            List<String> attrDoms = new ArrayList<>();
-            for (String attr : relAttrs) {
-                attrNames.add(attr.split(":")[0]);
-                attrDoms.add(attr.split(":")[1]);
-            }
-            String relDesc = relName + "(" + StringUtils.join(attrNames, ",") + ")" + relInfo.substring(relInfo.indexOf(")")+1);
             infoBuilder.addObservableRel(
-                    Trgt.RelInfo.newBuilder()
-                            .setName(relName)
-                            .addAllDom(attrDoms)
-                            .setDescription(relDesc)
-                            .build()
+                    AnalysisUtil.parseRelInfo(relInfo)
             );
         }
         Analysis.ProviderInfo cdtInfo = infoBuilder.build();
         responseObserver.onNext(cdtInfo);
         responseObserver.onCompleted();
     }
-
 
     private final Path workPath;
     public CDTProvider(Path path) {
@@ -143,10 +105,13 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
-        Analysis.RunResults.Builder respBuilder = Analysis.RunResults.newBuilder();
+        assert request.getAnalysisName().equals("cmanager");
         Map<String, String> option = request.getOption().getPropertyMap();
+        Analysis.RunResults runResults;
         if (!option.containsKey(Constants.OPT_SRC)) {
-            respBuilder.setMsg(Constants.MSG_FAIL + ": No source file specified");
+            runResults = Analysis.RunResults.newBuilder()
+                    .setMsg(Constants.MSG_FAIL + ": No source file specified")
+                    .build();
         } else {
             String sourceFile = option.get(Constants.OPT_SRC);
             String[] flags = option.getOrDefault(Constants.OPT_SRC_FLAGS, "").split(" ");
@@ -169,32 +134,9 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
                 }
             }
             cmanager = new CDTCManager(workPath, sourceFile, definedSymbols, includePaths);
-            cmanager.run();
-            for (ProgramDom dom : cmanager.getProducedDoms()) {
-                Trgt.DomInfo domInfo = Trgt.DomInfo.newBuilder()
-                        .setName(dom.getName())
-                        .setDescription("generated by CDT-C manager")
-                        .build();
-                Trgt.DomTrgt domTrgt = Trgt.DomTrgt.newBuilder()
-                        .setInfo(domInfo)
-                        .setLocation(dom.getLocation())
-                        .build();
-                respBuilder.addDomOutput(domTrgt);
-            }
-            for (ProgramRel rel : cmanager.getProducedRels()) {
-                Trgt.RelInfo relInfo = Trgt.RelInfo.newBuilder()
-                        .setName(rel.getName())
-                        .addAllDom(List.of(rel.getSign().getDomKinds()))
-                        .setDescription("generated by CDT-C manager")
-                        .build();
-                Trgt.RelTrgt relTrgt = Trgt.RelTrgt.newBuilder()
-                        .setInfo(relInfo)
-                        .setLocation(rel.getLocation())
-                        .build();
-                respBuilder.addRelOutput(relTrgt);
-            }
+            runResults = AnalysisUtil.runAnalysis(cmanager, request);
         }
-        responseObserver.onNext(respBuilder.build());
+        responseObserver.onNext(runResults);
         responseObserver.onCompleted();
     }
 
