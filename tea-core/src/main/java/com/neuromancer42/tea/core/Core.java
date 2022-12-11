@@ -15,9 +15,11 @@ import java.util.concurrent.TimeUnit;
 
 public class Core {
     public static void main(String[] args) throws InterruptedException, IOException {
-        String configFile = System.getProperty(Constants.OPT_CONFIG);
-        if (configFile == null) {
-            Messages.error("Core: No configuration file set (set this by '-Dtea.config.path=<path-to-ini>')");
+        String configFile = null;
+        if (args.length > 0) {
+            configFile = args[0];
+        } else {
+            Messages.error("Core: No configuration file set (pass the pass by argument)");
             System.exit(-1);
         }
         INIConfiguration config = new INIConfiguration();
@@ -28,10 +30,13 @@ public class Core {
             e.printStackTrace(System.err);
             System.exit(-1);
         }
+        Messages.log("Core: Run with configuration from %s", configFile);
+        String core_workdir = config.getSection(Constants.NAME_CORE).getString(Constants.OPT_WORK_DIR);
+        ProjectBuilder.init(core_workdir);
 
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
         for (String providerName : config.getSections()) {
-            if (!providerName.equals(Constants.NAME_CORE)) {
+            if (!providerName.equals(Constants.NAME_CORE) && !providerName.equals(Constants.NAME_PROJ)) {
                 String host = config.getSection(providerName).getString(Constants.OPT_HOST);
                 int port = Integer.parseInt(config.getSection(providerName).getString(Constants.OPT_PORT));
                 Messages.log("Core: configured provider %s at [%s:%d]", providerName, host, port);
@@ -43,8 +48,12 @@ public class Core {
 
         Analysis.Configs.Builder projConfigBuilder = Analysis.Configs.newBuilder();
         Analysis.Configs projConfig = projConfigBuilder.build();
-        for (ProviderGrpc.ProviderBlockingStub providerStub : providerMap.values()) {
+        for (var providerEntry : providerMap.entrySet()) {
+            String providerName = providerEntry.getKey();
+            ProviderGrpc.ProviderBlockingStub providerStub = providerEntry.getValue();
+            Messages.debug("Core: processing provider %s at %s", providerName, providerStub.getChannel().toString());
             ProjectBuilder.g().queryProvider(projConfig, providerStub);
+            Messages.log("Core: provider %s registered", providerName);
         }
 
         int core_port = Integer.parseInt(config.getSection(Constants.NAME_CORE).getString(Constants.OPT_PORT));

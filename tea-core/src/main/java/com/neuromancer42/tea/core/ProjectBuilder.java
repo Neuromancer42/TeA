@@ -5,19 +5,38 @@ import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
+import io.grpc.CallOptions;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Function;
 
 public class ProjectBuilder {
-    private static final ProjectBuilder builder = new ProjectBuilder();
+    private static ProjectBuilder builder;
+    private final Path workPath;
 
     public static ProjectBuilder g() {
         return builder;
     }
 
-    public ProjectBuilder() {}
+    public static void init(String workdir) {
+        try {
+            Path path = Files.createDirectories(Paths.get(workdir));
+            builder = new ProjectBuilder(path);
+        } catch (IOException e) {
+            Messages.error("Core: failed to create working directory");
+            Messages.fatal(e);
+        }
+    }
+
+    public ProjectBuilder(Path path) {
+        workPath = path;
+    }
 
     private final Map<String, Analysis.AnalysisInfo> analyses = new LinkedHashMap<>();
     private final Map<String, ProviderGrpc.ProviderBlockingStub> analysisProviderMap = new HashMap<>();
@@ -26,7 +45,7 @@ public class ProjectBuilder {
     private final Map<Trgt.RelInfo, ProviderGrpc.ProviderBlockingStub> relObserverMap = new HashMap<>();
 
     public void queryProvider(Analysis.Configs config, ProviderGrpc.ProviderBlockingStub provider) {
-        Analysis.ProviderInfo providerInfo = provider.getFeature(config);
+        Analysis.ProviderInfo providerInfo = provider.withWaitForReady().getFeature(config);
         registerProvider(provider, providerInfo);
     }
 
@@ -48,6 +67,32 @@ public class ProjectBuilder {
             if (relObserverMap.put(observableRel, provider) != null) {
                 Messages.fatal("ProjectBuilder: Multiple tasks can observe relation '%s', use the latter one.", observableRel.getName());
             }
+        }
+        updateDependencyGraph();
+    }
+
+    private void updateDependencyGraph() {
+        List<String> lines = new ArrayList<>();
+        lines.add("digraph G{");
+        for (String analysis : analyses.keySet()) {
+            Analysis.AnalysisInfo info = analyses.get(analysis);
+            for (Trgt.DomInfo inDom : info.getConsumingDomList()) {
+                lines.add("dom_" + inDom.getName() + " -> " + "a_" + analysis + ";");
+            }
+            for (Trgt.RelInfo inRel : info.getConsumingRelList()) {
+                lines.add("rel_" + inRel.getName() + " -> " + "a_" + analysis + ";");
+            }for (Trgt.DomInfo outDom : info.getProducingDomList()) {
+                lines.add("a_" + analysis + "->" + "dom_" + outDom.getName() + ";");
+            }
+            for (Trgt.RelInfo outRel : info.getProducingRelList()) {
+                lines.add("a_" + analysis + " -> " + "rel_" + outRel.getName() + ";");
+            }
+        }
+        lines.add("}");
+        try {
+            Files.write(this.workPath.resolve("dependency.dot"), lines, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Messages.error("Core: failed to update dependency graph!");
         }
     }
 
@@ -152,15 +197,15 @@ public class ProjectBuilder {
                 }
             } else {
                 Set<String> relDeps = relToProducers.get(relName);
-                if (relDeps.size() == 1) {
+                if (relDeps == null || relDeps.isEmpty()) {
+                    Messages.error("ProjectBuilder: no analysis producing rel '%s' required by '%s'", relName, analysis);
+                    return false;
+                } else if (relDeps.size() == 1) {
                     for (String relDep: relDeps) {
                         if (!scheduleAnalysis(relDep, schedule, fixedDomToProducer, fixedRelToProducer, domToProducers, relToProducers)) {
                             return false;
                         }
                     }
-                } else if (relDeps.isEmpty()) {
-                    Messages.error("ProjectBuilder: no analysis producing rel '%s' required by '%s'", relName, analysis);
-                    return false;
                 } else {
                     Messages.error("ProjectBuilder: rel '%s' produced by multiple candidates [%s]", relName, StringUtil.join(relDeps, ","));
                     return false;

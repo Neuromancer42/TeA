@@ -34,32 +34,39 @@ public final class SouffleRuntime {
 
     static private final String BUILD_DIR_NAME = "build";
     static private final String CACHE_DIR_NAME = "cache";
-    private static String NAME_SOUFFLE = "souffle";
+    private static final String NAME_SOUFFLE = "souffle";
+    private static final String PREFIX_SOUFFLE = "analysis-";
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = System.getProperty(Constants.OPT_CONFIG);
-        if (configFile == null) {
-            Messages.error("Core: No configuration file set (set this by '-Dtea.config.path=<path-to-ini>')");
+        String configFile = null;
+        if (args.length > 0) {
+            configFile = args[0];
+        } else {
+            Messages.error("SouffleRuntime: No configuration file set (pass the path by argument)");
             System.exit(-1);
         }
         INIConfiguration config = new INIConfiguration();
         try (FileReader reader = new FileReader(configFile)) {
             config.read(reader);
         } catch (ConfigurationException | IOException e) {
-            Messages.error("Core: Failed to read config in %s", configFile);
+            Messages.error("SouffleRuntime: Failed to read config in %s", configFile);
             e.printStackTrace(System.err);
             System.exit(-1);
         }
+        Messages.log("SouffleRuntime: Run with configuration from %s", configFile);
 
         Map<String, SouffleAnalysis> analysisMap = new LinkedHashMap<>();
         String workDir = config.getSection(NAME_SOUFFLE).getString(Constants.OPT_WORK_DIR);
         SouffleRuntime.init(Paths.get(workDir));
-        for (Iterator<String> it = config.getSection(NAME_SOUFFLE).getKeys("analysis."); it.hasNext(); ) {
+        for (Iterator<String> it = config.getSection(NAME_SOUFFLE).getKeys(); it.hasNext(); ) {
             String key = it.next();
-            String analysisName = key.substring("analysis.".length());
+            if (!key.startsWith(PREFIX_SOUFFLE))
+                continue;
+            String analysisName = key.substring(PREFIX_SOUFFLE.length());
             String dlog = config.getSection(NAME_SOUFFLE).getString(key);
             File dlogFile = new File(dlog);
             SouffleAnalysis analysis = runtime.createSouffleAnalysisFromFile(analysisName, analysisName, dlogFile);
+            Messages.log("SouffleRuntime: created souffle analysis %s from dlog %s", analysisName, dlogFile.getAbsolutePath());
             analysisMap.put(analysisName, analysis);
         }
         int souffle_port = Integer.parseInt(config.getSection(NAME_SOUFFLE).getString(Constants.OPT_PORT));
@@ -346,6 +353,7 @@ public final class SouffleRuntime {
          */
         @Override
         public void getFeature(Analysis.Configs request, StreamObserver<Analysis.ProviderInfo> responseObserver) {
+            Messages.log("MemAbstractor: processing getFeature request");
             Analysis.ProviderInfo.Builder respBuilder = Analysis.ProviderInfo.newBuilder();
             respBuilder.setName(NAME_SOUFFLE);
             List<Trgt.RelInfo> outputRels = new ArrayList<>();
@@ -383,6 +391,7 @@ public final class SouffleRuntime {
 
                     outputRels.add(relInfo);
                 }
+                respBuilder.addAnalysis(analysisInfoBuilder.build());
             }
             respBuilder.addAllProvableRel(outputRels);
 
@@ -397,6 +406,7 @@ public final class SouffleRuntime {
          */
         @Override
         public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
+            Messages.log("MemAbstractor: processing getFeature request");
             SouffleAnalysis analysis = analysisMap.get(request.getAnalysisName());
             Analysis.RunResults.Builder respBuilder = Analysis.RunResults.newBuilder();
             if (analysis == null) {

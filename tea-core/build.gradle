@@ -31,5 +31,5 @@ test {
 }
 
 application {
-    mainClass = 'com.neuromancer42.tea.core.Main'
+    mainClass = 'com.neuromancer42.tea.core.Core'
 }

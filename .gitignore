@@ -33,3 +33,6 @@ out/
 
 # testcases
 /benchmarks/
+
+# vscode
+.vscode/

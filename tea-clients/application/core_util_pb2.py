@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x61pplication/core_util.proto\x12\x08tea.core\"+\n\x0b\x43ompilation\x12\x0e\n\x06source\x18\x01 \x01(\t\x12\x0c\n\x04\x66lag\x18\x02 \x03(\t\"5\n\x04Test\x12\x0b\n\x03\x61rg\x18\x01 \x03(\t\x12\x14\n\x07test_id\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_test_id\"\xaa\x01\n\x12\x41pplicationRequest\x12%\n\x06source\x18\x01 \x01(\x0b\x32\x15.tea.core.Compilation\x12\x10\n\x08\x61nalysis\x18\x02 \x03(\t\x12\x11\n\talarm_rel\x18\x03 \x03(\t\x12\x16\n\tneed_rank\x18\x04 \x01(\x08H\x00\x88\x01\x01\x12\"\n\ntest_suite\x18\x05 \x03(\x0b\x32\x0e.tea.core.TestB\x0c\n\n_need_rank\">\n\x13\x41pplicationResponse\x12\x10\n\x03msg\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\r\n\x05\x61larm\x18\x03 \x03(\tB\x06\n\x04_msg2]\n\x0b\x43oreService\x12N\n\x0bRunAnalyses\x12\x1c.tea.core.ApplicationRequest\x1a\x1d.tea.core.ApplicationResponse\"\x00\x30\x01\x42\x1c\n\x1a\x63om.neuromancer42.tea.coreb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x61pplication/core_util.proto\x12\x08tea.core\"+\n\x0b\x43ompilation\x12\x0e\n\x06source\x18\x01 \x01(\t\x12\x0c\n\x04\x66lag\x18\x02 \x03(\t\"5\n\x04Test\x12\x0b\n\x03\x61rg\x18\x01 \x03(\t\x12\x14\n\x07test_id\x18\x02 \x01(\tH\x00\x88\x01\x01\x42\n\n\x08_test_id\"\x93\x02\n\x12\x41pplicationRequest\x12\x38\n\x06option\x18\x01 \x03(\x0b\x32(.tea.core.ApplicationRequest.OptionEntry\x12%\n\x06source\x18\x02 \x01(\x0b\x32\x15.tea.core.Compilation\x12\x10\n\x08\x61nalysis\x18\x03 \x03(\t\x12\x11\n\talarm_rel\x18\x04 \x03(\t\x12\x16\n\tneed_rank\x18\x05 \x01(\x08H\x00\x88\x01\x01\x12\"\n\ntest_suite\x18\x06 \x03(\x0b\x32\x0e.tea.core.Test\x1a-\n\x0bOptionEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0c\n\n_need_rank\">\n\x13\x41pplicationResponse\x12\x10\n\x03msg\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\r\n\x05\x61larm\x18\x03 \x03(\tB\x06\n\x04_msg2]\n\x0b\x43oreService\x12N\n\x0bRunAnalyses\x12\x1c.tea.core.ApplicationRequest\x1a\x1d.tea.core.ApplicationResponse\"\x00\x30\x01\x42\x1c\n\x1a\x63om.neuromancer42.tea.coreb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'application.core_util_pb2', globals())
@@ -21,14 +21,18 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\032com.neuromancer42.tea.core'
+  _APPLICATIONREQUEST_OPTIONENTRY._options = None
+  _APPLICATIONREQUEST_OPTIONENTRY._serialized_options = b'8\001'
   _COMPILATION._serialized_start=41
   _COMPILATION._serialized_end=84
   _TEST._serialized_start=86
   _TEST._serialized_end=139
   _APPLICATIONREQUEST._serialized_start=142
-  _APPLICATIONREQUEST._serialized_end=312
-  _APPLICATIONRESPONSE._serialized_start=314
-  _APPLICATIONRESPONSE._serialized_end=376
-  _CORESERVICE._serialized_start=378
-  _CORESERVICE._serialized_end=471
+  _APPLICATIONREQUEST._serialized_end=417
+  _APPLICATIONREQUEST_OPTIONENTRY._serialized_start=358
+  _APPLICATIONREQUEST_OPTIONENTRY._serialized_end=403
+  _APPLICATIONRESPONSE._serialized_start=419
+  _APPLICATIONRESPONSE._serialized_end=481
+  _CORESERVICE._serialized_start=483
+  _CORESERVICE._serialized_end=576
 # @@protoc_insertion_point(module_scope)

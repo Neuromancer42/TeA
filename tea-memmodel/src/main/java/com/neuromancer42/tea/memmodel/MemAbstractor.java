@@ -21,38 +21,44 @@ import java.util.concurrent.TimeUnit;
 
 public class MemAbstractor extends ProviderGrpc.ProviderImplBase {
     private final static String NAME_MEMABS = "memory";
+    private static String default_workdir;
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = System.getProperty(Constants.OPT_CONFIG);
-        if (configFile == null) {
-            Messages.error("Core: No configuration file set (set this by '-Dtea.config.path=<path-to-ini>')");
+        String configFile = null;
+        if (args.length > 0) {
+            configFile = args[0];
+        } else {
+            Messages.error("MemAbstractor: No configuration file set (pass the path by argument)");
             System.exit(-1);
         }
         INIConfiguration config = new INIConfiguration();
         try (FileReader reader = new FileReader(configFile)) {
             config.read(reader);
         } catch (ConfigurationException | IOException e) {
-            Messages.error("Core: Failed to read config in %s", configFile);
+            Messages.error("MemAbstractor: Failed to read config in %s", configFile);
             e.printStackTrace(System.err);
             System.exit(-1);
         }
+        Messages.log("MemAbstractor: Run with configuration from %s", configFile);
+
+        default_workdir = config.getSection(NAME_MEMABS).getString(Constants.OPT_WORK_DIR);
 
         int mem_port = Integer.parseInt(config.getSection(NAME_MEMABS).getString(Constants.OPT_PORT));
 
-        Server cdtServer = Grpc.newServerBuilderForPort(mem_port, InsecureServerCredentials.create())
+        Server memServer = Grpc.newServerBuilderForPort(mem_port, InsecureServerCredentials.create())
                 .addService(new MemAbstractor()).build();
-        System.err.print("*** cdt server started on port " + mem_port);
-        cdtServer.start();
+        System.err.print("*** memory server started on port " + mem_port);
+        memServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.err.println("*** shutting down jsouffle server due to JVM shutdown");
+            System.err.println("*** shutting down memory server due to JVM shutdown");
             try {
-                cdtServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
+                memServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace(System.err);
             }
-            System.err.println("*** jsouffle server shut down!");
+            System.err.println("*** memory server shut down!");
         }));
-        cdtServer.awaitTermination();
+        memServer.awaitTermination();
     }
 
     /**
@@ -61,6 +67,7 @@ public class MemAbstractor extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void getFeature(Analysis.Configs request, StreamObserver<Analysis.ProviderInfo> responseObserver) {
+        Messages.log("MemAbstractor: processing getFeature request");
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName(NAME_MEMABS);
         infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(CMemoryModel.class));
@@ -75,6 +82,7 @@ public class MemAbstractor extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
+        Messages.log("MemAbstractor: processing runAnalysis request");
         Analysis.RunResults results;
         if (!request.getAnalysisName().equals(CMemoryModel.name)) {
             results = Analysis.RunResults.newBuilder()
@@ -83,7 +91,7 @@ public class MemAbstractor extends ProviderGrpc.ProviderImplBase {
         } else {
             try {
                 Analysis.Configs config = request.getOption();
-                String workDir = config.getPropertyOrDefault("workdir", "test-out/test-cmemmodel");
+                String workDir = config.getPropertyOrDefault(Constants.OPT_WORK_DIR, default_workdir);
                 Path workPath = Paths.get(workDir);
                 Files.createDirectories(workPath);
                 CMemoryModel cMemModel = new CMemoryModel(workPath);

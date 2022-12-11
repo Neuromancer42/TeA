@@ -5,7 +5,6 @@ public class Constants {
 
     private Constants() {}
 
-    public static final String OPT_CONFIG = "tea.config.path";
     public static final String OPT_SRC = "tea.source";
     public static final String OPT_SRC_FLAGS = "tea.source.flags";
 
@@ -14,6 +13,7 @@ public class Constants {
     public static final String OPT_WORK_DIR = "workdir";
 
     public static final String NAME_CORE = "core";
+    public static final String NAME_PROJ = "project";
 
     public static final String MSG_FAIL = "FAIL";
     public static final String MSG_SUCC = "SUCCESS";

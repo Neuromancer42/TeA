@@ -1,21 +1,16 @@
 package com.neuromancer42.tea.codemanager.cdt;
 
-import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
-import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
-import com.neuromancer42.tea.core.analysis.Trgt;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
 import java.io.FileReader;
@@ -34,19 +29,23 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = System.getProperty(Constants.OPT_CONFIG);
-        if (configFile == null) {
-            Messages.error("Core: No configuration file set (set this by '-Dtea.config.path=<path-to-ini>')");
+        String configFile = null;
+        if (args.length > 0) {
+            configFile = args[0];
+        } else {
+            Messages.error("CParser: No configuration file set (pass the pass by argument)");
             System.exit(-1);
         }
         INIConfiguration config = new INIConfiguration();
         try (FileReader reader = new FileReader(configFile)) {
             config.read(reader);
         } catch (ConfigurationException | IOException e) {
-            Messages.error("Core: Failed to read config in %s", configFile);
+            Messages.error("CParser: Failed to read config in %s", configFile);
             e.printStackTrace(System.err);
             System.exit(-1);
         }
+        Messages.log("CParser: Run with configuration from %s", configFile);
+
 
         String workDir = config.getSection(NAME_CDT).getString(Constants.OPT_WORK_DIR);
         Path workPath = Paths.get(workDir);
@@ -78,6 +77,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void getFeature(Analysis.Configs request, StreamObserver<Analysis.ProviderInfo> responseObserver) {
+        Messages.log("CParser: processing getFeature request");
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName("cdt-codemanager");
         Analysis.AnalysisInfo.Builder analysisBuilder = Analysis.AnalysisInfo.newBuilder();
@@ -105,6 +105,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
+        Messages.log("CParser: processing getFeature request");
         assert request.getAnalysisName().equals("cmanager");
         Map<String, String> option = request.getOption().getPropertyMap();
         Analysis.RunResults runResults;

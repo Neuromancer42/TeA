@@ -1,6 +1,7 @@
 package com.neuromancer42.tea.core;
 
 import com.neuromancer42.tea.commons.configs.Constants;
+import com.neuromancer42.tea.commons.configs.Messages;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang3.StringUtils;
 
@@ -17,6 +18,8 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
      */
     @Override
     public void runAnalyses(CoreUtil.ApplicationRequest request, StreamObserver<CoreUtil.ApplicationResponse> responseObserver) {
+        Messages.log("Core: processing runAnalyses request");
+
         {
             CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
             respBuilder.setMsg(String.format("Initial: handling request for file '%s'", request.getSource().getSource()));
@@ -45,6 +48,13 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                     break;
                 }
             }
+        } else {
+            CoreUtil.ApplicationResponse resp = CoreUtil.ApplicationResponse.newBuilder()
+                    .setMsg(Constants.MSG_FAIL + ": failed to build project pipeline on required analyses")
+                    .build();
+            responseObserver.onNext(resp);
+            responseObserver.onCompleted();
+            return;
         }
 
         {
