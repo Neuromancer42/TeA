@@ -5,12 +5,15 @@ public class Constants {
 
     private Constants() {}
 
+    public static final String ENV_DEBUG = "TEA_DEBUG";
+
     public static final String OPT_SRC = "tea.source";
     public static final String OPT_SRC_FLAGS = "tea.source.flags";
 
     public static final String OPT_HOST = "host";
     public static final String OPT_PORT = "port";
     public static final String OPT_WORK_DIR = "workdir";
+    public static final String DEFAULT_WORK_DIR = "test-out";
 
     public static final String NAME_CORE = "core";
     public static final String NAME_PROJ = "project";

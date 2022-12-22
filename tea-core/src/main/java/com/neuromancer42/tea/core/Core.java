@@ -8,6 +8,7 @@ import io.grpc.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
@@ -31,8 +32,10 @@ public class Core {
             System.exit(-1);
         }
         Messages.log("Core: Run with configuration from %s", configFile);
-        String core_workdir = config.getSection(Constants.NAME_CORE).getString(Constants.OPT_WORK_DIR);
-        ProjectBuilder.init(core_workdir);
+        String core_workdir = Constants.DEFAULT_WORK_DIR;
+        if (args.length > 1)
+            core_workdir = args[1];
+        ProjectBuilder.init(core_workdir + File.separator + Constants.NAME_CORE);
 
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
         for (String providerName : config.getSections()) {

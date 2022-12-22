@@ -1,15 +1,14 @@
 package com.neuromancer42.tea.core;
 
+import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
+import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.Trgt;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 public class Project {
@@ -97,15 +96,51 @@ public class Project {
     public List<String> printRels(List<String> relNames) {
         List<String> alarms = new ArrayList<>();
         for (String relName : relNames) {
-            if (producedRels.containsKey(relName)) {
-                printRel(relName, producedRels.get(relName), alarms);
-            } else {
-                Messages.error("Project: rel '%s' is not produced", relName);
-            }
+            printRel(relName, alarms);
         }
         return alarms;
     }
 
-    private void printRel(String relName, String location, List<String> alarmList) {
+    private void printRel(String relName, List<String> alarmList) {
+        String[] domKinds = relSign.get(relName);
+        ProgramDom[] doms = new ProgramDom[domKinds.length];
+        Map<String, ProgramDom> domMap = new HashMap<>();
+        for (int i = 0; i < domKinds.length; ++i) {
+            String domKind = domKinds[i];
+            if (domMap.containsKey(domKind)) {
+                doms[i] = domMap.get(domKind);
+            } else {
+                ProgramDom dom = new ProgramDom(domKind);
+                String domLoc = producedDoms.get(domKind);
+                if (domLoc == null) {
+                    Messages.error("Project: dom '%s' is not produced", domKind);
+                    return;
+                }
+                dom.load(domLoc);
+                domMap.put(domKind, dom);
+                doms[i] = domMap.get(domKind);
+            }
+        }
+        ProgramRel rel = new ProgramRel(relName, doms);
+        String relLoc = producedRels.get(relName);
+        if (relLoc == null) {
+            Messages.error("Project: rel '%s' is not produced", relName);
+            return;
+        }
+        rel.attach(relLoc);
+        rel.load();
+        for (Object[] tuple : rel.getValTuples()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(relName);
+            sb.append("(");
+            for (int i = 0; i < tuple.length; ++i) {
+                if (i != 0)
+                    sb.append(",");
+                sb.append((String) tuple[i]);
+            }
+            sb.append(")");
+            alarmList.add(sb.toString());
+        }
+        rel.close();
     }
 }

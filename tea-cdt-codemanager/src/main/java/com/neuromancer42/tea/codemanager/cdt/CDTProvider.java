@@ -47,8 +47,10 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         Messages.log("CParser: Run with configuration from %s", configFile);
 
 
-        String workDir = config.getSection(NAME_CDT).getString(Constants.OPT_WORK_DIR);
-        Path workPath = Paths.get(workDir);
+        String workDir = Constants.DEFAULT_WORK_DIR;
+        if (args.length > 1)
+            workDir = args[1];
+        Path workPath = Paths.get(workDir, NAME_CDT);
         CDTProvider.init(workPath);
 
         int cdt_port = Integer.parseInt(config.getSection(NAME_CDT).getString(Constants.OPT_PORT));

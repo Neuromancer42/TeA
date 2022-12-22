@@ -12,6 +12,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,7 +42,9 @@ public class MemAbstractor extends ProviderGrpc.ProviderImplBase {
         }
         Messages.log("MemAbstractor: Run with configuration from %s", configFile);
 
-        default_workdir = config.getSection(NAME_MEMABS).getString(Constants.OPT_WORK_DIR);
+        default_workdir = Constants.DEFAULT_WORK_DIR + File.separator + NAME_MEMABS;
+        if (args.length > 1)
+            default_workdir = args[1] + File.separator + NAME_MEMABS;
 
         int mem_port = Integer.parseInt(config.getSection(NAME_MEMABS).getString(Constants.OPT_PORT));
 

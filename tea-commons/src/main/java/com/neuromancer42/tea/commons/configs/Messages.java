@@ -6,10 +6,10 @@ package com.neuromancer42.tea.commons.configs;
  * @author Mayur Naik (mhn@cs.stanford.edu)
  */
 public class Messages {
-    private static final String debug = System.getProperty("tea.debug", "false");
+    private static final String debug = System.getenv(Constants.ENV_DEBUG);
     private Messages() { }
     public static void debug(String format, Object... args) {
-        if (debug.equals("false"))
+        if (debug == null || debug.equals("false"))
             return;
         String msg = String.format(format, args);
         System.out.println("DEBUG: " + msg);

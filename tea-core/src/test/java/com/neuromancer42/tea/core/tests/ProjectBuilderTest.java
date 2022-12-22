@@ -4,6 +4,7 @@ import com.neuromancer42.tea.core.ProjectBuilder;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.Trgt;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,6 +33,11 @@ public class ProjectBuilderTest {
 			.setName("PhonyProvider2")
 			.addAnalysis(empty)
 			.build();
+
+	@BeforeAll
+	public static void setup() {
+		ProjectBuilder.init("test-out");
+	}
 
 	@Test
 	@DisplayName("Correctly register and collect analysis")

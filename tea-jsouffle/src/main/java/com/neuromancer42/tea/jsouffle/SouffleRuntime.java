@@ -56,8 +56,10 @@ public final class SouffleRuntime {
         Messages.log("SouffleRuntime: Run with configuration from %s", configFile);
 
         Map<String, SouffleAnalysis> analysisMap = new LinkedHashMap<>();
-        String workDir = config.getSection(NAME_SOUFFLE).getString(Constants.OPT_WORK_DIR);
-        SouffleRuntime.init(Paths.get(workDir));
+        String workDir = Constants.DEFAULT_WORK_DIR;
+        if (args.length > 1)
+            workDir = args[1];
+        SouffleRuntime.init(Paths.get(workDir, NAME_SOUFFLE));
         for (Iterator<String> it = config.getSection(NAME_SOUFFLE).getKeys(); it.hasNext(); ) {
             String key = it.next();
             if (!key.startsWith(PREFIX_SOUFFLE))

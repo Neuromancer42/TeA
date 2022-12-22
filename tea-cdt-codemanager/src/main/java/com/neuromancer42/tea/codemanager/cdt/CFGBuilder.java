@@ -154,7 +154,7 @@ public class CFGBuilder {
             funcVars.get(curFunc).add(vReg);
         }
         processType(var.getType());
-        Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%d in (%s)", var.getType(), vReg, var.getName(), Integer.toUnsignedString(var.hashCode()), var.getOwner());
+        Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%s in (%s)", var.getType(), vReg, var.getName(), Integer.toUnsignedString(var.hashCode()), var.getOwner());
         return vReg;
     }
 
@@ -297,7 +297,7 @@ public class CFGBuilder {
             }
             int refReg = getRefReg(param);
             if (refReg < 0) {
-                Messages.fatal("CParser: cannot find reference register for %s[%s]#%d in (%s)", param.getClass().getSimpleName(), param, Integer.toUnsignedString(param.hashCode()), param.getOwner());
+                Messages.fatal("CParser: cannot find reference register for %s[%s]#%s in (%s)", param.getClass().getSimpleName(), param, Integer.toUnsignedString(param.hashCode()), param.getOwner());
             }
             Messages.debug("CParser: alloc stack memory for parameter ref @%d = {%s}", refReg, param);
             CFG.CFGNode allocNode = newAllocaNode(refReg, param);
@@ -354,7 +354,7 @@ public class CFGBuilder {
                         IVariable var = (IVariable) binding;
                         int refReg = getRefReg(binding);
                         if (refReg < 0) {
-                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, Integer.toUnsignedString(var.hashCode()), var.getOwner());
+                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%s in (%s)", var.getClass().getSimpleName(), var, Integer.toUnsignedString(var.hashCode()), var.getOwner());
                         }
                         Messages.debug("CParser: alloc stack memory for variable @%d = {%s}", refReg, var);
                         CFG.CFGNode allocNode = newAllocaNode(refReg, var);
@@ -370,7 +370,7 @@ public class CFGBuilder {
                         IVariable var = (IVariable) binding;
                         int refReg = getRefReg(binding);
                         if (refReg < 0) {
-                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%d in (%s)", var.getClass().getSimpleName(), var, Integer.toUnsignedString(var.hashCode()), var.getOwner());
+                            Messages.fatal("CParser: cannot find reference register for variable %s[%s]#%s in (%s)", var.getClass().getSimpleName(), var, Integer.toUnsignedString(var.hashCode()), var.getOwner());
                         }
                         if (initializer instanceof IASTEqualsInitializer) {
                             IASTInitializerClause initCls = ((IASTEqualsInitializer) initializer).getInitializerClause();
@@ -731,7 +731,7 @@ public class CFGBuilder {
                     Messages.debug("CParser: get address of external variable %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
                     refReg = processVariable(v, true);
                 } else {
-                    Messages.fatal("CParser: referenced register not found for %s[%s]#%d in (%s)", binding.getClass().getSimpleName(), binding.getName(), Integer.toUnsignedString(binding.hashCode()), binding.getOwner());
+                    Messages.fatal("CParser: referenced register not found for %s[%s]#%s in (%s)", binding.getClass().getSimpleName(), binding.getName(), Integer.toUnsignedString(binding.hashCode()), binding.getOwner());
                 }
             }
             return refReg;
@@ -805,29 +805,38 @@ public class CFGBuilder {
             return reg;
         } else if (expression instanceof IASTIdExpression) {
             int reg = createRegister(expression);
-            IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
-            if (binding instanceof IVariable) {
-                // TODO: special handling of array-to-pointer conversion
-                int refReg = getRefReg(binding);
-                if (refReg < 0) {
-                    IVariable v = (IVariable) binding;
-                    refReg = processVariable(v, true);
-                    Messages.debug("CParser: reference external variable %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
-                }
-                Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", expression.getExpressionType(), reg, refReg, expression.getRawSignature());
-                CFG.CFGNode loadNode = newLoadNode(reg, refReg);
-                prevNode = connect(prevNode, loadNode);
+            String name = new String(((IASTIdExpression) expression).getName().toCharArray());
+            if (name.equals("NULL")) {
+                Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), name);
+                Messages.debug("CParser: set NULL constant %s@%d := %s", expression.getExpressionType(), reg, name);
+                simpleConstants.put(reg, name);
+                CFG.CFGNode evalNode = newEvalNode(reg, expr);
+                prevNode = connect(prevNode, evalNode);
+            } else {
+                IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
+                if (binding instanceof IVariable) {
+                    // TODO: special handling of array-to-pointer conversion
+                    int refReg = getRefReg(binding);
+                    if (refReg < 0) {
+                        IVariable v = (IVariable) binding;
+                        refReg = processVariable(v, true);
+                        Messages.debug("CParser: reference external variable %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                    }
+                    Messages.debug("CParser: read from location %s@%d <- *@%d (%s)", expression.getExpressionType(), reg, refReg, expression.getRawSignature());
+                    CFG.CFGNode loadNode = newLoadNode(reg, refReg);
+                    prevNode = connect(prevNode, loadNode);
 
-                return reg;
-            } else if (binding instanceof IFunction) {
-                int refReg = getRefReg(binding);
-                if (refReg < 0) {
-                    IFunction f = (IFunction) binding;
+                    return reg;
+                } else if (binding instanceof IFunction) {
+                    int refReg = getRefReg(binding);
+                    if (refReg < 0) {
+                        IFunction f = (IFunction) binding;
 
-                    Messages.debug("CParser: reference external function %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
-                    refReg = processFunction(f);
+                        Messages.debug("CParser: reference external function %s[%s] at line#%d (%s)", binding.getClass().getSimpleName(), binding, expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                        refReg = processFunction(f);
+                    }
+                    return refReg;
                 }
-                return refReg;
             }
         } else if (expression instanceof IASTUnaryExpression) {
             IASTUnaryExpression unaryExpr = (IASTUnaryExpression) expression;
