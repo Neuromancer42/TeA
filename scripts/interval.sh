@@ -5,7 +5,7 @@ usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compileflags] [-o 
 echo "Run in TEA_HOME: $TEA_HOME"
 pushd "$TEA_HOME" || exit 1
 
-config_file="../scripts/call_graph.ini"
+config_file="../scripts/interval.ini"
 outdir="test-out"
 compile_flags=""
 

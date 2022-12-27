@@ -58,7 +58,7 @@ public class CDTCManager extends AbstractAnalysis {
 
     @ProduceRel(doms = {"T", "F", "T"}, description = "field type of structs")
     public ProgramRel relStructFldType;
-    @ProduceRel(doms = {"T", "T"}, description = "content type of arrays")
+    @ProduceRel(doms = {"T", "T", "C"}, description = "content type and size of arrays")
     public ProgramRel relArrContentType;
 
     @ProduceRel(doms = { "M", "P" }, description = "MPentry(meth,point)")
@@ -186,7 +186,7 @@ public class CDTCManager extends AbstractAnalysis {
 
         // type hierarchy
         relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
-        relArrContentType = new ProgramRel("ArrFieldType", domT, domT);
+        relArrContentType = new ProgramRel("ArrFieldType", domT, domT, domC);
 
         // control flow relations
         relMPentry = new ProgramRel("MPentry", domM, domP);
@@ -331,7 +331,12 @@ public class CDTCManager extends AbstractAnalysis {
             if (type instanceof IArrayType) {
                 IArrayType baseType = (IArrayType) type;
                 IType contentType = baseType.getType();
-                relArrContentType.add(CDTUtil.typeToRepr(baseType), CDTUtil.typeToRepr(contentType));
+                String sizeStr = "unknown";
+                Number size = baseType.getSize().numberValue();
+                if (size != null) {
+                    sizeStr = String.valueOf(size);
+                }
+                relArrContentType.add(CDTUtil.typeToRepr(baseType), CDTUtil.typeToRepr(contentType), sizeStr);
             } else if (type instanceof ICompositeType) {
                 ICompositeType baseType = (ICompositeType) type;
                 for (IField f : baseType.getFields()) {
@@ -438,7 +443,7 @@ public class CDTCManager extends AbstractAnalysis {
                             relPload.add(pRepr, vRepr);
                             relLoadArr.add(vRepr, uRepr, gepExpr.getIndex());
                         } else if (gepExpr.hasField()) {
-                            Messages.debug("CParser: get field address #%d = [%s]", p.getEval().getResultReg(), TextFormat.shortDebugString(gepExpr));
+                            Messages.debug("CParser: get field address #%s = [%s]", p.getEval().getResultReg(), TextFormat.shortDebugString(gepExpr));
                             relPload.add(pRepr, vRepr);
                             relLoadFld.add(vRepr, uRepr, gepExpr.getField());
                         }

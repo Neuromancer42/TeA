@@ -1,0 +1,128 @@
+.type M <: unsigned // methods
+.type V <: unsigned // temporary variables $1, $2, $3, ...
+.type H <: unsigned // lvalues (declared variables, function names, mallocs)
+.type F <: unsigned // field names
+.type I <: unsigned // invocation sites
+.type Z <: unsigned // integers for counting function arguments
+.type SZ <: unsigned // interval representation of array indexes and sizes
+
+// declared variables
+.decl AllocMem(y:V,h:H)
+.input AllocMem
+.decl GlobalAllocMem(y:V,h:H)
+.input GlobalAllocMem
+.decl HeapAllocPtr(o:H,h:H)
+.input HeapAllocPtr
+.decl HeapAllocArr(o:H,p:SZ,h:H)
+.input HeapAllocArr
+.decl HeapAllocFld(o:H,f:F,h:H)
+.input HeapAllocFld
+
+// rhs $y[*x]
+.decl LoadPtr(y:V,x:V)
+.input LoadPtr
+// lhs *y = $x
+.decl StorePtr(y:V,x:V)
+.input StorePtr
+
+// rhs $y[x->f]
+.decl LoadFld(y:V,x:V,f:F)
+.input LoadFld
+// lhs y->f = $x
+.decl StoreFld(y:V,f:F,x:V)
+.input StoreFld
+
+// rhs $y[x[i]]
+.decl LoadArr(y:V,x:V,i:V)
+.input LoadArr
+// lhs y[i] = $x
+.decl StoreArr(y:V,i:V,x:V)
+.input StoreArr
+
+// y = f(x1,x2,...)
+.decl IinvkArg(i:I,n:Z,x:V)
+.input IinvkArg
+.decl IinvkRet(i:I,y:V)
+.input IinvkRet
+.decl MmethArg(m:M,n:Z,x:V)
+.input MmethArg
+.decl MmethRet(m:M,y:V)
+.input MmethRet
+
+// statements
+.decl MV(m:M,v:V)
+.input MV
+.decl MI(m:M,i:I)
+.input MI
+// function names are a pointer to itself
+.decl funcPtr(h:H,f:M)
+.input funcPtr
+
+// Call Graph
+.decl entryM(m:M)
+.input entryM
+.decl StaticCall(i:I,m:M)
+.input StaticCall
+.decl IndirectCall(i:I,f:V)
+.input IndirectCall
+
+.decl ci_reachableH(h:H)
+.decl ci_reachableI(i:I)
+.decl ci_reachableM(m:M)
+.output ci_reachableM
+.decl ci_IM(i:I,m:M)
+.output ci_IM
+.decl ci_pt(v:V,h:H)
+.output ci_pt
+// pointers
+.decl ci_hpt(h:H,o:H)
+.output ci_hpt
+// structs
+.decl ci_fpt(h:H,f:F,o:H)
+.output ci_fpt
+// arrays
+.decl ci_apt(h:H,i:SZ,o:H)
+.output ci_apt
+// arrays are handled as pointers
+
+.decl ci_MH(m:M, h:H)
+.output ci_MH
+
+/*************
+ *   Rules   *
+ *************/
+
+ci_reachableM(m) :- entryM(m).
+ci_reachableM(m) :- ci_IM(_,m).
+
+ci_reachableI(i) :- MI(m,i), ci_reachableM(m).
+
+ci_IM(i,m) :- ci_reachableI(i), IndirectCall(i,f), ci_pt(f,h), funcPtr(h,m).
+ci_IM(i,m) :- ci_reachableI(i), StaticCall(i,m).
+
+ci_pt(u,o) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_pt(v,o).
+ci_pt(v,o) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_pt(u,o).
+
+
+ci_reachableH(h) :- ci_pt(_, h).
+ci_reachableH(h) :- ci_hpt(_,h).
+ci_reachableH(h) :- ci_fpt(_,_,h).
+
+ci_pt(v,h) :- GlobalAllocMem(v,h).
+ci_pt(v,h) :- ci_reachableM(m), MV(m,v), AllocMem(v,h).
+
+ci_hpt(h,o) :- ci_reachableH(h), HeapAllocPtr(h,o).
+ci_hpt(h,o) :- StorePtr(u,v), ci_pt(u,h), ci_pt(v,o).
+ci_pt(u,o) :- LoadPtr(u,v), ci_pt(v,h), ci_hpt(h,o).
+
+ci_fpt(h,f,o) :- ci_reachableH(h), HeapAllocFld(h,f,o).
+ci_fpt(h,f,o) :- StoreFld(u,f,v), ci_pt(u,h), ci_pt(v,o).
+ci_pt(u,o) :- LoadFld(u,v,f), ci_pt(v,h), ci_fpt(h,f,o).
+
+ci_apt(h,i,o) :- ci_reachableH(h), HeapAllocArr(h,i,o).
+ci_apt(b,i,o) :- StoreArr(u,_,v), ci_pt(u,h), ci_apt(b,i,h), ci_pt(v,o). // useless rule
+ci_pt(u,o) :- LoadArr(u,v,_), ci_pt(v,h), ci_apt(b,_,h), ci_apt(b,_,o). // ignore idx difference
+
+ci_MH(m,h) :- MV(m,v), ci_pt(v,h).
+ci_MH(m,o) :- ci_MH(m,h), ci_hpt(h,o).
+ci_MH(m,o) :- ci_MH(m,h), ci_fpt(h,_,o).

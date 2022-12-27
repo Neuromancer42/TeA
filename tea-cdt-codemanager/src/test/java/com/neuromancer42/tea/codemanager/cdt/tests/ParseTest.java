@@ -23,47 +23,61 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ParseTest {
-    private static String cfilename = "simple.c";
+    private static final String simpleFilename = "simple.c";
+    private static Path simpleSrcPath;
+    private static final String simpleDotName = "simple.dot";
+    private static final String arrFilename = "array.c";
+    private static Path arrSrcPath;
+    private static final String funcArrFilename = "funcptr_arraystruct.c";
+    private static Path funcArrSrcPath;
 
     private static Path workDirPath = Paths.get("test-out").resolve("test-cdt");
-    private static Path srcPath;
 
-    private static String dotName = "simple.dot";
 
     @BeforeAll
     public static void setup() throws IOException {
         Files.createDirectories(workDirPath);
 
-        InputStream srcIn = CDTCManager.class.getClassLoader().getResourceAsStream(cfilename);
-        System.err.println("Writing " + cfilename);
-        srcPath = workDirPath.resolve(cfilename);
-        Files.copy(srcIn, srcPath, StandardCopyOption.REPLACE_EXISTING);
-        srcIn.close();
+        InputStream simpleIn = CDTCManager.class.getClassLoader().getResourceAsStream(simpleFilename);
+        System.err.println("Writing " + simpleFilename);
+        simpleSrcPath = workDirPath.resolve(simpleFilename);
+        Files.copy(simpleIn, simpleSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        simpleIn.close();
 
+        InputStream arrIn = CDTCManager.class.getClassLoader().getResourceAsStream(arrFilename);
+        System.err.println("Writing " + arrFilename);
+        arrSrcPath = workDirPath.resolve(arrFilename);
+        Files.copy(arrIn, arrSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        arrIn.close();
 
+        InputStream funcArrIn = CDTCManager.class.getClassLoader().getResourceAsStream(funcArrFilename);
+        System.err.println("Writing " + funcArrFilename);
+        funcArrSrcPath = workDirPath.resolve(funcArrFilename);
+        Files.copy(funcArrIn, funcArrSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        funcArrIn.close();
     }
 
     @Test
     @Order(1)
     @DisplayName("CDT C manager created  correctly")
     public void newManagerTest() throws IOException {
-        System.err.println("Opening " + srcPath);
-        CDTCManager cdtcManager = new CDTCManager(workDirPath, srcPath.toString(), new HashMap<>(), new ArrayList<>());
+        System.err.println("Opening " + simpleSrcPath);
+        CDTCManager cdtcManager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
     }
 
     @Test
     @Order(2)
     @DisplayName("CDT C manager builds CFG correctly")
     public void cfgBuilderTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, srcPath.toString(), new HashMap<>(), new ArrayList<>());
+        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
         CFGBuilder cfgBuilder = new CFGBuilder(cmanager.getTranslationUnit());
         cfgBuilder.build();
         try {
-            BufferedWriter bw = Files.newBufferedWriter(workDirPath.resolve(dotName), StandardCharsets.UTF_8);
+            BufferedWriter bw = Files.newBufferedWriter(workDirPath.resolve(simpleDotName), StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
             cfgBuilder.dumpDot(pw);
         } catch (IOException e) {
-            Messages.error("CParser: failed to dump DOT file %s", dotName);
+            Messages.error("CParser: failed to dump DOT file %s", simpleDotName);
             Messages.fatal(e);
         }
     }
@@ -72,7 +86,7 @@ public class ParseTest {
     @Order(3)
     @DisplayName("CDT C manager generate relations correctly")
     public void runAnalysisTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, srcPath.toString(), new HashMap<>(), new ArrayList<>());
+        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
         cmanager.run();
     }
 
@@ -80,12 +94,62 @@ public class ParseTest {
     @Order(4)
     @DisplayName("CDT C manager run correclty in reflection mode")
     public void reflectAnalysisTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, srcPath.toString(), new HashMap<>(), new ArrayList<>());
+        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmanager, new HashMap<>(), new HashMap<>());
         Assertions.assertNotNull(output);
         Object[] domNames = cmanager.getProducedDoms().stream().map(ProgramDom::getName).sorted().toArray();
         Assertions.assertArrayEquals(domNames, output.getLeft().keySet().stream().sorted().toArray());
         Object[] relNames = cmanager.getProducedRels().stream().map(ProgramRel::getName).sorted().toArray();
         Assertions.assertArrayEquals(relNames, output.getRight().keySet().stream().sorted().toArray());
+    }
+
+    @Test
+    public void parseArrayTest() throws IOException {
+        CDTCManager cmanager = new CDTCManager(workDirPath, arrSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        cmanager.run();
+        for (ProgramRel rel: cmanager.getProducedRels()) {
+            if (rel.getName().equals("ArrContentType")) {
+                rel.load();
+                Assertions.assertNotEquals(0, rel.size());
+                for (Object[] tuple : rel.getValTuples()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("ArrContentType(");
+                    for (int i = 0; i < tuple.length; ++i) {
+                        if (i > 0) {
+                            sb.append(",");
+                        }
+                        sb.append((String) tuple[i]);
+                    }
+                    sb.append(")");
+                    Messages.log(sb.toString());
+                }
+                rel.close();
+            }
+        }
+    }
+
+    @Test
+    public void parseFuncArrayStructTest() throws IOException {
+        CDTCManager cmanager = new CDTCManager(workDirPath, funcArrSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        cmanager.run();
+        for (ProgramRel rel: cmanager.getProducedRels()) {
+            if (rel.getName().equals("LoadArr") || rel.getName().equals("LoadFld")) {
+                rel.load();
+                Assertions.assertNotEquals(0, rel.size());
+                for (Object[] tuple : rel.getValTuples()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(rel.getName()).append("(");
+                    for (int i = 0; i < tuple.length; ++i) {
+                        if (i > 0) {
+                            sb.append(",");
+                        }
+                        sb.append((String) tuple[i]);
+                    }
+                    sb.append(")");
+                    Messages.log(sb.toString().replaceAll("%", "%%"));
+                }
+                rel.close();
+            }
+        }
     }
 }

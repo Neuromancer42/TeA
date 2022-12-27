@@ -47,5 +47,7 @@ public class Constants {
     public static final String OP_LE = "<=";
     public static final String OP_BIT = "bit";
 
+    public static final String TYPE_INT = "int";
+
     public static final String PREFIX_DUMMY = "dummy-";
 }

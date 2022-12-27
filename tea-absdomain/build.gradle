@@ -1,7 +1,6 @@
 plugins {
     id 'java'
     id 'application'
-    id 'com.google.protobuf' version '0.9.1'
 }
 
 group = 'com.neuromancer42.tea'
@@ -11,6 +10,7 @@ sourceCompatibility = '17'
 repositories {
     mavenCentral()
 }
+
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter:2.7.5'
@@ -23,12 +23,6 @@ dependencies {
     runtimeOnly 'io.grpc:grpc-netty-shaded:1.51.0'
 
     implementation project(":tea-commons")
-
-//    implementation 'org.osgi:osgi.core:8.0.0'
-    implementation fileTree(dir: 'p2-compile-bundles', include: ['*.jar'])
-
-    runtimeOnly fileTree(dir: 'p2-runtime-bundles', include: ['*.jar'])
-    testRuntimeOnly fileTree(dir: 'p2-runtime-bundles', include: ['*.jar'])
 }
 
 test {
@@ -36,5 +30,5 @@ test {
 }
 
 application {
-    mainClass = "com.neuromancer42.tea.codemanager.cdt.CDTProvider"
+    mainClass = 'com.neuromancer42.tea.absdomain.Abstractor'
 }

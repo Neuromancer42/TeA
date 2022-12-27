@@ -46,6 +46,7 @@ sourceSets {
     main {
         proto {
             srcDirs '../proto'
+            srcDirs '../ir'
         }
     }
 }

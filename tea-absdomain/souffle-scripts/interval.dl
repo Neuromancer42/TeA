@@ -1,0 +1,192 @@
+.type M <: unsigned
+.type V <: unsigned
+.type H <: unsigned
+.type F <: unsigned
+.type I <: unsigned
+.type Z <: unsigned
+.type P <: unsigned
+.type E <: unsigned
+.type OP <: unsigned
+.type U <: unsigned
+.type UP <: unsigned
+.type SZ <: unsigned
+
+.decl ci_pt(v:V, h:H)
+.input ci_pt
+.decl ci_hpt(h:H, o:H)
+.input ci_hpt
+.decl ci_fpt(h:H, f:F, o:H)
+.input ci_fpt
+.decl ci_apt(h:H, i:SZ, o:H)
+.input ci_apt
+
+.decl primV(v:V)
+.input primV
+.decl primH(h:H)
+.input primH
+
+.decl inputV(p:P, v:V)
+.decl inputH(p:P, h:H)
+
+.decl ci_IM(i:I, m:M)
+.input ci_IM
+.decl ci_reachableM(m:M)
+.input ci_reachableM
+.decl ci_MH(m:M, h:H)
+.input ci_MH
+.decl MV(m:M, v:V)
+.input MV
+.decl MI(m:M, i:I)
+.input MI
+
+.decl MPentry(m:M,p:P)
+.input MPentry
+.decl MPexit(m:M,p:P)
+.input MPexit
+.decl PPdirect(p:P,q:P)
+.input PPdirect
+.decl PPtrue(p:P,q:P,v:V)
+.input PPtrue
+.decl PPfalse(p:P,q:P,v:V)
+.input PPfalse
+
+.decl LoadPtr(y:V, x:V)
+.input LoadPtr
+.decl StorePtr(y:V, x:V)
+.input StorePtr
+
+.decl P_strong_update(p:P, h:H)
+.input P_strong_update
+.decl P_weak_update(p:P, h:H)
+.input P_weak_update
+.decl P_no_update(p:P, h:H)
+.input P_no_update
+
+// actually useless, in c, gep always returns a pointer
+//.decl LoadFld(y:V, x:V, f:F)
+//.input LoadFld
+//.decl StoreFld(y:V, f:F, x:V)
+//.input StoreFld
+
+.decl LoadArr(y:V, x:V, i:V)
+.input LoadArr
+.decl StoreArr(y:V, i:V, x:V)
+.input StoreArr
+
+.decl IinvkArg(i:I, n:Z, x:V)
+.input IinvkArg
+.decl IinvkRet(i:I, y:V)
+.input IinvkRet
+.decl MmethArg(m:M, n:Z, x:V)
+.input MmethArg
+.decl MmethRet(m:M, y:V)
+.input MmethRet
+
+.decl Pinvk(p:P, i:I)
+.input Pinvk
+
+.decl Pstore(p:P, v:V)
+.input Pstore
+.decl Pload(p:P, v:V)
+.input Pload
+
+.decl Palloc(p:P, v:V)
+.input Palloc
+.decl Pnoop(p:P)
+.input Pnoop
+
+.decl Peval(p:P, v:V, e:E)
+.input Peval
+.decl Econst(e:E)
+.input Econst
+.decl Eunary(e:E, o:OP, v:V)
+.input Eunary
+.decl Ebinop(e:E, o:OP, v1:V, v2:V)
+.input Ebinop
+
+.decl EConstU(e:E, c:U)
+.input EConstU
+.decl evalUnaryU(o:OP, c0:U, c:U)
+.input evalUnaryU
+.decl evalBinopU(o:OP, c1:U, c2:U, c:U)
+.input evalBinopU
+.decl Uempty(c:U)
+.input Uempty
+
+.decl PredUnknown(v:V)
+.input PredUnknown
+.decl PredL(v:V, p:UP, h1:H, c2:U)
+.input PredL
+.decl PredR(v:V, p:UP, c1:U, h2:H)
+.input PredR
+.decl Pred2(v:V, p:UP, h1:H, h2:H)
+.input Pred2
+.decl MaySat(p:UP, c1:U, c2:U)
+.input MaySat
+.decl MayUnsat(p:UP, c1:U, c2:U)
+.input MayUnsat
+.decl nofilter(v:V, h:H)
+.input nofilter
+
+.decl ci_postPHval(p:P, h:H, c:U)
+.decl ci_PHval(p:P, h:H, c:U)
+.output ci_PHval
+.decl ci_Vval(v:V, c:U)
+.output ci_Vval
+//.decl ci_Fval(h:H, f:F, c:U)
+//.output ci_Fval
+
+.decl ExtMeth(m:M)
+.input ExtMeth
+// change this marker to meth-related
+.decl argInput(m:M, z:Z)
+.input argInput
+.decl retInput(m:M)
+.input retInput
+.decl Uinput(c:U)
+.input Uinput
+
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Econst(e), EConstU(e, u).
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Eunary(e, o, v0), ci_Vval(v0, u0), evalUnaryU(o, u0, u).
+ci_Vval(v,u) :- ci_reachableM(m), MV(m, v), Peval(_,v,e), Ebinop(e, o, v1, v2), ci_Vval(v1, u1), ci_Vval(v2, u2), evalBinopU(o, u1, u2, u).
+
+ci_Vval(u,c) :- Pload(p,u), LoadPtr(u,v), ci_pt(v,h), ci_PHval(p,h,c).
+
+ci_PHval(q,h,c) :- PPdirect(p,q), ci_postPHval(p,h,c).
+ci_PHval(q,h,c) :- PPtrue(p,q,v), ci_postPHval(p,h,c), PredUnknown(v).
+ci_PHval(q,h,c) :- PPfalse(p,q,v), ci_postPHval(p,h,c), PredUnknown(v).
+ci_PHval(q,h,c) :- PPtrue(p,q,v), nofilter(v,h), ci_postPHval(p,h,c).
+ci_PHval(q,h,c) :- PPfalse(p,q,v), nofilter(v,h), ci_postPHval(p,h,c).
+ci_PHval(q,h1,c1) :- PPtrue(p,q,v), PredL(v,pred,h1,c2), ci_postPHval(p,h1,c1), MaySat(pred,c1,c2).
+ci_PHval(q,h1,c1) :- PPfalse(p,q,v), PredL(v,pred,h1,c2), ci_postPHval(p,h1,c1), MayUnsat(pred,c1,c2).
+ci_PHval(q,h2,c2) :- PPtrue(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
+ci_PHval(q,h2,c2) :- PPfalse(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
+ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
+ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
+
+ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_strong_update(p,h).
+ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_weak_update(p,h).
+ci_postPHval(p,h,c) :- Pstore(p,_), P_weak_update(p,h), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Pstore(p,_), P_no_update(p,h), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Peval(p,_,_), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Pload(p,_), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Palloc(p,_), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Pnoop(p), ci_PHval(p,h,c).
+
+ci_Vval(u,c) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_Vval(v,c).
+ci_Vval(v,c) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_Vval(u,c).
+// suppose all memobj are un-initialized
+ci_PHval(p,h,c) :- MPentry(m,p), ci_MH(m,h), Uempty(c), primH(h).
+// implicit arguments/returns are passed by pointers
+ci_PHval(q,h,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHval(p,h,c), ci_MH(m,h).
+ci_postPHval(p,h,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHval(q,h,c), ci_PHval(p,h,_).
+
+inputV(p,u) :- Pinvk(p,i), ci_IM(i,m), IinvkArg(i,z,u), argInput(m,z).
+inputV(p,v) :- Pinvk(p,i), ci_IM(i,m), IinvkRet(i,v), retInput(m).
+inputH(p,h) :- inputV(p,v), ci_pt(v,h).
+inputH(p,o) :- inputH(p,h), ci_hpt(h,o).
+inputH(p,o) :- inputH(p,h), ci_fpt(h,_,o).
+inputH(p,o) :- inputH(p,h), ci_apt(h,_,o).
+
+ci_Vval(v,c) :- inputV(_,v), primV(v), Uinput(c).
+ci_postPHval(p,h,c) :- inputH(p,h), primH(h), Uinput(c).

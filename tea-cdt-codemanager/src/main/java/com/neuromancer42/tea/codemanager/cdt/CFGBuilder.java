@@ -33,9 +33,11 @@ public class CFGBuilder {
     // 2. <IBinding> a pointer points to a declared variable/function
     // 3. <Pair<IFunction, Integer>> the value of a function parameter
     // 4. <String> a pointer points to the address of a string literal
-    // 5. <GetElementPtrEval> inserted gep result for field/offset access
+    // 5. <Pair<GepExpression, Integer>> inserted gep result for field/offset access
     // 6. <Pair<Integer, IArrayType>> inserted load instruction to get base pointer of an array reference
-    // 7. <Integer> constant integers
+    // 7. <Number> constant integers
+    
+    private int gepIdx = 0;
 
     private final Set<IFunction> funcs;
     private final Map<IFunction, Set<Integer>> funcVars;
@@ -65,7 +67,7 @@ public class CFGBuilder {
     private int nodeIdx;
     private CFG.CFGNode prevNode;
     private ImmutableValueGraph.Builder<CFG.CFGNode, Integer> intraCFGBuilder;
-
+    
     public CFGBuilder(IASTTranslationUnit tu) {
         this.transUnit = tu;
         intraCFGMap = new HashMap<>();
@@ -189,7 +191,22 @@ public class CFGBuilder {
         if (!newFound)
             return;
         if (type instanceof IArrayType) {
-            processType(((IArrayType) type).getType());
+            IArrayType arrType = (IArrayType) type;
+            if (arrType.hasSize()) {
+                Number size = arrType.getSize().numberValue();
+                if (size == null) {
+                    //TODO: Variable-Length Array?
+                    String unkStr = "unknown";
+                    registers.add(unkStr);
+                    int reg = registers.indexOf(unkStr);
+                    simpleConstants.put(reg, unkStr);
+                } else {
+                    registers.add(size);
+                    int reg = registers.indexOf(size);
+                    simpleConstants.put(reg, String.valueOf(size));
+                }
+            }
+            processType(arrType.getType());
         } else if (type instanceof IPointerType) {
             processType(((IPointerType) type).getType());
         } else if (type instanceof ITypedef) {
@@ -315,7 +332,7 @@ public class CFGBuilder {
 
         if (prevNode != null && !(prevNode.hasReturn()) && !(prevNode.hasGoto()) && !unreachable.contains(prevNode)) {
             CFG.CFGNode returnNode = newReturnNode();
-            Messages.debug("CParser: add implicit return node [%s] for function [%s]", returnNode.toString(), curFunc);
+            Messages.debug("CParser: add implicit return node [%s] for function [%s]", TextFormat.shortDebugString(returnNode), curFunc);
             connect(prevNode, returnNode);
             exits.add(returnNode);
         }
@@ -541,6 +558,7 @@ public class CFGBuilder {
                                 Expr.Expression expr = newLiteralExpr(CBasicType.INT, offsetStr);
                                 registers.add(offset);
                                 int posReg = registers.indexOf(offset);
+                                simpleConstants.put(posReg, offsetStr);
                                 CFG.CFGNode evalNode = newEvalNode(posReg, expr);
                                 prevNode = connect(prevNode, evalNode);
 
@@ -552,9 +570,8 @@ public class CFGBuilder {
                             }
                         }
                         if (gepExpr != null) {
-                            registers.add(gepExpr);
-                            elemPtr = registers.indexOf(gepExpr);
-                            Messages.debug("CParser: get element ptr for initialize @%d = {%s}", elemPtr, gepExpr);
+                            elemPtr = createRegister(gepExpr);
+                            Messages.debug("CParser: get element ptr for initialize @%d = {%s}", elemPtr, TextFormat.shortDebugString(gepExpr));
                             CFG.CFGNode gepNode = newEvalNode(elemPtr, gepExpr);
                             prevNode = connect(prevNode, gepNode);
                         }
@@ -575,12 +592,13 @@ public class CFGBuilder {
                             registers.add(basePtrObj);
                             int basePtr = registers.indexOf(basePtrObj);
                             Messages.debug("CParser: load base address of ptr-to-array @%d <- *@%d", basePtr, refReg);
-                            CFG.CFGNode loadNode = newLoadNode(basePtr, basePtr);
+                            CFG.CFGNode loadNode = newLoadNode(basePtr, refReg);
                             prevNode = connect(prevNode, loadNode);
                         }
                         Expr.Expression expr = newLiteralExpr(CBasicType.INT, String.valueOf(pos));
                         registers.add(pos);
                         int posReg = registers.indexOf(pos);
+                        simpleConstants.put(posReg, String.valueOf(pos));
                         CFG.CFGNode evalNode = newEvalNode(posReg, expr);
                         prevNode = connect(prevNode, evalNode);
 
@@ -593,9 +611,10 @@ public class CFGBuilder {
                         gepExpr = newGetFieldPtrEval(refType, refReg, field);
                         subType = field.getType();
                     }
-                    registers.add(gepExpr);
-                    int subReg = registers.indexOf(gepExpr);
-                    Messages.debug("CParser: get element ptr for initialize @%d = {%s}", subReg, gepExpr);
+                    int subReg = createRegister(gepExpr);
+                    CFG.CFGNode gepNode = newEvalNode(subReg, gepExpr);
+                    prevNode = connect(prevNode, gepNode);
+                    Messages.debug("CParser: get element ptr for initialize @%d = {%s}", subReg, TextFormat.shortDebugString(gepExpr));
 
                     handleInitializerClause(subReg, subType, subCls);
                 }
@@ -691,7 +710,7 @@ public class CFGBuilder {
                         break;
                 }
                 Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), prevReg, opStr);
-                Messages.debug("CParser: compute incr/decr value in %s@%d := %s", expr.getType(), postReg, expr);
+                Messages.debug("CParser: compute incr/decr value in %s@%d := %s", expr.getType(), postReg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(postReg, expr);
                 prevNode = connect(prevNode, evalNode);
 
@@ -868,7 +887,7 @@ public class CFGBuilder {
                 }
                 Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), innerReg, opStr);
                 int reg = createRegister(expression);
-                Messages.debug("CParser: compute unary expr in %s@%d := %s", expr.getType(), reg, expr);
+                Messages.debug("CParser: compute unary expr in %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
                 prevNode = connect(prevNode, evalNode);
 
@@ -990,7 +1009,7 @@ public class CFGBuilder {
                 }
                 Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), r1, r2, opStr);
                 int reg = createRegister(expression);
-                Messages.debug("CParser: compute binary expr in %s@%d := %s", expr.getType(), reg, expr);
+                Messages.debug("CParser: compute binary expr in %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
                 prevNode = connect(prevNode, evalNode);
 
@@ -1043,7 +1062,7 @@ public class CFGBuilder {
             } else {
                 invkNode = newIndirectCallNode(reg, fReg, fArgRegs);
             }
-            Messages.debug("CParser: compute invocation in @%d := %s", reg, invkNode.getInvk());
+            Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
 
             prevNode = connect(prevNode, invkNode);
 
@@ -1053,7 +1072,7 @@ public class CFGBuilder {
             int innerReg = handleRvalue(innerExpr);
             Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId());
             int reg = createRegister(expression);
-            Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, expr);
+            Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
             CFG.CFGNode evalNode = newEvalNode(reg, expr);
             prevNode = connect(prevNode, evalNode);
             return reg;
@@ -1090,10 +1109,11 @@ public class CFGBuilder {
         } else {
             basePtr = handleLvalue(baseExpr);
         }
-        Expr.Expression gepEval = newGetFieldPtrEval(baseExpr.getExpressionType(), basePtr, field);
-        registers.add(gepEval);
-        int fieldPtr = registers.indexOf(gepEval);
-        Messages.debug("CParser: compute field pointer %d = &(%d->%s)", fieldPtr, basePtr, field);
+        Expr.Expression gepExpr = newGetFieldPtrEval(baseExpr.getExpressionType(), basePtr, field);
+        int fieldPtr = createRegister(gepExpr);
+        CFG.CFGNode gepNode = newEvalNode(fieldPtr, gepExpr);
+        prevNode = connect(prevNode, gepNode);
+        Messages.debug("CParser: compute field pointer %d = &(%d->%s) [%s]", fieldPtr, basePtr, field, TextFormat.shortDebugString(gepNode));
         return fieldPtr;
     }
 
@@ -1104,15 +1124,16 @@ public class CFGBuilder {
         IASTExpression expr2 = unparenthesize((IASTExpression) arraySubExpr.getArgument());
         int reg2 = handleRvalue(expr2);
 
-        Expr.Expression gepEval;
+        Expr.Expression gepExpr;
         if (expr1.getExpressionType() instanceof ITypeContainer) {
-            gepEval = newGetIndexPtrEval(expr1.getExpressionType(), reg1, reg2);
+            gepExpr = newGetIndexPtrEval(expr1.getExpressionType(), reg1, reg2);
         } else {
-            gepEval = newGetIndexPtrEval(expr2.getExpressionType(), reg2, reg1);
+            gepExpr = newGetIndexPtrEval(expr2.getExpressionType(), reg2, reg1);
         }
-        registers.add(gepEval);
-        int offsetPtr = registers.indexOf(gepEval);
-        Messages.debug("CParser: compute offset pointer %d = (%d+%d)", offsetPtr, reg1, reg2);
+        int offsetPtr = createRegister(gepExpr);
+        CFG.CFGNode gepNode = newEvalNode(offsetPtr, gepExpr);
+        prevNode = connect(prevNode, gepNode);
+        Messages.debug("CParser: compute offset pointer %d = (%d+%d) [%s]", offsetPtr, reg1, reg2, TextFormat.shortDebugString(gepNode));
         return offsetPtr;
     }
 
@@ -1476,11 +1497,18 @@ public class CFGBuilder {
 
     private int createRegister(IASTExpression expression) {
         if (expression.getExpressionType().isSameType(CBasicType.VOID)) {
-//            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-//            return -1;
-            Messages.debug("CParser: create register for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
+            return -1;
+//            Messages.warn("CParser: create register for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         }
         return getRegister(expression, true);
+    }
+    
+    private int createRegister(Expr.Expression gepExpr) {
+        gepIdx++;
+        Pair<Expr.Expression, Integer> gep = new ImmutablePair<>(gepExpr, gepIdx);
+        registers.add(gep);
+        return registers.indexOf(gep);
     }
 
     public void dumpDot(PrintWriter pw) {
@@ -1773,9 +1801,11 @@ public class CFGBuilder {
 
     private CFG.CFGNode newStaticCallNode(int retReg, IFunction f, int[] argRegs) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
-        invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+        if (retReg >= 0) {
+            invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+        }
         for (int arg : argRegs) {
-            invkBuilder.addActualArg(CDTUtil.regToRepr(retReg));
+            invkBuilder.addActualArg(CDTUtil.regToRepr(arg));
         }
         // TODO function abi ?
         invkBuilder.setStaticRef(CDTUtil.methToRepr(f));
@@ -1787,7 +1817,9 @@ public class CFGBuilder {
 
     private CFG.CFGNode newIndirectCallNode(int retReg, int funcPtr, int[] argRegs) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
-        invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+        if (retReg >= 0) {
+            invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+        }
         for (int arg : argRegs) {
             invkBuilder.addActualArg(CDTUtil.regToRepr(arg));
         }
@@ -1923,7 +1955,7 @@ public class CFGBuilder {
                 .setGep(Expr.GepExpr.newBuilder()
                         .setBasePtr(CDTUtil.regToRepr(basePtr))
                         .setBaseType(CDTUtil.typeToRepr(baseType))
-                        .setIndex(CDTUtil.regToRepr(basePtr)))
+                        .setIndex(CDTUtil.regToRepr(posReg)))
                 .build();
     }
 

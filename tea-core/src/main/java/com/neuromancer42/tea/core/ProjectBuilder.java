@@ -173,16 +173,16 @@ public class ProjectBuilder {
                 }
             } else {
                 Set<String> domDeps = domToProducers.get(domName);
-                if (domDeps.size() == 1) {
+                if (domDeps == null || domDeps.isEmpty()) {
+                    Messages.error("ProjectBuilder: no analysis producing dom '%s' required by '%s'", domName, analysis);
+                    return false;
+                } else if (domDeps.size() == 1) {
                     for (String domDep: domDeps) {
                         if (!scheduleAnalysis(domDep, schedule, fixedDomToProducer, fixedRelToProducer, domToProducers, relToProducers)) {
                             return false;
                         }
                     }
-                } else if (domDeps.isEmpty()) {
-                    Messages.error("ProjectBuilder: no analysis producing dom '%s' required by '%s'", domName, analysis);
-                    return false;
-                } else {
+                } else  {
                     Messages.error("ProjectBuilder: dom '%s' produced by multiple candidates [%s]", domName, StringUtil.join(domDeps, ","));
                     return false;
                 }

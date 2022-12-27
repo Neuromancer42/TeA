@@ -52,7 +52,7 @@ public class CDTUtil {
             return getRawType(((ICQualifierType) type).getType());
         }  else if (type instanceof IFunctionType) {
             IFunctionType funcType = (IFunctionType) type;
-            return "funcptr";
+            return "func";
         } else {
             Messages.error("CParser: unhandled type %s[%s]", type.getClass().getSimpleName(), type);
             return "unknown";
