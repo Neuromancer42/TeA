@@ -16,6 +16,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
 
     implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+
 
     implementation 'io.grpc:grpc-protobuf:1.51.0'
     implementation 'io.grpc:grpc-stub:1.51.0'

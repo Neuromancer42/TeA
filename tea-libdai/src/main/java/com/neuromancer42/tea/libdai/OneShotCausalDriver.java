@@ -1,8 +1,8 @@
 package com.neuromancer42.tea.libdai;
 
-import com.neuromancer42.tea.core.inference.AbstractCausalDriver;
-import com.neuromancer42.tea.core.inference.CausalGraph;
-import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
+import com.neuromancer42.tea.commons.inference.CausalGraph;
+import com.neuromancer42.tea.commons.configs.Messages;
 
 import java.io.IOException;
 import java.nio.file.Files;

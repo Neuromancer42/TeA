@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.model.inference;
+package com.neuromancer42.tea.commons.inference;
 
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.provenance.ConstraintItem;

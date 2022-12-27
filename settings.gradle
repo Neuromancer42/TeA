@@ -1,6 +1,7 @@
 rootProject.name = 'TeA'
 
 include 'tea-commons'
+include 'tea-libdai'
 include 'tea-core'
 include 'tea-jsouffle'
 include 'tea-cdt-codemanager'

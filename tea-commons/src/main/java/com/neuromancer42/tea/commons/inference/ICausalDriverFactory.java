@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.model.inference;
+package com.neuromancer42.tea.commons.inference;
 
 public interface ICausalDriverFactory {
     AbstractCausalDriver createCausalDriver(String algorithm, String name, CausalGraph<String> causalGraph);

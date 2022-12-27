@@ -1,4 +1,4 @@
 [submodule "libdai"]
-	path = libdai/libdai
+	path = tea-libdai/libdai
 	url = https://github.com/Neuromancer42/libdai.git
 	branch = master

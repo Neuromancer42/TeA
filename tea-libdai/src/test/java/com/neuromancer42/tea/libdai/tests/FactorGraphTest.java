@@ -1,9 +1,8 @@
-package com.neuromancer42.tea.jsouffle.libdai.tests;
+package com.neuromancer42.tea.libdai.tests;
 
-import com.neuromancer42.tea.core.inference.Categorical01;
-import com.neuromancer42.tea.core.inference.CausalGraph;
-import com.neuromancer42.tea.core.project.Config;
-import com.neuromancer42.tea.core.project.Messages;
+import com.neuromancer42.tea.commons.inference.Categorical01;
+import com.neuromancer42.tea.commons.inference.CausalGraph;
+import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.libdai.DAIRuntime;
 import com.neuromancer42.tea.libdai.IteratingCausalDriver;
 import org.junit.jupiter.api.*;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -20,10 +20,13 @@ public class FactorGraphTest {
     private static CausalGraph<String> causalGraph;
     private static Categorical01 confidence;
 
+    private static final String workdir = "test-out";
+
+
     @BeforeAll
-    public static void setup() {
-        Config.init();
-        DAIRuntime.init(Paths.get(Config.v().workDirName));
+    public static void setup() throws IOException {
+        Files.createDirectories(Paths.get(workdir));
+        DAIRuntime.init(Paths.get(workdir, "cache"));
         List<String> nodes = new ArrayList<>();
         nodes.add("Coin1");  nodes.add("Coin2");
         nodes.add("Or"); nodes.add("And");
@@ -34,8 +37,8 @@ public class FactorGraphTest {
         sums.put("Or", singletons);
         prods.put("And", singletons);
         causalGraph = CausalGraph.createCausalGraph("two_coins", nodes, singletons, sums, prods);
-        unknownCoin = new Categorical01(new double[]{0.1D, 0.5D, 0.9D});
-        confidence = new Categorical01(new double[]{0.01D, 0.99D});
+        unknownCoin = new Categorical01(0.1D, 0.5D, 0.9D);
+        confidence = new Categorical01(0.01D, 0.99D);
         Messages.log("Created causal graph object");
     }
 
@@ -49,8 +52,8 @@ public class FactorGraphTest {
             causalGraph.setStochNode("Coin2", unknownCoin);
             causalGraph.setStochNode("Or", new Categorical01(confidence));
             causalGraph.setStochNode("And", new Categorical01(confidence));
-            causalGraph.dumpDot(Paths.get(Config.v().outDirName, "cg1_2.dot"), String::toString, Categorical01::toString);
-            PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(Config.v().outDirName, "pln1_2.fg")));
+            causalGraph.dumpDot(Paths.get(workdir, "cg1_2.dot"), String::toString, Categorical01::toString);
+            PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln1_2.fg")));
             DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
         } catch (IOException e) {
             Assertions.fail(e);
@@ -67,8 +70,8 @@ public class FactorGraphTest {
             causalGraph.setStochNode("Coin2", new Categorical01(unknownCoin));
             causalGraph.setStochNode("Or", new Categorical01(confidence));
             causalGraph.setStochNode("And", new Categorical01(confidence));
-            causalGraph.dumpDot(Paths.get(Config.v().outDirName, "cg2_1.dot"), String::toString, Categorical01::toString);
-            PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(Config.v().outDirName, "pln2_1.fg")));
+            causalGraph.dumpDot(Paths.get(workdir, "cg2_1.dot"), String::toString, Categorical01::toString);
+            PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln2_1.fg")));
             DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
         } catch (IOException e) {
             Assertions.fail(e);

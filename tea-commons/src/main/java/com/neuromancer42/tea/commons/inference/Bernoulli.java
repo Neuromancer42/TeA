@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.model.inference;
+package com.neuromancer42.tea.commons.inference;
 
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 

@@ -1,11 +1,10 @@
 package com.neuromancer42.tea.libdai;
 
-import com.neuromancer42.tea.core.inference.Categorical01;
-import com.neuromancer42.tea.core.inference.CausalGraph;
-import com.neuromancer42.tea.core.project.Config;
-import com.neuromancer42.tea.core.project.Messages;
-import com.neuromancer42.tea.core.util.IndexMap;
-import com.neuromancer42.tea.core.util.Timer;
+import com.neuromancer42.tea.commons.inference.Categorical01;
+import com.neuromancer42.tea.commons.inference.CausalGraph;
+import com.neuromancer42.tea.commons.configs.Messages;
+import com.neuromancer42.tea.commons.util.IndexMap;
+import com.neuromancer42.tea.commons.util.Timer;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.IOException;
@@ -13,7 +12,6 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Date;
