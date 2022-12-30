@@ -56,9 +56,9 @@ public class SouffleSingleRunTest {
     @Test
     @Order(2)
     @DisplayName("SouffleSolver generates provenance correctly")
-    public void provenanceTest() {
-        Provenance prov = analysis.getProvenance();
-        prov.dump(workDirPath.toString());
-        Assertions.assertEquals(prov.getClauses().size(), 1);
+    public void provenanceTest() throws IOException {
+        analysis.activateProver(workDirPath);
+        List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
+        Assertions.assertEquals(proofLines.size(), 1);
     }
 }

@@ -10,6 +10,7 @@ public class Constants {
     public static final String OPT_SRC = "tea.source";
     public static final String OPT_SRC_FLAGS = "tea.source.flags";
 
+    public static final String OPT_PROJ = "name";
     public static final String OPT_HOST = "host";
     public static final String OPT_PORT = "port";
     public static final String OPT_WORK_DIR = "workdir";

@@ -60,13 +60,13 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         System.err.print("*** cdt server started on port " + cdt_port);
         cdtServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.err.println("*** shutting down jsouffle server due to JVM shutdown");
+            System.err.println("*** shutting down cdt server due to JVM shutdown");
             try {
                 cdtServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace(System.err);
             }
-            System.err.println("*** jsouffle server shut down!");
+            System.err.println("*** cdt server shut down!");
         }));
         cdtServer.awaitTermination();
     }

@@ -15,6 +15,7 @@ import java.util.Objects;
  * @author xin
  *
  */
+@Deprecated
 public class ConstraintItem {
   // TODO(rg): Why are signs not in the tuples?
 	private final RawTuple headTuple;

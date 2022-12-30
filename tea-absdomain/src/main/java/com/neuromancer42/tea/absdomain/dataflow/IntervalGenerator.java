@@ -34,25 +34,18 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramDom domV;
     @ConsumeDom(description = "program points")
     public ProgramDom domP;
-    @ConsumeDom(description = "(abstract) heap objects")
-    public ProgramDom domH;
     @ConsumeDom(description = "expressions")
     public ProgramDom domE;
-    @ConsumeRel(doms = {"P", "V", "E"})
-    public ProgramRel relPeval;
-    @ConsumeRel(doms = {"P", "P", "V"})
-    public ProgramRel relPPtrue;
-//    @ConsumeRel(doms = {"P", "P", "V"})
-//    public ProgramRel relPPfalse;
     @ConsumeRel(doms = {"V", "V"})
     public ProgramRel relLoadPtr;
-    @ConsumeRel(name = "ci_pt", doms = {"V", "H"})
-    public ProgramRel relCIPT;
 
     @ProduceRel(name = "primV", doms = {"V"}, description = "mark numeric variables")
     public ProgramRel relPrimV;
-    @ProduceRel(name = "primH", doms = {"H"}, description = "mark numeric heap objects")
+    @ProduceRel(name = "primH", doms = {"H"}, description = "mark numeric heap objects, useful for finding indirect inputs")
     public ProgramRel relPrimH;
+
+    @ConsumeRel(doms = {"P", "V", "E"})
+    public ProgramRel relPeval;
     @ProduceDom(description = "operators")
     public ProgramDom domOP;
     @ProduceDom(description = "intervals")
@@ -75,6 +68,15 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramRel relUempty;
     @ProduceRel(doms = {"U"}, description = "mark possible values of input")
     public ProgramRel relUinput;
+
+    @ConsumeRel(doms = {"P", "P", "V"})
+    public ProgramRel relPPtrue;
+//    @ConsumeRel(doms = {"P", "P", "V"})
+//    public ProgramRel relPPfalse;
+    @ConsumeRel(name = "ci_pt", doms = {"V", "H"})
+    public ProgramRel relCIPT;
+    @ConsumeDom(description = "(abstract) heap objects")
+    public ProgramDom domH;
     @ProduceRel(doms = {"V"}, description = "mark unhandled cond-vars")
     public ProgramRel relPredUnknown;
     @ProduceRel(doms = {"V", "UP", "H", "U"}, description = "cond-var comes from comparing value of H and constant U")
@@ -90,6 +92,14 @@ public class IntervalGenerator extends AbstractAnalysis {
     @ProduceRel(name = "nofilter", doms = {"V", "H"}, description = "cond-var has nothing to do with these heap objects")
     public ProgramRel relNoFilter;
 
+    @ConsumeDom(description = "array size")
+    public ProgramDom domSZ;
+    @ConsumeRel(doms = {"H", "SZ", "H"})
+    public ProgramRel relHeapAllocArr;
+    @ConsumeRel(doms = {"H", "SZ"})
+    public ProgramRel relHeapArraySize;
+    @ProduceRel(doms = {"SZ", "U", "SZ"})
+    public ProgramRel relMayOutOfBound;
 
     private final IndexSet<Interval> sortedITVs = new IndexSet<>();
     private final Map<String, Expr.Expression> regToEval = new LinkedHashMap<>();
@@ -125,14 +135,14 @@ public class IntervalGenerator extends AbstractAnalysis {
                     try {
                         int primVal = Integer.parseInt(constRepr);
                         regToLiteral.put(reg, primVal);
-                        Messages.debug("PreInterval: find new constant integer %d", primVal);
+                        Messages.debug("IntervalGenerator: find new constant integer %d", primVal);
                         intConstants.add(primVal);
                         intConstants.add(-primVal);
                     } catch (NumberFormatException e) {
-                        Messages.error("PreInterval: not a constant integer %s", constRepr);
+                        Messages.error("IntervalGenerator: not a constant integer %s", constRepr);
                     }
                 } else {
-                    Messages.error("PreInterval: [TODO] unhandled constant value %s[%s]", type, constRepr);
+                    Messages.error("IntervalGenerator: [TODO] unhandled constant value %s[%s]", type, constRepr);
                 }
             } else if (expr.hasUnary()) {
                 //TODO separate numerics and pointers?
@@ -145,7 +155,14 @@ public class IntervalGenerator extends AbstractAnalysis {
                 domOP.add(op);
             }
         }
-        relPeval.close();
+        for (String sz : domSZ) {
+            Interval itv = sz2Itv(sz);
+            Messages.debug("IntervalGenerator: find constant array bound %d~%d", itv.lower, itv.upper);
+            intConstants.add(itv.lower);
+            intConstants.add(-itv.lower);
+            intConstants.add(itv.upper);
+            intConstants.add(-itv.upper);
+        }
 
         intConstants.add(0);
         intConstants.add(1);
@@ -275,9 +292,31 @@ public class IntervalGenerator extends AbstractAnalysis {
                     String r = bEval.getOprand2();
                     relEbinop.add(exprStr, op, l, r);
                 } else {
-                    Messages.warn("PreInterval: mark unhandled eval as EMPTY [%s]", exprStr);
+                    Messages.warn("IntervalGenerator: mark unhandled eval as EMPTY [%s]", exprStr);
                     relEconst.add(exprStr);
                     relEConstU.add(exprStr, emptyRepr);
+                }
+            }
+            {
+                // mark array objects
+                Map<String, Map<String, String>> contentMap = new LinkedHashMap<>();
+                for (Object[] tuple : relHeapAllocArr.getValTuples()) {
+                    String arrObj = (String) tuple[0];
+                    String pos = (String) tuple[1];
+                    String contentObj = (String) tuple[2];
+                    contentMap.computeIfAbsent(arrObj, k -> new LinkedHashMap<>()).put(pos, contentObj);
+                }
+                for (Object[] tuple : relHeapArraySize.getValTuples()) {
+                    String arrObj = (String) tuple[0];
+                    String sz = (String) tuple[1];
+                    for (var entry: contentMap.get(arrObj).entrySet()) {
+                        String pos = entry.getKey();
+                        for (Interval u : sortedITVs) {
+                            if (mayOutOfBound(pos, u, sz)) {
+                                relMayOutOfBound.add(pos, u.toString(), sz);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -368,6 +407,39 @@ public class IntervalGenerator extends AbstractAnalysis {
                 }
             }
         }
+    }
+
+    private static Interval sz2Itv(String sz) {
+        if (sz.contains("~")) {
+            String ls = sz.substring(0, sz.indexOf("~"));
+            String rs = sz.substring(sz.indexOf("~") + 1);
+
+            // Note: l cannot be unknown
+            int l = Integer.parseInt(ls);
+            int r;
+            if (!rs.equals("unknown"))
+                r = Integer.parseInt(rs);
+            else
+                r = Interval.max_bound;
+            return new Interval(l, r);
+        } else {
+            if (!sz.equals("unknown")) {
+                int len = Integer.parseInt(sz);
+                return new Interval(len);
+            } else {
+                return new Interval(0, Interval.max_bound);
+            }
+        }
+    }
+
+    private static boolean mayOutOfBound(String pos, Interval u, String sz) {
+        Interval posItv = sz2Itv(pos);
+        Interval szItv = sz2Itv(sz);
+        assert posItv.lower <= posItv.upper;
+        assert szItv.lower <= posItv.upper;
+        assert u.lower <= u.upper;
+        Interval newPosItv = new Interval(posItv.lower + u.lower, posItv.upper + u.upper);
+        return newPosItv.mayGE(szItv) || newPosItv.mayLT(new Interval(0));
     }
 
     private Map<String, String> buildVal2HeapMap() {

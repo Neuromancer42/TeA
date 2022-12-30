@@ -15,6 +15,7 @@ import java.util.Objects;
  *
  * @author yifan
  */
+@Deprecated
 public class RawTuple {
 	private String relName;
 	private int[] domIndices;

@@ -24,6 +24,7 @@ dependencies {
     runtimeOnly 'io.grpc:grpc-netty-shaded:1.51.0'
 
     implementation project(":tea-commons")
+    implementation project(":tea-libdai")
 }
 
 test {

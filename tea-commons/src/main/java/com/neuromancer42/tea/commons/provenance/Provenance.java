@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.util.*;
 
+@Deprecated
 public class Provenance {
     // Constraint structures
     // TODO: optimize de-duplicate operations
@@ -20,8 +21,8 @@ public class Provenance {
     private final List<RawTuple> inputTuples;
     private final List<RawTuple> outputTuples;
     private final List<RawTuple> hiddenTuples;
-    private Map<ConstraintItem, String> clauseIdMap;
-    private Map<RawTuple, String> tupleIdMap;
+    private final Map<ConstraintItem, String> clauseIdMap;
+    private final Map<RawTuple, String> tupleIdMap;
     private final List<String> ruleInfos;
 
     public Provenance(String name,

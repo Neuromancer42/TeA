@@ -1,12 +1,10 @@
 package com.neuromancer42.tea.jsouffle;
 
+import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Messages;
-import com.neuromancer42.tea.commons.provenance.AbstractProvenanceBuilder;
-import com.neuromancer42.tea.commons.provenance.ConstraintItem;
-import com.neuromancer42.tea.commons.provenance.Provenance;
-import com.neuromancer42.tea.commons.provenance.RawTuple;
+import com.neuromancer42.tea.core.analysis.Trgt;
 import com.neuromancer42.tea.jsouffle.swig.SWIGSouffleProgram;
 
 import java.io.IOException;
@@ -17,9 +15,11 @@ import java.util.*;
 
 public final class SouffleAnalysis {
     private final String name;
+    private final Path proofDir;
     private SWIGSouffleProgram souffleProgram;
+    private SWIGSouffleProgram proverProgram;
 
-    private final SouffleProvenanceBuilder provBuilder;
+    private SouffleProver prover;
 
     private final String analysis; // field for debug; different analysis instance may refer to the same analysis program
     private final Path analysisPath;
@@ -72,12 +72,17 @@ public final class SouffleAnalysis {
             }
             relSignMap.put(relName, relAttrs);
         }
-
+        proverProgram = provProgram;
+        Path tmpProofDir = null;
         if (provProgram != null) {
-            provBuilder = new SouffleProvenanceBuilder(provProgram);
-        } else {
-            provBuilder = null;
+            try {
+                tmpProofDir = Files.createDirectories(analysisPath.resolve("provenance"));
+            } catch (IOException e) {
+                Messages.error("SouffleAnalysis %s: failed to create provenance directory", name);
+                Messages.fatal(e);
+            }
         }
+        proofDir = tmpProofDir;
     }
 
     public String getName() {
@@ -104,17 +109,6 @@ public final class SouffleAnalysis {
         return outputRelSignMap;
     }
 
-
-    public String[] translateTuple(String relName, int[] indices) {
-        assert activated;
-        String[] domKinds = relSignMap.get(relName);
-        String[] translated = new String[domKinds.length];
-        for (int i = 0; i < translated.length; ++i) {
-            translated[i] = doms.get(domKinds[i]).get(indices[i]);
-        }
-        return translated;
-    }
-
     public Path getAnalysisPath() {
         return analysisPath;
     }
@@ -125,6 +119,10 @@ public final class SouffleAnalysis {
 
     public Path getOutDir() {
         return outDir;
+    }
+
+    public Path getProofDir() {
+        return proofDir;
     }
 
     private final Map<String, ProgramDom> doms = new LinkedHashMap<>();
@@ -169,14 +167,6 @@ public final class SouffleAnalysis {
             Messages.debug("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
             souffleProgram = null;
         }
-    }
-
-    public Provenance getProvenance() {
-        if (provBuilder == null) {
-            Messages.fatal("SouffeProvenanceBuilder %s: provenance program has not been built for this analysis", name);
-            assert false;
-        }
-        return provBuilder.getProvenance();
     }
 
     private void dumpRel(String relName, ProgramRel rel) {
@@ -256,145 +246,356 @@ public final class SouffleAnalysis {
         return table;
     }
 
-    private class SouffleProvenanceBuilder extends AbstractProvenanceBuilder {
-        private SWIGSouffleProgram provenanceProgram;
-        private final Path provenanceDir;
-
-        private boolean provActivated;
-
-        private List<String> ruleInfos;
-        private List<ConstraintItem> constraintItems;
-        private List<RawTuple> inputTuples;
-        private List<RawTuple> outputTuples;
-
-        public SouffleProvenanceBuilder(SWIGSouffleProgram provProgram) {
-            // Souffle's provenance has been pruned, not need to use prune in AbstractProvenanceBuilder again
-            super(SouffleAnalysis.this.name, false);
-            provenanceProgram = provProgram;
-            Path tmpProvDir = null;
-            try {
-                tmpProvDir = Files.createDirectories(analysisPath.resolve("provenance"));
-            } catch(IOException e){
-                Messages.error("SouffleProvenanceBuilder %s: failed to create provenance directory", name);
-                Messages.fatal(e);
-            }
-            provenanceDir = tmpProvDir;
-        }
-
-        private void activate() {
-            if (!activated) {
-                Messages.fatal("SouffleProvenanceBuilder %s: the analysis should be activated before building provenance", name);
-            }
+    public List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
+        if (prover == null) {
+            // 0. activate prover program
+            Messages.log("SouffleAnalysis %s: activate provenance program for the first query", name);
+            activateProver(proofDir);
             // 1. fetch inputTuples
-            inputTuples = new ArrayList<>();
+            List<Trgt.Tuple> inputs = new ArrayList<>();
             for (String relName : inputRelNames) {
                 Path factPath = factDir.resolve(relName + ".facts");
                 List<int[]> table = loadTableFromFile(factPath);
                 for (int[] row : table) {
-                    inputTuples.add(new RawTuple(relName, row));
+                    String[] attributes = decodeIndices(relName, row);
+                    assert attributes != null;
+                    Trgt.Tuple inputTuple = Trgt.Tuple.newBuilder()
+                            .setRelName(relName)
+                            .addAllAttribute(List.of(attributes))
+                            .build();
+                    inputs.add(inputTuple);
                 }
             }
 
             // 2. fetch outputTuples
-            outputTuples = new ArrayList<>();
+            List<Trgt.Tuple> outputs = new ArrayList<>();
             for (String relName : outputRelNames) {
                 Path outPath = outDir.resolve(relName + ".csv");
                 List<int[]> table = loadTableFromFile(outPath);
-                for (int[] row : table) {
-                    outputTuples.add(new RawTuple(relName, row));
+                for (int[] row : table) {String[] attributes = decodeIndices(relName, row);
+                    assert attributes != null;
+                    Trgt.Tuple outputTuple = Trgt.Tuple.newBuilder()
+                            .setRelName(relName)
+                            .addAllAttribute(List.of(attributes))
+                            .build();
+                    outputs.add(outputTuple);
                 }
             }
 
             // 3. fetch ruleInfos
-            ruleInfos = new ArrayList<>();
-            ruleInfos.addAll(provenanceProgram.getInfoRelNames());
+            List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
 
-            if (provActivated) {
-                Messages.warn("SouffleProvenanceBuilder %s: the provenance has been activated before, are you sure to re-run?", name);
-            }
-            provenanceProgram.loadAll(factDir.toString());
-            provenanceProgram.run();
-            provenanceProgram.printProvenance(provenanceDir.toString());
             // 4. fetch constraintItems
-            Path consFilePath = provenanceDir.resolve("cons_all.txt");
+            Path consFilePath = proofDir.resolve("cons_all.txt");
             List<String> consLines = null;
             try {
                 consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
             } catch (IOException e) {
-                Messages.error("SouffleProvenanceBuilder %s: failed to read constraint items from file %s", name, consFilePath.toString());
+                Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
                 Messages.fatal(e);
             }
-            constraintItems = new ArrayList<>();
             assert consLines != null;
+            Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
             for (String line : consLines) {
-                ConstraintItem constraintItem = decodeConstraintItem(line);
-                constraintItems.add(constraintItem);
+                Trgt.Constraint constraint = decodeConstraint(line);
+                clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
             }
-            provActivated = true;
 
-            Messages.debug("SouffleProvenanceBuilder %s: freeing souffle program %s", name, provenanceProgram);
-            provenanceProgram.delete();
-            provenanceProgram = null;
+            this.prover = new SouffleProver(clauseMap, inputs, outputs, ruleInfos);
+            Messages.log("SouffleAnalysis %s: provenance finished, freeing prover program", name);
+            proverProgram = null;
+        }
+        return prover.prove(targets);
+    }
+
+    public void activateProver(Path proofPath) {
+        if (!activated) {
+            Messages.fatal("SouffleAnalysis %s: the analysis should be activated before building provenance");
+            assert false;
+        }
+        if (proverProgram == null) {
+            Messages.fatal("SouffleAnalysis %s: provenance program has not been built for this analysis", name);
+            assert false;
+        }
+        proverProgram.loadAll(factDir.toString());
+        proverProgram.run();
+        proverProgram.printProvenance(proofPath.toString());
+    }
+
+    public String[] decodeIndices(String relName, int[] indices) {
+        assert activated;
+        String[] domKinds = relSignMap.get(relName);
+        if (domKinds == null) return null;
+        String[] attributes = new String[domKinds.length];
+        for (int i = 0; i < attributes.length; ++i) {
+            ProgramDom dom = doms.get(domKinds[i]);
+            if (indices[i] >= dom.size()) {
+                Messages.fatal("SouffleAnalysis %s: index %d out of bound of dom %s", name, indices[i], domKinds[i]);
+                assert false;
+            }
+            attributes[i] = dom.get(indices[i]);
+        }
+        return attributes;
+    }
+
+    private int[] encodeIndices(String relName, String[] attributes) {
+        assert activated;
+        String[] domKinds = relSignMap.get(relName);
+        if (domKinds == null) return null;
+        int[] domIndices = new int[domKinds.length];
+        for (int i = 0; i < domKinds.length; ++i) {
+            ProgramDom dom = doms.get(domKinds[i]);
+            domIndices[i] = dom.indexOf(attributes[i]);
+            if (domIndices[i] < 0) {
+                Messages.fatal("SouffleProver %s: dom %s contains no element %s", getName(), domKinds[i], attributes[i]);
+                assert false;
+            }
+        }
+        return domIndices;
+    }
+
+    private Trgt.Constraint decodeConstraint(String line) {
+        Trgt.Constraint.Builder constrBuilder = Trgt.Constraint.newBuilder();
+        String[] atoms = line.split("\t");
+        String headAtom = atoms[0];
+        boolean headSign = true;
+        if (headAtom.charAt(0) == '!' && !headAtom.substring(0, headAtom.indexOf('(')).equals("!=")) {
+            headAtom = headAtom.substring(1);
+            headSign = false;
+        }
+        Trgt.Tuple headTuple = decodeTuple(headAtom);
+        constrBuilder.setHeadTuple(headTuple);
+
+        for (int i = 1; i < atoms.length - 1; ++i) {
+            String bodyAtom = atoms[i];
+            boolean bodySign = true;
+            if (bodyAtom.charAt(0) == '!' && !bodyAtom.substring(0, bodyAtom.indexOf('(')).equals("!=")) {
+                bodyAtom = bodyAtom.substring(1);
+                bodySign = false;
+            }
+            constrBuilder.addBodyTuple(decodeTuple(bodyAtom));
         }
 
-        private ConstraintItem decodeConstraintItem(String line) {
-            String[] atoms = line.split("\t");
-            String headAtom = atoms[0];
-            boolean headSign = true;
-            if (headAtom.charAt(0) == '!' && !headAtom.substring(0, headAtom.indexOf('(')).equals("!=")) {
-                headAtom = headAtom.substring(1);
-                headSign = false;
-            }
-            RawTuple headTuple = new RawTuple(headAtom);
+        String ruleInfo = atoms[atoms.length - 1];
+        if (ruleInfo.charAt(0) != '#') {
+            Messages.fatal("SouffleAnalysis %s: wrong rule info recorded - %s", name, ruleInfo);
+        }
+        ruleInfo = ruleInfo.substring(1);
+        constrBuilder.setRuleInfo(ruleInfo);
 
-            List<RawTuple> bodyTuples = new ArrayList<>();
-            List<Boolean> bodySigns = new ArrayList<>();
-            for (int i = 1; i < atoms.length - 1; ++i) {
-                String bodyAtom = atoms[i];
-                boolean bodySign = true;
-                if (bodyAtom.charAt(0) == '!' && !bodyAtom.substring(0, bodyAtom.indexOf('(')).equals("!=")) {
-                    bodyAtom = bodyAtom.substring(1);
-                    bodySign = false;
+        return constrBuilder.build();
+    }
+
+    private Trgt.Tuple decodeTuple(String s) {
+        String[] splits1 = s.split("\\(");
+        String relName = splits1[0];
+        String indexString = splits1[1].replace(")", "");
+        String[] splits2 = indexString.split(",");
+        int[] domIndices = new int[splits2.length];
+        for (int i = 0; i < splits2.length; i++) {
+            domIndices[i] = Integer.parseInt(splits2[i]);
+        }
+        String[] attributes = decodeIndices(relName, domIndices);
+        if (attributes == null) {
+            Messages.fatal("SouffleAnalysis %s: tuple %s cannot be parsed", s);
+            assert false;
+        }
+        return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttribute(List.of(attributes)).build();
+    }
+
+    private class SouffleProver {
+        private final Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap;
+        private final List<Trgt.Tuple> inputs;
+        private final List<Trgt.Tuple> outputs;
+        private final List<String> ruleInfos;
+
+        public SouffleProver(Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap, List<Trgt.Tuple> inputs, List<Trgt.Tuple> outputs, List<String> ruleInfos) {
+            this.clauseMap = clauseMap;
+            this.inputs = inputs;
+            this.outputs = outputs;
+            this.ruleInfos = ruleInfos;
+        }
+
+        private List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
+            List<Trgt.Constraint> constrs = new ArrayList<>();
+            Set<Trgt.Tuple> workList = new LinkedHashSet<>();
+            Set<Trgt.Tuple> unsolvedTargets = new LinkedHashSet<>();
+            for (Trgt.Tuple target : targets) {
+                String relName = target.getRelName();
+                if (outputRelNames.contains(relName)) {
+                    workList.add(target);
+                } else {
+                    Messages.debug("SouffleProver %s: leaving unseen tuple %s to other analyses", name, TextFormat.shortDebugString(target), relName);
+                    unsolvedTargets.add(target);
                 }
-                bodyTuples.add(new RawTuple(bodyAtom));
-                bodySigns.add(bodySign);
+            }
+            while (!workList.isEmpty()) {
+                Set<Trgt.Tuple> newWorkList = new LinkedHashSet<>();
+                for (Trgt.Tuple head : workList) {
+                    String headRelName = head.getRelName();
+                    if (clauseMap.containsKey(head)) {
+                        for (Trgt.Constraint constraint : clauseMap.get(head)) {
+                            assert constraint.getHeadTuple().equals(head);
+                            constrs.add(constraint);
+                            newWorkList.addAll(constraint.getBodyTupleList());
+                            constrs.add(constraint);
+                        }
+                    } else {
+                        if (inputRelNames.contains(headRelName)) {
+                            Messages.debug("SouffleProver %s: leaving input tuple %s to other analyses", name, TextFormat.shortDebugString(head));
+                            unsolvedTargets.add(head);
+                        } else {
+                            Messages.debug("SouffleProver %s: axiomatic tuple %s in analysis", name, TextFormat.shortDebugString(head));
+                        }
+                    }
+                }
+                workList = newWorkList;
             }
 
-            String ruleInfo = atoms[atoms.length - 1];
-            if (ruleInfo.charAt(0) != '#') {
-                Messages.fatal("SouffleProvenanceBuilder %s: wrong rule info recorded - %s", name, ruleInfo);
-            }
-            ruleInfo = ruleInfo.substring(1);
-            int ruleId = ruleInfos.indexOf(ruleInfo);
-            return new ConstraintItem(ruleId, headTuple, bodyTuples, headSign, bodySigns);
-        }
-
-        public List<String> getRuleInfos() {
-            if (!provActivated) {
-                activate();
-            }
-            return ruleInfos;
-        }
-
-        public Collection<ConstraintItem> getAllConstraintItems() {
-            if (!provActivated) {
-                activate();
-            }
-            return constraintItems;
-        }
-
-        public Collection<RawTuple> getInputTuples() {
-            if (!provActivated) {
-                activate();
-            }
-            return inputTuples;
-        }
-
-        public Collection<RawTuple> getOutputTuples() {
-            if (!provActivated) {
-                activate();
-            }
-            return outputTuples;
+            targets.clear();
+            targets.addAll(unsolvedTargets);
+            return constrs;
         }
     }
+//
+//    private class SouffleProvenanceBuilder extends ProvenanceBuilder {
+//        private SWIGSouffleProgram provenanceProgram;
+//        private final Path provenanceDir;
+//
+//        private boolean provActivated;
+//
+//        private List<String> ruleInfos;
+//        private List<ConstraintItem> constraintItems;
+//        private List<RawTuple> inputTuples;
+//        private List<RawTuple> outputTuples;
+//
+//        public SouffleProvenanceBuilder(SWIGSouffleProgram provProgram) {
+//            // Souffle's provenance has been pruned, not need to use prune in ProvenanceBuilder again
+//            super(SouffleAnalysis.this.name, false);
+//            provenanceProgram = provProgram;
+//            Path tmpProvDir = null;
+//            try {
+//                tmpProvDir = Files.createDirectories(analysisPath.resolve("provenance"));
+//            } catch(IOException e){
+//                Messages.error("SouffleProvenanceBuilder %s: failed to create provenance directory", name);
+//                Messages.fatal(e);
+//            }
+//            provenanceDir = tmpProvDir;
+//        }
+//
+//        private void activate() {
+//            if (!activated) {
+//                Messages.fatal("SouffleProvenanceBuilder %s: the analysis should be activated before building provenance", name);
+//            }
+//            // 1. fetch inputTuples
+//            inputTuples = new ArrayList<>();
+//            for (String relName : inputRelNames) {
+//                Path factPath = factDir.resolve(relName + ".facts");
+//                List<int[]> table = loadTableFromFile(factPath);
+//                for (int[] row : table) {
+//                    inputTuples.add(new RawTuple(relName, row));
+//                }
+//            }
+//
+//            // 2. fetch outputTuples
+//            outputTuples = new ArrayList<>();
+//            for (String relName : outputRelNames) {
+//                Path outPath = outDir.resolve(relName + ".csv");
+//                List<int[]> table = loadTableFromFile(outPath);
+//                for (int[] row : table) {
+//                    outputTuples.add(new RawTuple(relName, row));
+//                }
+//            }
+//
+//            // 3. fetch ruleInfos
+//            ruleInfos = new ArrayList<>();
+//            ruleInfos.addAll(provenanceProgram.getInfoRelNames());
+//
+//            if (provActivated) {
+//                Messages.warn("SouffleProvenanceBuilder %s: the provenance has been activated before, are you sure to re-run?", name);
+//            }
+//            provenanceProgram.loadAll(factDir.toString());
+//            provenanceProgram.run();
+//            provenanceProgram.printProvenance(provenanceDir.toString());
+//            // 4. fetch constraintItems
+//            Path consFilePath = provenanceDir.resolve("cons_all.txt");
+//            List<String> consLines = null;
+//            try {
+//                consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
+//            } catch (IOException e) {
+//                Messages.error("SouffleProvenanceBuilder %s: failed to read constraint items from file %s", name, consFilePath.toString());
+//                Messages.fatal(e);
+//            }
+//            constraintItems = new ArrayList<>();
+//            assert consLines != null;
+//            for (String line : consLines) {
+//                ConstraintItem constraintItem = decodeConstraintItem(line);
+//                constraintItems.add(constraintItem);
+//            }
+//            provActivated = true;
+//
+//            Messages.debug("SouffleProvenanceBuilder %s: freeing souffle program %s", name, provenanceProgram);
+//            provenanceProgram = null;
+//        }
+//
+//        private ConstraintItem decodeConstraintItem(String line) {
+//            String[] atoms = line.split("\t");
+//            String headAtom = atoms[0];
+//            boolean headSign = true;
+//            if (headAtom.charAt(0) == '!' && !headAtom.substring(0, headAtom.indexOf('(')).equals("!=")) {
+//                headAtom = headAtom.substring(1);
+//                headSign = false;
+//            }
+//            RawTuple headTuple = new RawTuple(headAtom);
+//
+//            List<RawTuple> bodyTuples = new ArrayList<>();
+//            List<Boolean> bodySigns = new ArrayList<>();
+//            for (int i = 1; i < atoms.length - 1; ++i) {
+//                String bodyAtom = atoms[i];
+//                boolean bodySign = true;
+//                if (bodyAtom.charAt(0) == '!' && !bodyAtom.substring(0, bodyAtom.indexOf('(')).equals("!=")) {
+//                    bodyAtom = bodyAtom.substring(1);
+//                    bodySign = false;
+//                }
+//                bodyTuples.add(new RawTuple(bodyAtom));
+//                bodySigns.add(bodySign);
+//            }
+//
+//            String ruleInfo = atoms[atoms.length - 1];
+//            if (ruleInfo.charAt(0) != '#') {
+//                Messages.fatal("SouffleProvenanceBuilder %s: wrong rule info recorded - %s", name, ruleInfo);
+//            }
+//            ruleInfo = ruleInfo.substring(1);
+//            int ruleId = ruleInfos.indexOf(ruleInfo);
+//            return new ConstraintItem(ruleId, headTuple, bodyTuples, headSign, bodySigns);
+//        }
+//
+//        public List<String> getRuleInfos() {
+//            if (!provActivated) {
+//                activate();
+//            }
+//            return ruleInfos;
+//        }
+//
+//        public Collection<ConstraintItem> getAllConstraintItems() {
+//            if (!provActivated) {
+//                activate();
+//            }
+//            return constraintItems;
+//        }
+//
+//        public Collection<RawTuple> getInputTuples() {
+//            if (!provActivated) {
+//                activate();
+//            }
+//            return inputTuples;
+//        }
+//
+//        public Collection<RawTuple> getOutputTuples() {
+//            if (!provActivated) {
+//                activate();
+//            }
+//            return outputTuples;
+//        }
+//    }
 }

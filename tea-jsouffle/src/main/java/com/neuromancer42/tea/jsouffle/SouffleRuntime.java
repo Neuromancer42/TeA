@@ -355,7 +355,7 @@ public final class SouffleRuntime {
          */
         @Override
         public void getFeature(Analysis.Configs request, StreamObserver<Analysis.ProviderInfo> responseObserver) {
-            Messages.log("MemAbstractor: processing getFeature request");
+            Messages.log("SouffleRuntime: processing getFeature request");
             Analysis.ProviderInfo.Builder respBuilder = Analysis.ProviderInfo.newBuilder();
             respBuilder.setName(NAME_SOUFFLE);
             List<Trgt.RelInfo> outputRels = new ArrayList<>();
@@ -408,7 +408,7 @@ public final class SouffleRuntime {
          */
         @Override
         public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
-            Messages.log("MemAbstractor: processing getFeature request");
+            Messages.log("SouffleRuntime: processing runAnalysis request");
             SouffleAnalysis analysis = analysisMap.get(request.getAnalysisName());
             Analysis.RunResults.Builder respBuilder = Analysis.RunResults.newBuilder();
             if (analysis == null) {
@@ -469,49 +469,35 @@ public final class SouffleRuntime {
          */
         @Override
         public void prove(Analysis.ProveRequest request, StreamObserver<Analysis.ProveResponse> responseObserver) {
+            Messages.log("SouffleRuntime: processing prove request");
+
             Analysis.ProveResponse.Builder respBuilder = Analysis.ProveResponse.newBuilder();
-            Map<String, List<String[]>> queries = new LinkedHashMap<>();
-            for (Trgt.Tuple target : request.getTargetTupleList()) {
+            Set<Trgt.Tuple> targets = new LinkedHashSet<>(request.getTargetTupleList());
+
+            Map<String, List<Trgt.Tuple>> queries = new LinkedHashMap<>();
+            for (Trgt.Tuple target : targets) {
                 String relName = target.getRelName();
-                queries.computeIfAbsent(relName, r -> new ArrayList<>()).add(target.getAttributeList().toArray(new String[0]));
+                queries.computeIfAbsent(relName, r -> new ArrayList<>()).add(target);
             }
-            Map<SouffleAnalysis, List<Map.Entry<String, List<String[]>>>> analysisTargets = new LinkedHashMap<>();
+            Map<SouffleAnalysis, List<Trgt.Tuple>> analysisTargets = new LinkedHashMap<>();
             for (var entry : queries.entrySet()) {
                 String relName = entry.getKey();
                 SouffleAnalysis analysis = relNameToProducers.get(relName);
                 if (analysis != null) {
-                    analysisTargets.computeIfAbsent(analysis, a -> new ArrayList<>()).add(entry);
+                    analysisTargets.computeIfAbsent(analysis, a -> new ArrayList<>()).addAll(entry.getValue());
                 }
             }
+            Set<Trgt.Tuple> newTargets = new LinkedHashSet<>();
             for (var entry : analysisTargets.entrySet()) {
                 SouffleAnalysis analysis = entry.getKey();
-                // TODO: truncate provenance according to targets
-                Provenance proof = analysis.getProvenance();
-                for (ConstraintItem constraintItem : proof.getClauses()) {
-                    Trgt.Constraint.Builder constrBuilder = Trgt.Constraint.newBuilder();
-                    // TODO: translate between String and Index of a dom
-                    {
-                        RawTuple head = constraintItem.getHeadTuple();
-                        String relName = head.getRelName();
-                        Trgt.Tuple headTuple = Trgt.Tuple.newBuilder()
-                                .setRelName(relName)
-                                .addAllAttribute(List.of(analysis.translateTuple(relName, head.getIndices())))
-                                .build();
-                        constrBuilder.setHeadTuple(headTuple);
-                    }
-                    for (RawTuple body : constraintItem.getSubTuples()) {
-                        String relName = body.getRelName();
-                        Trgt.Tuple bodyTuple = Trgt.Tuple.newBuilder()
-                                .setRelName(relName)
-                                .addAllAttribute(List.of(analysis.translateTuple(relName, body.getIndices())))
-                                .build();
-                        constrBuilder.setHeadTuple(bodyTuple);
-                    }
-                    constrBuilder.setRuleInfo("souffle-" + analysis.getName() + "#" + constraintItem.getRuleId());
-                    Trgt.Constraint constraint = constrBuilder.build();
-                    respBuilder.addConstraint(constraint);
-                }
+                List<Trgt.Tuple> localTargets = entry.getValue();
+                List<Trgt.Constraint> localConstraints = analysis.prove(localTargets);
+                respBuilder.addAllConstraint(localConstraints);
+                newTargets.addAll(localTargets);
             }
+            targets = newTargets;
+
+            respBuilder.addAllUnsolvedTuple(targets);
             Analysis.ProveResponse proveResp = respBuilder.build();
             responseObserver.onNext(proveResp);
             responseObserver.onCompleted();

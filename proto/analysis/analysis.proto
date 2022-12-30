@@ -72,6 +72,7 @@ message ProveRequest {
 
 message ProveResponse {
     repeated Constraint constraint = 1;
+    repeated Tuple unsolved_tuple = 2;
 }
 
 message ShutdownRequest {

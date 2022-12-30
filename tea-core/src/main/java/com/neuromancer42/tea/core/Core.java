@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.core;
 
+import com.google.common.base.Stopwatch;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.core.analysis.Analysis;
@@ -37,12 +38,13 @@ public class Core {
             core_workdir = args[1];
         ProjectBuilder.init(core_workdir + File.separator + Constants.NAME_CORE);
 
+        Stopwatch allTimer = Stopwatch.createStarted();
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
         for (String providerName : config.getSections()) {
             if (!providerName.equals(Constants.NAME_CORE) && !providerName.equals(Constants.NAME_PROJ)) {
                 String host = config.getSection(providerName).getString(Constants.OPT_HOST);
                 int port = Integer.parseInt(config.getSection(providerName).getString(Constants.OPT_PORT));
-                Messages.log("Core: configured provider %s at [%s:%d]", providerName, host, port);
+                Messages.log("Core: configured provider %s [%s:%d] at %s", providerName, host, port, allTimer);
                 Channel channel = Grpc.newChannelBuilderForAddress(host, port, InsecureChannelCredentials.create()).build();
                 ProviderGrpc.ProviderBlockingStub stub = ProviderGrpc.newBlockingStub(channel);
                 providerMap.put(providerName, stub);
@@ -56,9 +58,10 @@ public class Core {
             ProviderGrpc.ProviderBlockingStub providerStub = providerEntry.getValue();
             Messages.debug("Core: processing provider %s at %s", providerName, providerStub.getChannel().toString());
             ProjectBuilder.g().queryProvider(projConfig, providerStub);
-            Messages.log("Core: provider %s registered", providerName);
+            Messages.log("Core: provider %s registered at %s", providerName, allTimer);
         }
-
+        allTimer.stop();
+        Messages.log("Core: all providers registered in %s", allTimer);
         int core_port = Integer.parseInt(config.getSection(Constants.NAME_CORE).getString(Constants.OPT_PORT));
         Server coreServer = Grpc.newServerBuilderForPort(core_port, InsecureServerCredentials.create())
                 .addService(new CoreServiceImpl()).build();

@@ -1,20 +1,18 @@
 package com.neuromancer42.tea.core;
 
+import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
-import io.grpc.CallOptions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.function.Function;
 
 public class ProjectBuilder {
     private static ProjectBuilder builder;
@@ -41,7 +39,7 @@ public class ProjectBuilder {
     private final Map<String, Analysis.AnalysisInfo> analyses = new LinkedHashMap<>();
     private final Map<String, ProviderGrpc.ProviderBlockingStub> analysisProviderMap = new HashMap<>();
     private final Map<String, String[]> relSignMap = new HashMap<>();
-    private final Map<Trgt.RelInfo, ProviderGrpc.ProviderBlockingStub> relProverMap = new HashMap<>();
+    private final Map<ProviderGrpc.ProviderBlockingStub, Set<String>> provableMap = new HashMap<>();
     private final Map<Trgt.RelInfo, ProviderGrpc.ProviderBlockingStub> relObserverMap = new HashMap<>();
 
     public void queryProvider(Analysis.Configs config, ProviderGrpc.ProviderBlockingStub provider) {
@@ -58,10 +56,10 @@ public class ProjectBuilder {
             }
             analysisProviderMap.put(analysisName, provider);
         }
+        provableMap.put(provider, new HashSet<>());
         for (Trgt.RelInfo provableRel : providerInfo.getProvableRelList()) {
-            if (relProverMap.put(provableRel, provider) != null) {
-                Messages.fatal("ProjectBuilder: Multiple tasks proves relation '%s', use the latter one.", provableRel.getName());
-            }
+            Messages.debug("ProjectBuilder: provider %s can prove rel %s", providerInfo.getName(), provableRel.getName());
+            provableMap.get(provider).add(provableRel.getName());
         }
         for (Trgt.RelInfo observableRel : providerInfo.getObservableRelList()) {
             if (relObserverMap.put(observableRel, provider) != null) {
@@ -219,15 +217,31 @@ public class ProjectBuilder {
     public Project buildProject(Map<String, String> option, List<String> schedule) {
         Map<String, String[]> relSign = new HashMap<>();
         Map<String, Analysis.AnalysisInfo> analysisInfo = new HashMap<>();
-        Map<String, Function<Analysis.RunRequest, Analysis.RunResults>> analysisProvider = new HashMap<>();
+        Map<String, ProviderGrpc.ProviderBlockingStub> analysisProvider = new HashMap<>();
+        Set<String> provable = new HashSet<>();
         for (String analysis : schedule) {
+            ProviderGrpc.ProviderBlockingStub provider = analysisProviderMap.get(analysis);
             Analysis.AnalysisInfo info = analyses.get(analysis);
             for (Trgt.RelInfo relInfo : info.getProducingRelList()) {
+                String relName = relInfo.getName();
                 relSign.put(relInfo.getName(), relInfo.getDomList().toArray(new String[0]));
+                if (provableMap.get(provider).contains(relName)) {
+                    Messages.debug("ProjectBuilder: add provable output rel %s from analysis %s", relName, analysis);
+                    provable.add(relName);
+                } else {
+                    Messages.debug("ProjectBuilder: add oracle rel %s from analysis %s", relName, analysis);
+                }
             }
             analysisInfo.put(analysis, info);
-            analysisProvider.put(analysis, analysisProviderMap.get(analysis)::runAnalysis);
+            analysisProvider.put(analysis, provider);
         }
-        return new Project(option, schedule, relSign, analysisInfo, analysisProvider);
+        String projName = option.getOrDefault(Constants.OPT_PROJ, "p" + Objects.hash(schedule.toArray(new Object[0])));
+        Path path = null;
+        try {
+            path = Files.createDirectories(workPath.resolve(projName));
+        } catch (IOException e) {
+            Messages.error("ProjectBuilder: failed to create working directory for project %s : %s", projName, e.getMessage());
+        }
+        return new Project(option, path, schedule, relSign, analysisInfo, analysisProvider, provable);
     }
 }

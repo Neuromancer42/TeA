@@ -1,5 +1,6 @@
-package com.neuromancer42.tea.commons.analyses;
+package com.neuromancer42.tea.commons.analyses.tests;
 
+import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.core.analysis.Analysis;

@@ -34,3 +34,10 @@ message Constraint {
     repeated Tuple body_tuple = 2;
     optional string rule_info = 3;
 }
+
+message Provenance {
+    optional string id = 1;
+    repeated Constraint constraint = 2;
+    repeated Tuple input = 3;
+    repeated Tuple output = 4;
+}

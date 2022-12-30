@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.commons.provenance;
+package com.neuromancer42.tea.commons.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
