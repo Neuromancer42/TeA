@@ -1,0 +1,42 @@
+.type V <: unsigned
+.type H <: unsigned
+.type SZ <: unsigned
+.type P <: unsigned
+.type U <: unsigned
+
+.decl ci_pt(v:V, h:H)
+.input ci_pt
+
+.decl ci_apt(h:H, i:SZ, o:H)
+.input ci_apt
+
+.decl Pload(p:P,v:V)
+.input Pload
+.decl Pstore(p:P,v:V)
+.input Pstore
+.decl LoadArr(u:V,v:V,i:V)
+.input LoadArr
+.decl StoreArr(u:V,i:V,v:V)
+.input StoreArr
+
+.decl ci_Vval(v:V,val:U)
+.input ci_Vval
+
+.decl MayOutOfBound(p:SZ,i:U,b:SZ)
+.input MayOutOfBound
+
+.decl HeapArraySize(h:H,b:SZ)
+.input HeapArraySize
+
+.decl CWE119_out_of_bound(p:P, v:V, i:V, pos:SZ, offset:U, bound:SZ)
+.output CWE119_out_of_bound
+
+CWE119_out_of_bound(p,v,i,pos,offset,bound) :-
+    Pload(p,u), LoadArr(u,v,i),
+    ci_pt(v,h), ci_apt(b,pos,h), HeapArraySize(b,bound),
+    ci_Vval(i,offset), MayOutOfBound(pos,offset,bound).
+
+CWE119_out_of_bound(p,v,i,pos,offset,bound) :-
+    Pstore(p,v), StoreArr(u,i,v),
+    ci_pt(u,h), ci_apt(b,pos,h), HeapArraySize(b,bound),
+    ci_Vval(i,offset), MayOutOfBound(pos,offset,bound).

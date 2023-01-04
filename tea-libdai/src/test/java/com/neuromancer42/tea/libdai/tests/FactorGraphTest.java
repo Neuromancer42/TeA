@@ -17,7 +17,7 @@ import java.util.*;
 public class FactorGraphTest {
 
     private static Categorical01 unknownCoin;
-    private static CausalGraph<String> causalGraph;
+    private static CausalGraph causalGraph;
     private static Categorical01 confidence;
 
     private static final String workdir = "test-out";

@@ -67,11 +67,28 @@ public class CDTUtil {
         return TextFormat.shortDebugString(invk);
     }
 
+    public static CFG.Invoke reprToInvk(String invkRepr) {
+        try {
+            return TextFormat.parse(invkRepr, CFG.Invoke.class);
+        } catch (TextFormat.ParseException e) {
+            Messages.error("CParser: cannot parse CFG.Invoke from string {%s}: %s", invkRepr, e.getMessage());
+            return null;
+        }
+    }
     public static String exprToRepr(Expr.Expression e) {
         return TextFormat.shortDebugString(e);
     }
 
     public static String cfgnodeToRepr(CFG.CFGNode node) {
         return TextFormat.shortDebugString(node);
+    }
+
+    public static CFG.CFGNode reprToCfgNode(String pRepr) {
+        try {
+            return TextFormat.parse(pRepr, CFG.CFGNode.class);
+        } catch (TextFormat.ParseException e) {
+            Messages.error("CParser: cannot parse CFG.CFGNode from string {%s}: %s", pRepr, e.getMessage());
+            return null;
+        }
     }
 }

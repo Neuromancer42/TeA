@@ -63,6 +63,7 @@ message TestRequest {
 
 message TestResponse {
     repeated Tuple triggered_tuple = 1;
+    repeated Tuple negated_tuple = 2;
 }
 
 message ProveRequest {

@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.core;
 
+import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.StringUtil;
@@ -242,6 +243,15 @@ public class ProjectBuilder {
         } catch (IOException e) {
             Messages.error("ProjectBuilder: failed to create working directory for project %s : %s", projName, e.getMessage());
         }
-        return new Project(option, path, schedule, relSign, analysisInfo, analysisProvider, provable);
+        Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels = new LinkedHashMap<>();
+        for (var entry : relObserverMap.entrySet()) {
+            Trgt.RelInfo relInfo = entry.getKey();
+            ProviderGrpc.ProviderBlockingStub observer = entry.getValue();
+            if (analysisProvider.containsValue(observer)) {
+                Messages.debug("ProjectBuilder: add observable rel {%s}", TextFormat.shortDebugString(relInfo));
+                observableRels.computeIfAbsent(observer, p -> new LinkedHashSet<>()).add(relInfo.getName());
+            }
+        }
+        return new Project(option, path, schedule, relSign, analysisInfo, analysisProvider, provable, observableRels);
     }
 }

@@ -46,7 +46,7 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
         }
         Messages.log("Abstractor: Run with configuration from %s", configFile);
 
-        default_workdir = Constants.DEFAULT_WORK_DIR + File.separator + NAME_ABS;
+        default_workdir = Constants.DEFAULT_ROOT_DIR + File.separator + NAME_ABS;
         if (args.length > 1)
             default_workdir = args[1] + File.separator + NAME_ABS;
 

@@ -82,7 +82,7 @@ public class DAIRuntime {
         this.workDir = workDir;
     }
 
-    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph<String> causalGraph, int numRepeats) throws IOException {
+    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats) throws IOException {
         assert (clauseLimit > 1);
         int numPhony = 0;
         // each phony reduces subnums by (clauseLimit-1)
@@ -138,7 +138,7 @@ public class DAIRuntime {
         return subSize;
     }
 
-    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph<String> causalGraph, IndexMap<Integer> latentMap, int offset) {
+    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph causalGraph, IndexMap<Integer> latentMap, int offset) {
         int offsetNodes = offset;
         int offsetLatent = offsetNodes + causalGraph.nodeSize();
         int offsetPhony = offsetLatent + latentMap.size();

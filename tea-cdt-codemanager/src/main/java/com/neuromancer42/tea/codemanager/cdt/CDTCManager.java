@@ -9,24 +9,34 @@ import com.neuromancer42.tea.commons.analyses.annotations.ProduceRel;
 import com.neuromancer42.tea.commons.analyses.annotations.TeAAnalysis;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
+import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
+import com.neuromancer42.tea.commons.util.IndexMap;
+import com.neuromancer42.tea.commons.util.StringUtil;
+import com.neuromancer42.tea.core.analysis.Trgt;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
+import org.eclipse.cdt.internal.core.dom.parser.c.CASTName;
+import org.eclipse.cdt.internal.core.dom.parser.c.CASTTranslationUnit;
+import org.eclipse.cdt.internal.core.dom.parser.c.CNodeFactory;
+import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.eclipse.core.runtime.CoreException;
 import org.neuromancer42.tea.ir.CFG;
 import org.neuromancer42.tea.ir.Expr;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @TeAAnalysis(name = "cmanager")
 public class CDTCManager extends AbstractAnalysis {
-    public static final String[] observableRels = {
-            // TODO
-    };
 
     @ProduceDom(description = "functions")
     public ProgramDom domM;
@@ -478,5 +488,587 @@ public class CDTCManager extends AbstractAnalysis {
 
     public IASTTranslationUnit getTranslationUnit() {
         return translationUnit;
+    }
+
+    private CInstrument instr;
+
+    public CInstrument getInstrument() {
+        if (instr == null) {
+            try {
+                Path path = Files.createDirectories(workPath.resolve("instr"));
+                instr = new CInstrument(path);
+            } catch (IOException e) {
+                Messages.error("CParser: failed to create working directory for instrumentor");
+                Messages.fatal(e);
+            }
+        }
+        return instr;
+    }
+
+    public static final String[] observableRels = {
+            "ci_IM(I,M):possible function call resolutions",
+            "ci_reachableM(M):reachable methods",
+            "ci_PHval(P,H,U):value of stack objects"
+    };
+
+    public class CInstrument {
+        private final CASTTranslationUnit instrTU = (CASTTranslationUnit) translationUnit.copy(IASTNode.CopyStyle.withLocations);
+
+        private final Path instrWorkDirPath;
+
+        public CInstrument(Path path) {
+            this.instrWorkDirPath = path;
+        }
+        //    private final ASTModificationStore modStore;
+        private final Map<IASTNode, IASTNode> modMap = new LinkedHashMap<>();
+
+        private final IndexMap<IASTNode> instrPositions = new IndexMap<>();
+
+        private int genInstrumentId(IASTNode astNode) {
+            if (instrPositions.contains(astNode)) {
+                Messages.error("CInstrument: position [%s](line#%d) already instrumented", astNode.getRawSignature(), astNode.getFileLocation().getStartingLineNumber());
+                return -1;
+            }
+            instrPositions.add(astNode.getOriginalNode());
+            return instrPositions.indexOf(astNode.getOriginalNode());
+        }
+
+        public int instrumentBeforeInvoke(CFG.Invoke invk) {
+            if (invk.hasFuncPtr()) {
+                IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) builder.getInvkExpr(invk);
+                if (callExpr == null) {
+                    Messages.error("CInstrument: cannot find original expression of invk {%s}", TextFormat.shortDebugString(invk));
+                    return -1;
+                }
+                IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
+                int instrId = genInstrumentId(fNameExpr);
+                if (instrId == -1) return -1;
+                IASTExpression newFNameExpr = wrapPeekExpr(Trace.BEFORE_INVOKE, instrId, fNameExpr);
+                modMap.put(fNameExpr.getOriginalNode(), newFNameExpr);
+                Messages.debug("CInstrument: instrumenting function name expression [%s]#%d (original: %d)", new ASTWriter().write(fNameExpr.getOriginalNode()), fNameExpr.hashCode(), fNameExpr.getOriginalNode().hashCode());
+                return instrId;
+            }
+            return -1;
+        }
+
+        public int instrumentBeforeInvoke(String invkRepr) {
+            if (invkRepr == null)
+                return -1;
+            CFG.Invoke invk = CDTUtil.reprToInvk(invkRepr);
+            if (invk == null)
+                return -1;
+            return instrumentBeforeInvoke(invk);
+        }
+
+        public int instrumentBeforeInvoke(int iId) {
+            return instrumentBeforeInvoke(domI.get(iId));
+        }
+
+        public int instrumentEnterMethod(IFunction meth) {
+            Messages.debug("CInstrument: trying to instrument when entering [%s]", meth);
+            for (IASTDeclaration decl: instrTU.getDeclarations()) {
+                if (decl instanceof IASTFunctionDefinition) {
+                    IASTFunctionDefinition fDef = (IASTFunctionDefinition) decl;
+                    if (fDef.getDeclarator().getName().resolveBinding().getName().equals(meth.getName())) {
+                        IASTCompoundStatement fBody = (IASTCompoundStatement) fDef.getBody();
+                        int instrId = genInstrumentId(fBody);
+                        IASTCompoundStatement newBody = peekVarEnterBlock(instrId, meth.getNameCharArray(), fBody);
+                        modMap.put(fBody.getOriginalNode(), newBody);
+                        Messages.debug("CInstrument: instrumenting body of [%s]#%d (original: %d)", meth, fBody.hashCode(), fBody.getOriginalNode().hashCode());
+                        return instrId;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        public int instrumentEnterMethod(String fRepr) {
+            if (fRepr == null)
+                return -1;
+            IFunction func = builder.getFunc(fRepr);
+            return instrumentEnterMethod(func);
+        }
+
+        public int instrumentEnterMethod(int mId) {
+            return instrumentEnterMethod(domM.get(mId));
+        }
+
+        private IASTCompoundStatement peekVarEnterBlock(int instrId, char[] nameCharArray, IASTCompoundStatement fBody) {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTLiteralExpression typeIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(Trace.ENTER_METHOD));
+            IASTLiteralExpression instrIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(instrId));
+            IASTName vName = new CASTName(nameCharArray);
+            IASTIdExpression vNameExpr = CNodeFactory.getDefault().newIdExpression(vName);
+
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{typeIdExpr, instrIdExpr, vNameExpr};
+            IASTFunctionCallExpression peekExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+            IASTExpressionStatement peekStat = CNodeFactory.getDefault().newExpressionStatement(peekExpr);
+
+            IASTCompoundStatement newBody = CNodeFactory.getDefault().newCompoundStatement();
+            newBody.addStatement(peekStat);
+            for (IASTStatement stat: fBody.getStatements()) {
+                newBody.addStatement(stat.copy(IASTNode.CopyStyle.withLocations));
+            }
+            return newBody;
+        }
+
+        /*
+         * Note: utilizing implicit conversion to and from (void*)
+         */
+        private IASTExpression wrapPeekExpr(int typeId, int instrId, IASTExpression expr) {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTLiteralExpression typeIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(typeId));
+            IASTLiteralExpression instrIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(instrId));
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{typeIdExpr, instrIdExpr, expr.copy(IASTNode.CopyStyle.withLocations)};
+
+            IASTFunctionCallExpression callExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+            IASTExpressionList exprList = CNodeFactory.getDefault().newExpressionList();
+            exprList.addExpression(callExpr);
+            exprList.addExpression(expr.copy(IASTNode.CopyStyle.withLocations));
+            IASTExpression wrapExpr = CNodeFactory.getDefault().newUnaryExpression(IASTUnaryExpression.op_bracketedPrimary, exprList);
+            return wrapExpr;
+        }
+
+        // TODO: check variable is visible in current point
+        public int instrumentBeforeExpr(CFG.CFGNode cfgNode, String memObj) {
+            if (!cfgNode.hasEval()) {
+                Messages.error("CParser: Instrumenting non-expression position");
+                return -1;
+            }
+            CFG.Evaluation eval = cfgNode.getEval();
+
+            String[] typePair = memObj.split(":");
+            if (typePair.length != 2) {
+                Messages.error("CParser: malformed mem object {%s}", memObj);
+            }
+            String type = typePair[0];
+            String accessPath = typePair[1];
+            if (accessPath.contains("#"))
+                accessPath = accessPath.substring(0, accessPath.indexOf("#"));
+
+            if (!type.equals(Constants.TYPE_INT))
+                return -1;
+
+            Messages.debug("CParser: peek value of variable {%s} at {%s}", accessPath, TextFormat.shortDebugString(cfgNode));
+
+            Expr.Expression expr = eval.getExpr();
+            IASTExpression origExpr = builder.getExpression(expr);
+            if (origExpr == null)
+                return -1;
+            IASTExpression newExpr = peekStackBeforeExpression(accessPath, origExpr);
+            if (newExpr == null)
+                return -1;
+
+            Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
+            //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
+            //        modStore.storeModification(null, mod);
+            modMap.put(origExpr.getOriginalNode(), newExpr);
+
+            return instrPositions.indexOf(origExpr.getOriginalNode());
+        }
+
+        public void instrumentPeekStack(String accessPath, IASTExpression origExpr) {
+            IASTExpression newExpr = peekStackBeforeExpression(accessPath, origExpr);
+            if (newExpr == null)
+                return;
+            Messages.debug("CParser: instrumented expr {%s}", (new ASTWriter()).write(newExpr));
+            //        ASTModification mod = new ASTModification(ASTModification.ModificationKind.REPLACE, origExpr, newExpr, );
+            //        modStore.storeModification(null, mod);
+            modMap.put(origExpr.getOriginalNode(), newExpr);
+        }
+
+        public CASTTranslationUnit instrumented() {
+            //        ChangeGenerator changeGenerator = new ChangeGenerator(modStore, new NodeCommentMap());
+            //        changeGenerator.generateChange(tu);
+            instrTU.accept(new InstrVisitor());
+            //        tu.addDeclaration(genPeekVarFunction());
+            return instrTU;
+        }
+
+
+        public void dumpInstrumented(Path newFilePath) {
+            try {
+                List<String> lines = new ArrayList<>();
+                lines.add("extern int printf(const char*restrict  __format, ...); \n" +
+                        "void* peek (int type, int id, void *ptr) { \n" +
+                        "        printf(\"peek\t%d\t%d\t%ld\\n\", type, id, (long) ptr); \n" +
+                        "        return ptr; \n" +
+                        "}\n");
+                for (IASTPreprocessorIncludeStatement incl : translationUnit.getIncludeDirectives()) {
+                    if (incl.isSystemInclude())
+                        lines.add(incl.toString());
+                }
+                try {
+                    lines.add(new ASTWriter().write(instrumented()));
+                } catch (RuntimeException e) {
+                    Messages.error("CInstrument: error while generating instrumented file");
+                    Messages.fatal(e);
+                }
+                Files.write(newFilePath, lines, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                Messages.error("CInstrument: failed to dump instrumented source file");
+                Messages.fatal(e);
+            }
+            Messages.log("CInstrument: dump insturmneted c source file to " + newFilePath);
+        }
+
+        public IASTExpression peekStackBeforeExpression(String accessPath, IASTExpression origExpr) {
+            // TODO: manual added filter, remove it in future
+            if (accessPath.contains("*") || accessPath.contains("["))
+                return null;
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTIdExpression fNameExpr = CNodeFactory.getDefault().newIdExpression(fName);
+
+            IASTName vName = new CASTName(accessPath.toCharArray());
+            IASTIdExpression vNameExpr = CNodeFactory.getDefault().newIdExpression(vName);
+
+            instrPositions.add(origExpr.getOriginalNode());
+            int peekId = instrPositions.indexOf(origExpr.getOriginalNode());
+            IASTLiteralExpression typeIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(Trace.BEFORE_EXPR));
+            IASTLiteralExpression peekIdExpr = CNodeFactory.getDefault().newLiteralExpression(IASTLiteralExpression.lk_integer_constant, String.valueOf(peekId));
+            IASTInitializerClause[] argList = new IASTInitializerClause[]{typeIdExpr, peekIdExpr, vNameExpr};
+
+            IASTFunctionCallExpression callExpr = CNodeFactory.getDefault().newFunctionCallExpression(fNameExpr, argList);
+
+            IASTExpressionList instrList = CNodeFactory.getDefault().newExpressionList();
+            instrList.addExpression(callExpr);
+            instrList.addExpression(origExpr.copy(IASTNode.CopyStyle.withLocations));
+
+            return CNodeFactory.getDefault().newUnaryExpression(IASTUnaryExpression.op_bracketedPrimary, instrList);
+        }
+
+        @Deprecated
+        private IASTDeclaration genPeekVarFunction() {
+            IASTName fName = new CASTName("peek".toCharArray());
+            IASTFunctionDeclarator fDtor = CNodeFactory.getDefault().newFunctionDeclarator(fName);
+            IASTDeclSpecifier fDeclSpec = CNodeFactory.getDefault().newSimpleDeclSpecifier();
+            IASTSimpleDeclaration fDecl = CNodeFactory.getDefault().newSimpleDeclaration(fDeclSpec);
+            fDecl.addDeclarator(fDtor);
+            Messages.debug("CParser: add declaretion: %s", new ASTWriter().write(fDecl));
+            return fDecl;
+        }
+
+        public String getName() {
+            return "CInstrument";
+        }
+
+        private boolean built = false;
+        public Set<Trgt.Tuple> test(List<String> argList) {
+            if (!built) {
+                compile();
+                built = true;
+            }
+
+            String output = runTest(argList.toArray(new String[0]));
+            String[] lines = output.split("\n");
+
+            List<Trace> traces = new ArrayList<>();
+
+            for (String line : lines) {
+                String[] words = line.split("\t");
+                if (words.length >= 2 && words[0].equals("peek")) {
+                    int id = Integer.parseInt(words[1]);
+                    long[] content = new long[words.length - 2];
+                    for (int i = 0; i < content.length; ++i) {
+                        content[i] = Long.parseLong(words[i+2]);
+                    }
+                    traces.add(new Trace(id, content));
+                }
+            }
+            Set<Trgt.Tuple> triggerd = new LinkedHashSet<>();
+            triggerd.addAll(processTraceCIIM(traces));
+            triggerd.addAll(processTraceReachableM(traces));
+            triggerd.addAll(processTracePHval(traces));
+            return triggerd;
+        }
+
+        public String runTest(String ... argList) {
+            List<String> executeCmd = new ArrayList<>();
+            executeCmd.add("./instrumented");
+            executeCmd.addAll(List.of(argList));
+
+            String output;
+            try {
+                output = executeExternal(true, executeCmd, instrWorkDirPath);
+            } catch (InterruptedException | IOException e) {
+                Messages.error("CInstrument: failed to execute cmd {%s}, skip: %s", StringUtil.join(executeCmd, " "), e.getMessage());
+                output = "";
+            }
+            return output;
+        }
+
+        public void compile() {
+            try {
+                Path instrFile = instrWorkDirPath.resolve("instrumented.c");
+                dumpInstrumented(instrFile);
+                List<String> compileCmd = new ArrayList<>();
+                compileCmd.add("clang");
+                String[] flags = System.getProperty("chord.source.flags", "").split(" ");
+                if (flags.length > 0)
+                    compileCmd.addAll(List.of(flags));
+                compileCmd.addAll(List.of("instrumented.c", "-o", "instrumented"));
+                executeExternal(false, compileCmd, instrWorkDirPath);
+            } catch (IOException | InterruptedException e) {
+                Messages.error("CInstrument: failed to execute instrumenting commands");
+                Messages.fatal(e);
+            }
+        }
+
+        private static String executeExternal(boolean ignoreRetVal, List<String> cmd, Path path) throws IOException, InterruptedException {
+            ProcessBuilder builder = new ProcessBuilder(cmd);
+            builder.directory(path.toFile());
+            Messages.log("Executing: " + StringUtil.join(cmd, " "));
+            Process cmdProcess = builder.start();
+            int cmdRetVal = cmdProcess.waitFor();
+            String outputStr = new String(cmdProcess.getInputStream().readAllBytes());
+            if (!ignoreRetVal && cmdRetVal != 0) {
+                String errString = new String(cmdProcess.getErrorStream().readAllBytes());
+                Messages.fatal(new RuntimeException(outputStr + '\n' + errString));
+            }
+            Messages.debug("Output:\n%s", outputStr);
+
+            return outputStr;
+        }
+
+        public class InstrVisitor extends ASTVisitor {
+            public InstrVisitor() {
+                this.shouldVisitExpressions = true;
+                this.shouldVisitInitializers = true;
+                this.shouldVisitDeclarations = true;
+            }
+
+            @Override
+            public int visit(IASTInitializer initializer) {
+                if (initializer instanceof IASTEqualsInitializer) {
+                    IASTEqualsInitializer eqInit = (IASTEqualsInitializer) initializer;
+                    IASTInitializerClause initCls = eqInit.getInitializerClause();
+                    IASTNode origNode = initCls.getOriginalNode();
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newInitCls = modMap.get(origNode);
+                        eqInit.setInitializerClause((IASTInitializerClause) newInitCls);
+                        newInitCls.setParent(eqInit);
+                    }
+                }
+                return super.visit(initializer);
+            }
+
+            @Override
+            public int visit(IASTExpression expression) {
+                if (expression instanceof IASTBinaryExpression && expression.getParent() instanceof IASTIfStatement) {
+                    IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
+                    IASTNode origNode = binExpr.getOriginalNode();
+//                    if (binExpr.getOperator() == IASTBinaryExpression.op_assign && modMap.containsKey(origNode)) {
+//                        IASTNode newRhs = modMap.get(origNode);
+//                        binExpr.setOperand2((IASTExpression) newRhs);
+//                        newRhs.setParent(binExpr);
+//                    }
+//                    if (binExpr.getOperator() == IASTBinaryExpression.op_divide && modMap.containsKey(origNode)) {
+//                        IASTNode newDivider = modMap.get(origNode);
+//                        binExpr.setOperand2((IASTExpression) newDivider);
+//                        newDivider.setParent(binExpr);
+//                    }
+                    Messages.debug("CInstrument: visiting binary cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), binExpr.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTIfStatement ifStat = (IASTIfStatement) binExpr.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        ifStat.setConditionExpression((IASTExpression) newNode);
+
+                    }
+                }
+                if (expression instanceof IASTFunctionCallExpression) {
+                    IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) expression;
+                    IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
+                    IASTNode origNode = fNameExpr.getOriginalNode();
+                    Messages.debug("CInstrument: visiting function name expression [%s]#%d (original: %d)", new ASTWriter().write(origNode), fNameExpr.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNameExpr = modMap.get(origNode);
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNameExpr));
+                        callExpr.setFunctionNameExpression((IASTExpression) newNameExpr);
+                    }
+                }
+                return super.visit(expression);
+            }
+
+            @Override
+            public int visit(IASTDeclaration declaration) {
+                if (declaration instanceof IASTFunctionDefinition) {
+                    IASTFunctionDefinition fDef = (IASTFunctionDefinition) declaration;
+                    IASTStatement fBody  = fDef.getBody();
+                    IASTNode origNode = fBody.getOriginalNode();
+                    Messages.debug("CInstrument: visiting body of [%s]#%d (original: %d)", fDef.getDeclarator().getName(), fBody.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newBody = modMap.get(origNode);
+                        Messages.debug("CInstrument: instrumented function body");
+                        fDef.setBody((IASTStatement) newBody);
+                    }
+                }
+                return super.visit(declaration);
+            }
+        }
+
+        public boolean instrument(Trgt.Tuple tuple) {
+            return switch (tuple.getRelName()) {
+                case "ci_IM" -> instrumentCIIM(tuple.getAttribute(0), tuple.getAttribute(1));
+                case "ci_reachableM" -> instrumentReachableM(tuple.getAttribute(0));
+                case "ci_PHval" -> instrumentPHval(tuple.getAttribute(0), tuple.getAttribute(1), tuple.getAttribute(2));
+                default -> false;
+            };
+        }
+
+        private final Map<Long, String> invkInstrMap = new HashMap<>();
+        private final Map<Long, String> methInstrMap = new HashMap<>();
+        private final Map<Long, Triple<String, String, Set<String>>> phValInstrMap = new HashMap<>();
+
+        private boolean instrumentCIIM(String ... attrs) {
+            if (attrs.length != 2)
+                return false;
+            String invkRepr = attrs[0];
+            String methRepr = attrs[1];
+            int iInstrId = instrumentBeforeInvoke(invkRepr);
+            if (iInstrId < 0)
+                return false;
+            invkInstrMap.put((long) iInstrId, invkRepr);
+            int mInstrId = instrumentEnterMethod(methRepr);
+            if (mInstrId < 0)
+                return false;
+            methInstrMap.put((long) mInstrId, methRepr);
+            return true;
+        }
+
+        private List<Trgt.Tuple> processTraceCIIM(List<Trace> traces) {
+            List<Trgt.Tuple> provedTuples = new ArrayList<>();
+            Map<Long, String> methAddrMap = new LinkedHashMap<>();
+            for (Trace trace: traces) {
+                if (trace.getType() == Trace.ENTER_METHOD) {
+                    long instrId = trace.getContent(0);
+                    String methRepr = methInstrMap.get(instrId);
+                    long methAddr = trace.getContent(1);
+                    methAddrMap.put(methAddr, methRepr);
+                }
+            }
+            for (Trace trace: traces) {
+                if (trace.getType() == Trace.BEFORE_INVOKE) {
+                    long instrId = trace.getContent(0);
+                    long methAddr = trace.getContent(1);
+                    String invkRepr = invkInstrMap.get(instrId);
+                    String methRepr = methAddrMap.get(methAddr);
+                    provedTuples.add(Trgt.Tuple.newBuilder()
+                            .setRelName("ci_IM")
+                            .addAllAttribute(List.of(invkRepr, methRepr))
+                            .build()
+                    );
+                }
+            }
+            return provedTuples;
+        }
+
+        private boolean instrumentReachableM(String ... attrs) {
+            if (attrs.length != 1)
+                return false;
+            String methRepr = attrs[0];
+            int mInstrId = instrumentEnterMethod(methRepr);
+            if (mInstrId < 0)
+                return false;
+            methInstrMap.put((long) mInstrId, methRepr);
+            return true;
+        }
+
+        private List<Trgt.Tuple> processTraceReachableM(List<Trace> traces) {
+            List<Trgt.Tuple> provedTuples = new ArrayList<>();
+            for (Trace trace : traces) {
+                if (trace.getType() == Trace.ENTER_METHOD) {
+                    long instrId = trace.getContent(0);
+                    String methRepr = methInstrMap.get(instrId);
+                    provedTuples.add(Trgt.Tuple.newBuilder()
+                            .setRelName("ci_reachableM")
+                            .addAttribute(methRepr)
+                            .build()
+                    );
+                }
+            }
+            return provedTuples;
+        }
+
+        private boolean instrumentPHval(String ... attrs) {
+            if (attrs.length != 3)
+                return false;
+            String pRepr = attrs[0];
+            String objRepr = attrs[1];
+            String itvRepr = attrs[2];
+            CFG.CFGNode p = CDTUtil.reprToCfgNode(pRepr);
+            if (p == null)
+                return false;
+            int instrId = instrumentBeforeExpr(p, objRepr);
+            if (instrId < 0)
+                return false;
+            phValInstrMap.computeIfAbsent((long) instrId, k -> new ImmutableTriple<>(pRepr, objRepr, new LinkedHashSet<>()))
+                    .getRight().add(itvRepr);
+            return true;
+        }
+
+        private List<Trgt.Tuple> processTracePHval(List<Trace> traces) {
+            List<Trgt.Tuple> provedTuples = new ArrayList<>();
+            for (Trace trace : traces) {
+                if (trace.getType() == Trace.BEFORE_EXPR) {
+                    long instrId = trace.getContent(0);
+                    long val = trace.getContent(1);
+                    Triple<String, String, Set<String>> phvals = phValInstrMap.get(instrId);
+                    String pRepr = phvals.getLeft();
+                    String objRepr = phvals.getMiddle();
+                    for (String itvRepr : phvals.getRight()) {
+                        if (itvRepr.startsWith("Itv:{")) {
+                            int v = Integer.parseInt(itvRepr.substring(5, itvRepr.length()-1));
+                            if (val == v) {
+                                provedTuples.add(Trgt.Tuple.newBuilder().setRelName("ci_PHval")
+                                        .addAttribute(pRepr).addAttribute(objRepr)
+                                        .addAttribute(itvRepr).build()
+                                );
+                            }
+                        } else if (itvRepr.startsWith("Itv:[")) {
+                            int commaIdx = itvRepr.indexOf(",");
+                            int l = Integer.parseInt(itvRepr.substring(5, commaIdx));
+                            int r = Integer.parseInt(itvRepr.substring(commaIdx + 1, itvRepr.length()-1));
+                            if (val >= l && val <= r) {
+                                provedTuples.add(Trgt.Tuple.newBuilder().setRelName("ci_PHval")
+                                        .addAttribute(pRepr).addAttribute(objRepr)
+                                        .addAttribute(itvRepr).build()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            return provedTuples;
+        }
+
+        class Trace {
+            public static final int BEFORE_INVOKE = 1;
+            public static final int ENTER_METHOD = 2;
+            public static final int BEFORE_EXPR = 3;
+            private final int typeId;
+            private final long[] contents;
+            public Trace(int id, long ... contents) {
+                typeId = id;
+                this.contents = contents;
+            }
+
+            public int getType() {
+                return typeId;
+            }
+
+            public long getContent(int i) {
+                if (i >= contents.length) {
+                    Messages.error("Trace %d: index %d out of content length %d, return -1", hashCode(), i, contents.length);
+                    return -1;
+                } else {
+                    return contents[i];
+                }
+            }
+        }
     }
 }

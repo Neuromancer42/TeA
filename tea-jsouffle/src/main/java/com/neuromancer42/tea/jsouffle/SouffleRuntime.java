@@ -4,9 +4,6 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
-import com.neuromancer42.tea.commons.provenance.ConstraintItem;
-import com.neuromancer42.tea.commons.provenance.Provenance;
-import com.neuromancer42.tea.commons.provenance.RawTuple;
 import com.neuromancer42.tea.commons.util.Timer;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
@@ -56,7 +53,7 @@ public final class SouffleRuntime {
         Messages.log("SouffleRuntime: Run with configuration from %s", configFile);
 
         Map<String, SouffleAnalysis> analysisMap = new LinkedHashMap<>();
-        String workDir = Constants.DEFAULT_WORK_DIR;
+        String workDir = Constants.DEFAULT_ROOT_DIR;
         if (args.length > 1)
             workDir = args[1];
         SouffleRuntime.init(Paths.get(workDir, NAME_SOUFFLE));

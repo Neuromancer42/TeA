@@ -17,7 +17,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
-    public DynaboostCausalDriver(String name, CausalGraph<String> causalGraph) {
+    public DynaboostCausalDriver(String name, CausalGraph causalGraph) {
         super(name, causalGraph);
         Path workDir1 = null;
         try {
@@ -77,7 +77,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
 
 
     private void invokeUpdater() {
-        CausalGraph<String> differentiated = new CausalGraph<>(this.causalGraph);
+        CausalGraph differentiated = new CausalGraph(this.causalGraph);
         differentiated.setName(differentiated.getName() + "_Dyna_" + obsRuns);
         // differentiate unfiltered dataflow, and apply observed frequencies
         for (var entry: obsCount.entrySet()) {

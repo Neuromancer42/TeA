@@ -5,6 +5,7 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
+import com.neuromancer42.tea.core.analysis.Trgt;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
@@ -47,7 +48,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         Messages.log("CParser: Run with configuration from %s", configFile);
 
 
-        String workDir = Constants.DEFAULT_WORK_DIR;
+        String workDir = Constants.DEFAULT_ROOT_DIR;
         if (args.length > 1)
             workDir = args[1];
         Path workPath = Paths.get(workDir, NAME_CDT);
@@ -86,6 +87,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
 
         Analysis.AnalysisInfo cmanagerInfo = AnalysisUtil.parseAnalysisInfo(CDTCManager.class);
         infoBuilder.addAnalysis(cmanagerInfo);
+        // TODO make it reflectable
         for (String relInfo : CDTCManager.observableRels) {
             infoBuilder.addObservableRel(
                     AnalysisUtil.parseRelInfo(relInfo)
@@ -107,7 +109,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
-        Messages.log("CParser: processing getFeature request");
+        Messages.log("CParser: processing runAnalysis request");
         assert request.getAnalysisName().equals("cmanager");
         Map<String, String> option = request.getOption().getPropertyMap();
         Analysis.RunResults runResults;
@@ -159,8 +161,15 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void instrument(Analysis.InstrumentRequest request, StreamObserver<Analysis.InstrumentResponse> responseObserver) {
-        // TODO integrate CInstrument
-        super.instrument(request, responseObserver);
+        Messages.log("CParser: processing instrument request");
+        Analysis.InstrumentResponse.Builder respBuilder = Analysis.InstrumentResponse.newBuilder();
+        for (Trgt.Tuple tuple : request.getInstrTupleList()) {
+            if (cmanager.getInstrument().instrument(tuple)) {
+                respBuilder.addSuccTuple(tuple);
+            }
+        }
+        responseObserver.onNext(respBuilder.build());
+        responseObserver.onCompleted();
     }
 
     /**
@@ -169,8 +178,11 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void test(Analysis.TestRequest request, StreamObserver<Analysis.TestResponse> responseObserver) {
-        // TODO integrate compile & run
-        super.test(request, responseObserver);
+        Analysis.TestResponse.Builder respBuilder = Analysis.TestResponse.newBuilder();
+        Set<Trgt.Tuple> triggered = cmanager.getInstrument().test(request.getArgList());
+        respBuilder.addAllTriggeredTuple(triggered);
+        responseObserver.onNext(respBuilder.build());
+        responseObserver.onCompleted();
     }
 
     /**

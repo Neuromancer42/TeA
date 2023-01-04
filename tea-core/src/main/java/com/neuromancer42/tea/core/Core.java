@@ -5,6 +5,7 @@ import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
+import com.neuromancer42.tea.libdai.DAIRuntime;
 import io.grpc.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
@@ -12,6 +13,8 @@ import org.apache.commons.configuration2.ex.ConfigurationException;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -33,12 +36,18 @@ public class Core {
             System.exit(-1);
         }
         Messages.log("Core: Run with configuration from %s", configFile);
-        String core_workdir = Constants.DEFAULT_WORK_DIR;
+        String root_workdir = Constants.DEFAULT_ROOT_DIR;
         if (args.length > 1)
-            core_workdir = args[1];
-        ProjectBuilder.init(core_workdir + File.separator + Constants.NAME_CORE);
+            root_workdir = args[1];
+        Path workPath = Paths.get(root_workdir, Constants.NAME_CORE);
+        ProjectBuilder.init(workPath.toString());
 
         Stopwatch allTimer = Stopwatch.createStarted();
+
+        // TODO: make inference engine running separately
+        DAIRuntime.init(Paths.get(root_workdir));
+        Messages.log("Core: initialized LibDAI at %s", allTimer);
+
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
         for (String providerName : config.getSections()) {
             if (!providerName.equals(Constants.NAME_CORE) && !providerName.equals(Constants.NAME_PROJ)) {

@@ -14,7 +14,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
-    public OneShotCausalDriver(String name, CausalGraph<String> causalGraph) {
+    public OneShotCausalDriver(String name, CausalGraph causalGraph) {
         super(name, causalGraph);
         Path workDir1 = null;
         try {

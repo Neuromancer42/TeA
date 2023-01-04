@@ -3,8 +3,10 @@ package com.neuromancer42.tea.core;
 import com.google.common.base.Stopwatch;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
+import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.provenance.Provenance;
 import com.neuromancer42.tea.commons.provenance.ProvenanceUtil;
+import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang3.StringUtils;
@@ -12,10 +14,8 @@ import org.apache.commons.lang3.StringUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
     /**
@@ -43,13 +43,15 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         Project proj = null;
         String failMsg = null;
         if (schedule != null) {
+            Stopwatch buildTimer = Stopwatch.createStarted();
             proj = ProjectBuilder.g().buildProject(appOption, schedule);
+            buildTimer.stop();
             if (proj == null) {
                 failMsg = Constants.MSG_FAIL + ": exception happens when build project";
             } else {
                 {
                     CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": complete analysis schedule [%s] in %s", StringUtils.join(schedule.toArray(new String[0]), ","), allTimer));
+                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": complete analysis schedule [%s] in %s", StringUtils.join(schedule.toArray(new String[0]), ","), buildTimer));
                     CoreUtil.ApplicationResponse response = respBuilder.build();
                     responseObserver.onNext(response);
                 }
@@ -81,8 +83,9 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         List<String> alarm_rels = request.getAlarmRelList();
         if (!request.getNeedRank()) {
             CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-            respBuilder.addAllAlarm(proj.printRels(alarm_rels));
-
+            for (Trgt.Tuple alarm : proj.printRels(alarm_rels)) {
+                respBuilder.addAlarm(ProvenanceUtil.prettifyTuple(alarm));
+            }
             respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", allTimer));
             CoreUtil.ApplicationResponse response = respBuilder.build();
             responseObserver.onNext(response);
@@ -90,18 +93,75 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             Stopwatch provTimer = Stopwatch.createStarted();
             Trgt.Provenance prov = proj.proveRels(alarm_rels);
             ProvenanceUtil.dumpProvenance(prov, proj.getWorkDir());
+            List<Trgt.Tuple> alarms = prov.getOutputList();
             provTimer.stop();
             {
                 CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": proof succeeds in %s", allTimer));
+                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": proof succeeds in %s", provTimer));
+                CoreUtil.ApplicationResponse response = respBuilder.build();
+                responseObserver.onNext(response);
+            }
+            Stopwatch priorTimer = Stopwatch.createStarted();
+            List<Map.Entry<Trgt.Tuple, Double>> priorRanking = proj.priorRanking(prov,
+                    rule -> new Categorical01(0.5, 1.0),
+                    rel -> new Categorical01(0.5, 1.0),
+                    alarms
+            );
+            priorTimer.stop();
+            {
+                CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
+                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": compute prior ranking in %s", priorTimer));
+                for (var alarmProb : priorRanking) {
+                    Trgt.Tuple alarm = alarmProb.getKey();
+                    Double prob = alarmProb.getValue();
+                    respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                }
+                CoreUtil.ApplicationResponse response = respBuilder.build();
+                responseObserver.onNext(response);
+            }
+            Stopwatch instrTimer = Stopwatch.createStarted();
+            Set<Trgt.Tuple> obsTuples = proj.setObservation(prov);
+            instrTimer.stop();
+            {
+                CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
+                        .setMsg(String.format(Constants.MSG_SUCC + ": instrumenting %d tuples in %s", obsTuples.size(), instrTimer))
+                        .build();
+                responseObserver.onNext(response);
+            }
+            Stopwatch testTimer = Stopwatch.createStarted();
+            List<Map<Trgt.Tuple, Boolean>> trace = new ArrayList<>();
+            for (CoreUtil.Test testCase : request.getTestSuiteList()) {
+                Map<Trgt.Tuple, Boolean> obs = proj.testAndObserve(testCase);
+                trace.add(obs);
+            }
+            testTimer.stop();
+            {
+                CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
+                        .setMsg(String.format(Constants.MSG_SUCC + ": testing %d testcases in %s",request.getTestSuiteCount(), testTimer))
+                        .build();
+                responseObserver.onNext(response);
+            }
+
+            Stopwatch postTimer = Stopwatch.createStarted();
+            List<Map.Entry<Trgt.Tuple, Double>> postRanking = proj.postRanking(alarms, trace);
+            postTimer.stop();
+            {
+                CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
+
+                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", postTimer));
+
+                for (var alarmProb : postRanking) {
+                    Trgt.Tuple alarm = alarmProb.getKey();
+                    Double prob = alarmProb.getValue();
+                    respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                }
                 CoreUtil.ApplicationResponse response = respBuilder.build();
                 responseObserver.onNext(response);
             }
             {
-                CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-                respBuilder.addAllAlarm(proj.printRels(alarm_rels));
-                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", allTimer));
-                CoreUtil.ApplicationResponse response = respBuilder.build();
+                CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
+                        .setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", allTimer))
+                        .build();
                 responseObserver.onNext(response);
             }
         }

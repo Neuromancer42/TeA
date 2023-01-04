@@ -6,14 +6,14 @@ import java.nio.file.Path;
 import java.util.*;
 
 public abstract class AbstractCausalDriver {
-    protected final CausalGraph<String> causalGraph;
+    protected final CausalGraph causalGraph;
 
     protected Path workDir;
     protected final String name;
 
-    protected AbstractCausalDriver(String name, CausalGraph<String> causalGraph) {
+    protected AbstractCausalDriver(String name, CausalGraph causalGraph) {
         this.name = name;
-        this.causalGraph = new CausalGraph<>(causalGraph);
+        this.causalGraph = new CausalGraph(causalGraph);
     }
 
     public void run(List<Map<String, Boolean>> traces) {

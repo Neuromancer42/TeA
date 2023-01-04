@@ -39,7 +39,7 @@ public class CFGBuilder {
     
     private int gepIdx = 0;
 
-    private final Set<IFunction> funcs;
+    private final Map<String, IFunction> funcs;
     private final Map<IFunction, Set<Integer>> funcVars;
     private final Set<Integer> staticRefs;
     private final Map<Integer, CFG.Alloca> allocaMap;
@@ -74,7 +74,7 @@ public class CFGBuilder {
         funcEntryMap = new HashMap<>();
         registers = new IndexMap<>();
 
-        funcs = new LinkedHashSet<>();
+        funcs = new LinkedHashMap<>();
         funcVars = new HashMap<>();
         staticRefs = new LinkedHashSet<>();
         allocaMap = new LinkedHashMap<>();
@@ -133,7 +133,7 @@ public class CFGBuilder {
             processVariable(var, isStatic);
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
-            if (funcs.contains(func))
+            if (funcs.containsValue(func))
                 Messages.warn("CParser: re-declare function %s[%s] at line#%d: (%s)", func.getClass().getSimpleName(), func, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
             processFunction(func);
         } else if (binding instanceof ITypedef) {
@@ -163,7 +163,7 @@ public class CFGBuilder {
     private int processFunction(IFunction func) {
         registers.add(func);
         int fReg = registers.indexOf(func);
-        funcs.add(func);
+        funcs.put(CDTUtil.methToRepr(func), func);
         types.add(func.getType());
         refRegMap.put(func, fReg);
         funcVars.putIfAbsent(func, new LinkedHashSet<>());
@@ -253,7 +253,7 @@ public class CFGBuilder {
     }
 
     public Set<IFunction> getFuncs() {
-        return funcs;
+        return new LinkedHashSet<>(funcs.values());
     }
 
     public Set<Integer> getGlobalRefs() {
@@ -667,7 +667,7 @@ public class CFGBuilder {
                     case IASTBinaryExpression.op_binaryXorAssign:
                         opStr = Constants.OP_BIT; break;
                 }
-                Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), prevReg, rValReg, opStr);
+                Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), prevReg, rValReg, opStr, expression);
                 Messages.debug("CParser: compute updated value in %s@%d := %s", expr.getType(), postReg, expr);
                 CFG.CFGNode evalNode = newEvalNode(postReg, expr);
                 prevNode = connect(prevNode, evalNode);
@@ -709,7 +709,7 @@ public class CFGBuilder {
                         opStr = Constants.OP_DECR;
                         break;
                 }
-                Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), prevReg, opStr);
+                Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), prevReg, opStr, expression);
                 Messages.debug("CParser: compute incr/decr value in %s@%d := %s", expr.getType(), postReg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(postReg, expr);
                 prevNode = connect(prevNode, evalNode);
@@ -885,7 +885,7 @@ public class CFGBuilder {
                     case IASTUnaryExpression.op_minus: opStr = Constants.OP_NEG; break;
                     case IASTUnaryExpression.op_not: opStr = Constants.OP_NOT; break;
                 }
-                Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), innerReg, opStr);
+                Expr.Expression expr = newUnaryExpr(expression.getExpressionType(), innerReg, opStr, expression);
                 int reg = createRegister(expression);
                 Messages.debug("CParser: compute unary expr in %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
@@ -1007,7 +1007,7 @@ public class CFGBuilder {
                         opStr = Constants.OP_BIT;
                         break;
                 }
-                Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), r1, r2, opStr);
+                Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), r1, r2, opStr, expression);
                 int reg = createRegister(expression);
                 Messages.debug("CParser: compute binary expr in %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
@@ -1058,9 +1058,9 @@ public class CFGBuilder {
                 if (f == null) {
                     Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
                 }
-                invkNode = newStaticCallNode(reg, f, fArgRegs);
+                invkNode = newStaticCallNode(reg, f, fArgRegs, invk);
             } else {
-                invkNode = newIndirectCallNode(reg, fReg, fArgRegs);
+                invkNode = newIndirectCallNode(reg, fReg, fArgRegs, invk);
             }
             Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
 
@@ -1070,7 +1070,7 @@ public class CFGBuilder {
         } else if (expression instanceof IASTCastExpression) {
             IASTExpression innerExpr = unparenthesize(((IASTCastExpression) expression).getOperand());
             int innerReg = handleRvalue(innerExpr);
-            Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId());
+            Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId(), expression);
             int reg = createRegister(expression);
             Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
             CFG.CFGNode evalNode = newEvalNode(reg, expr);
@@ -1141,7 +1141,7 @@ public class CFGBuilder {
         IFunction receiver = findReceiver(fNameExpr);
         if (receiver != null) {
             Messages.debug("CParser: resolve static invocation %s[%s] to %s", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), receiver);
-            if (!funcs.contains(receiver)) {
+            if (!funcs.containsValue(receiver)) {
                 Messages.debug("CParser: invoke external function %s[%s] at line#%d (%s)", receiver.getClass().getSimpleName(), receiver, fNameExpr.getFileLocation().getStartingLineNumber(), fNameExpr.getRawSignature());
                 processFunction(receiver);
             }
@@ -1227,7 +1227,7 @@ public class CFGBuilder {
             opStr = Constants.OP_AND;
         else
             opStr = Constants.OP_OR;
-        Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), lReg, rReg, opStr);
+        Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), lReg, rReg, opStr, expression);
         int reg = createRegister(expression);
         Messages.debug("CParser: compute result of and/or in %s@%d := %s", expr.getType(), reg, expr);
         CFG.CFGNode evalNode = newEvalNode(reg, expr);
@@ -1514,7 +1514,7 @@ public class CFGBuilder {
     public void dumpDot(PrintWriter pw) {
         pw.println("digraph \"" + transUnit.getContainingFilename() + "\" {");
         pw.println("compound=true;");
-        for (IFunction meth : funcs) {
+        for (IFunction meth : funcs.values()) {
             ValueGraph<CFG.CFGNode, Integer> intraCFG = getIntraCFG(meth);
             int reg = getRefReg(meth);
             pw.print("r" + reg + " ");
@@ -1799,7 +1799,7 @@ public class CFGBuilder {
                 .build();
     }
 
-    private CFG.CFGNode newStaticCallNode(int retReg, IFunction f, int[] argRegs) {
+    private CFG.CFGNode newStaticCallNode(int retReg, IFunction f, int[] argRegs, IASTFunctionCallExpression invkExpr) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
         if (retReg >= 0) {
             invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
@@ -1809,13 +1809,16 @@ public class CFGBuilder {
         }
         // TODO function abi ?
         invkBuilder.setStaticRef(CDTUtil.methToRepr(f));
+
+        CFG.Invoke invk = invkBuilder.build();
+        invkExprMap.put(invk, invkExpr);
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
-                .setInvk(invkBuilder)
+                .setInvk(invk)
                 .build();
     }
 
-    private CFG.CFGNode newIndirectCallNode(int retReg, int funcPtr, int[] argRegs) {
+    private CFG.CFGNode newIndirectCallNode(int retReg, int funcPtr, int[] argRegs, IASTFunctionCallExpression invkExpr) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
         if (retReg >= 0) {
             invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
@@ -1824,9 +1827,12 @@ public class CFGBuilder {
             invkBuilder.addActualArg(CDTUtil.regToRepr(arg));
         }
         invkBuilder.setFuncPtr(CDTUtil.regToRepr(funcPtr));
+
+        CFG.Invoke invk = invkBuilder.build();
+        invkExprMap.put(invk, invkExpr);
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
-                .setInvk(invkBuilder)
+                .setInvk(invk)
                 .build();
     }
 
@@ -1914,23 +1920,27 @@ public class CFGBuilder {
                 .build();
     }
 
-    private static Expr.Expression newUnaryExpr(IType exprType, int op, String opStr) {
-        return Expr.Expression.newBuilder()
+    private Expr.Expression newUnaryExpr(IType exprType, int op, String opStr, IASTExpression uExpr) {
+        Expr.Expression expr = Expr.Expression.newBuilder()
                 .setType(CDTUtil.typeToRepr(exprType))
                 .setUnary(Expr.UnaryExpr.newBuilder()
                         .setOprand(CDTUtil.regToRepr(op))
                         .setOperator(opStr))
                 .build();
+        exprMap.put(expr, uExpr);
+        return expr;
     }
 
-    private static Expr.Expression newBinaryExpr(IType exprType, int op1, int op2, String opStr) {
-        return Expr.Expression.newBuilder()
+    private Expr.Expression newBinaryExpr(IType exprType, int op1, int op2, String opStr, IASTExpression bExpr) {
+        Expr.Expression expr = Expr.Expression.newBuilder()
                 .setType(CDTUtil.typeToRepr(exprType))
                 .setBinary(Expr.BinaryExpr.newBuilder()
                         .setOprand1(CDTUtil.regToRepr(op1))
                         .setOprand2(CDTUtil.regToRepr(op2))
                         .setOperator(opStr))
                 .build();
+        exprMap.put(expr, bExpr);
+        return expr;
     }
 
     private Expr.Expression newGetFieldPtrEval(IType baseType, int basePtr, IField field) {
@@ -1968,11 +1978,27 @@ public class CFGBuilder {
     }
 
 
-    private static Expr.Expression newCastExpr(IType exprType, int innerReg, IASTTypeId typeId) {
-        return Expr.Expression.newBuilder()
+    private Expr.Expression newCastExpr(IType exprType, int innerReg, IASTTypeId typeId, IASTExpression castExpr) {
+        Expr.Expression expr = Expr.Expression.newBuilder()
                 .setType(CDTUtil.typeToRepr(exprType))
                 .setCast(Expr.CastExpr.newBuilder()
                         .setInner(CDTUtil.regToRepr(innerReg)))
                 .build();
+        exprMap.put(expr, castExpr);
+        return expr;
+    }
+
+    private final Map<CFG.Invoke, IASTFunctionCallExpression> invkExprMap = new LinkedHashMap<>();
+    private final Map<Expr.Expression, IASTExpression> exprMap = new LinkedHashMap<>();
+    public Object getInvkExpr(CFG.Invoke invk) {
+        return invkExprMap.get(invk);
+    }
+
+    public IFunction getFunc(String fRepr) {
+        return funcs.get(fRepr);
+    }
+
+    public IASTExpression getExpression(Expr.Expression expr) {
+        return exprMap.get(expr);
     }
 }

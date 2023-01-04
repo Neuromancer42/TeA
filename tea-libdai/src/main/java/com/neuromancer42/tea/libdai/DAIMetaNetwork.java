@@ -17,14 +17,14 @@ public class DAIMetaNetwork {
     // ObserveNode: <nodeId, time> --> distSize + (time + 1) * shift + nodeId (time starts from 0)
     // PredictNode: nodeId -->  distSize + nodeId
 
-    private final CausalGraph<String> causalGraph;
+    private final CausalGraph causalGraph;
     private final LibDAISWIGFactorGraph swigFactorGraph;
     private final int offset;
     private final int shift;
     private final int numRepeats;
     private boolean activated;
 
-    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph<String> causalGraph, int numRepeats) {
+    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats) {
         Path fgFilePath = dumpDir.resolve(name+".fg");
         int subSize = causalGraph.nodeSize();
         try {
@@ -39,7 +39,7 @@ public class DAIMetaNetwork {
         return new DAIMetaNetwork(fgFilePath, causalGraph, numRepeats, subSize);
     }
 
-    private DAIMetaNetwork(Path fgFilePath, CausalGraph<String> causalGraph, int numRepeats, int subSize) {
+    private DAIMetaNetwork(Path fgFilePath, CausalGraph causalGraph, int numRepeats, int subSize) {
         this.causalGraph = causalGraph;
         this.swigFactorGraph = new LibDAISWIGFactorGraph(fgFilePath.toAbsolutePath().toString());
         this.shift = subSize;

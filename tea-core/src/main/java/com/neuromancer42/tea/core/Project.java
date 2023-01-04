@@ -1,19 +1,30 @@
 package com.neuromancer42.tea.core;
 
 import com.google.common.base.Stopwatch;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
+import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
+import com.neuromancer42.tea.commons.inference.Categorical01;
+import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.provenance.ProvenanceBuilder;
+import com.neuromancer42.tea.commons.provenance.ProvenanceUtil;
 import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
+import com.neuromancer42.tea.libdai.DAIDriverFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class Project {
     private final Map<String, String> producedDoms = new HashMap<>();
@@ -28,6 +39,7 @@ public class Project {
     private final Map<String, String[]> relSign;
     private final Set<String> provableRels;
     private final Map<String, String> relProducer = new HashMap<>();
+    private final Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels;
 
     public Project(Map<String, String> option,
                    Path workDir,
@@ -35,7 +47,8 @@ public class Project {
                    Map<String, String[]> relSign,
                    Map<String, Analysis.AnalysisInfo> analysisInfo,
                    Map<String, ProviderGrpc.ProviderBlockingStub> analysisProvider,
-                   Set<String> provableRels) {
+                   Set<String> provableRels,
+                   Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels) {
         this.option = option;
         this.workDir = workDir;
         this.schedule = schedule;
@@ -43,7 +56,9 @@ public class Project {
         this.analysisInfo = analysisInfo;
         this.analysisProvider = analysisProvider;
         this.provableRels = provableRels;
+        this.observableRels = observableRels;
     }
+
 
     public Path getWorkDir() {
         return workDir;
@@ -117,28 +132,33 @@ public class Project {
         return Constants.MSG_SUCC + ": " + analysis + " completed in " + inclusiveTimer;
     }
 
-    public List<String> printRels(List<String> relNames) {
-        List<String> alarms = new ArrayList<>();
+    public List<Trgt.Tuple> printRels(List<String> relNames) {
+        List<Trgt.Tuple> alarms = new ArrayList<>();
         for (String relName : relNames) {
             printRel(relName, alarms);
         }
         return alarms;
     }
 
-    private void printRel(String relName, List<String> alarmList) {
+    private void printRel(String relName, List<Trgt.Tuple> alarmList) {
         ProgramRel rel = loadRel(relName);
         if (rel == null) return;
         for (Object[] tuple : rel.getValTuples()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(relName);
-            sb.append("(");
-            for (int i = 0; i < tuple.length; ++i) {
-                if (i != 0)
-                    sb.append(",");
-                sb.append((String) tuple[i]);
-            }
-            sb.append(")");
-            alarmList.add(sb.toString());
+            Trgt.Tuple.Builder tupleBuilder = Trgt.Tuple.newBuilder();
+            tupleBuilder.setRelName(rel.getName());
+            for (Object attr : tuple)
+                tupleBuilder.addAttribute((String) attr);
+            alarmList.add(tupleBuilder.build());
+//            StringBuilder sb = new StringBuilder();
+//            sb.append(relName);
+//            sb.append("(");
+//            for (int i = 0; i < tuple.length; ++i) {
+//                if (i != 0)
+//                    sb.append(",");
+//                sb.append((String) tuple[i]);
+//            }
+//            sb.append(")");
+//            alarmList.add(sb.toString());
         }
         rel.close();
     }
@@ -175,7 +195,7 @@ public class Project {
         return rel;
     }
 
-    public Trgt.Provenance proveRels(List<String> relNames) {
+    public Trgt.Provenance proveRels(Collection<String> relNames) {
         Messages.log("Project: provenance started");
 
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("provenance", option);
@@ -222,7 +242,7 @@ public class Project {
             Messages.log("Project: %d tuples provable by analysis %s", targets.size(), analysis);
             if (!targets.isEmpty()) {
 
-                Messages.log("Core: started running prover %s", analysis);
+                Messages.log("Project: started running prover %s", analysis);
                 Stopwatch inclusiveTimer = Stopwatch.createStarted();
                 ProviderGrpc.ProviderBlockingStub provider = analysisProvider.get(analysis);
                 Analysis.ProveRequest req = Analysis.ProveRequest.newBuilder()
@@ -240,7 +260,7 @@ public class Project {
                     }
                 }
                 inclusiveTimer.stop();
-                Messages.log("Core: finished running prover %s in %s", analysis, inclusiveTimer);
+                Messages.log("Project: finished running prover %s in %s", analysis, inclusiveTimer);
             }
         }
         provBuilder.addInputTuples(inputTuples);
@@ -249,5 +269,106 @@ public class Project {
         return provBuilder.getProvenance();
     }
 
-    // TODO from provenance to bnet!
+    private int rank_time = 0;
+    private AbstractCausalDriver driver = null;
+
+    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist) {
+        CausalGraph cg = ProvenanceUtil.buildCausalGraph(provenance,
+                constr -> ruleDist.apply(constr.getRuleInfo()),
+                input -> inputRelDist.apply(input.getRelName())
+        );
+        driver = DAIDriverFactory.g().createCausalDriver("iterating", cg.getName(), cg);
+    }
+
+    public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, List<Trgt.Tuple> alarms) {
+        prepareRanking(provenance, ruleDist, inputRelDist);
+        return postRanking(alarms, null);
+    }
+
+    public List<Map.Entry<Trgt.Tuple, Double>> postRanking(List<Trgt.Tuple> alarms, List<Map<Trgt.Tuple, Boolean>> trace) {
+        List<String> outputReprs = new ArrayList<>();
+        for (Trgt.Tuple alarm : alarms) {
+            outputReprs.add(ProvenanceUtil.encodeTuple(alarm));
+        }
+        if (driver == null) {
+            Messages.fatal("Project: causal driver not built yet before querying");
+            assert false;
+        }
+        if (trace != null) {
+            List<Map<String, Boolean>> encTrace = new ArrayList<>();
+            for (Map<Trgt.Tuple, Boolean> obs : trace) {
+                Map<String, Boolean> encObs = new LinkedHashMap<>();
+                for (var entry : obs.entrySet()) {
+                    encObs.put(ProvenanceUtil.encodeTuple(entry.getKey()), entry.getValue());
+                }
+                encTrace.add(encObs);
+            }
+            driver.run(encTrace);
+            rank_time += trace.size();
+        }
+        Map<String, Double> dist = driver.queryPossibilities(outputReprs);
+        Map<Trgt.Tuple, Double> unorderedAlarms = new LinkedHashMap<>();
+        for (String outputRepr : dist.keySet()) {
+            try {
+                Trgt.Tuple output = Trgt.Tuple.parseFrom(Base64.getDecoder().decode(outputRepr));
+                unorderedAlarms.put(output, dist.get(outputRepr));
+            } catch (InvalidProtocolBufferException e) {
+                Messages.error("Project: failed to parse querying tuples from causal driver, skip: %s", e.getMessage());
+            }
+        }
+        List<Map.Entry<Trgt.Tuple, Double>> sortedAlarmProb = unorderedAlarms.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                .collect(Collectors.toList());
+
+        List<String> logLines = new ArrayList<>();
+        for (var entry : sortedAlarmProb) {
+            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()));
+        }
+        Path logPath = workDir.resolve(String.format("rank_%02d.list", rank_time));
+        try {
+            Files.write(logPath, logLines, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Messages.error("Project: failed to dump ranking results, skip: %s", e.getMessage());
+        }
+
+        return sortedAlarmProb;
+    }
+
+    private Set<ProviderGrpc.ProviderBlockingStub> observers = new LinkedHashSet<>();
+
+    public Set<Trgt.Tuple> setObservation(Trgt.Provenance provenance) {
+        Set<Trgt.Tuple> observableTuples = new LinkedHashSet<>();
+        for (ProviderGrpc.ProviderBlockingStub observer : observableRels.keySet()) {
+            Set<Trgt.Tuple> obsTuples = ProvenanceUtil.filterTuple(provenance, observableRels.get(observer));
+            Analysis.InstrumentRequest instrReq = Analysis.InstrumentRequest.newBuilder()
+                    .addAllInstrTuple(obsTuples)
+                    .build();
+            Analysis.InstrumentResponse resp = observer.instrument(instrReq);
+            if (resp.getSuccTupleCount() > 0) {
+                observableTuples.addAll(resp.getSuccTupleList());
+                observers.add(observer);
+            }
+        }
+        Messages.log("Project: instrumented %d observable tuples", observableTuples.size());
+        return observableTuples;
+    }
+
+    public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase) {
+        Messages.log("Project: started to running test %s", TextFormat.shortDebugString(testCase));
+        Analysis.TestRequest testReq = Analysis.TestRequest.newBuilder()
+                .addAllArg(testCase.getArgList())
+                .build();
+        Map<Trgt.Tuple, Boolean> obs = new LinkedHashMap<>();
+        for (ProviderGrpc.ProviderBlockingStub observer : observers) {
+            Analysis.TestResponse testResp = observer.test(testReq);
+            for (Trgt.Tuple tuple : testResp.getTriggeredTupleList()) {
+                obs.put(tuple, true);
+            }
+            for (Trgt.Tuple tuple : testResp.getNegatedTupleList()) {
+                obs.put(tuple, false);
+            }
+        }
+        Messages.log("Project: observed %d tuples to be true", obs.size());
+        return obs;
+    }
 }

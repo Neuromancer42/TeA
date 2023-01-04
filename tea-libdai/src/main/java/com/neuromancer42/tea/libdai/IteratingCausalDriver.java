@@ -15,7 +15,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private int updateCnt;
 
-    public IteratingCausalDriver(String name, CausalGraph<String> causalGraph) {
+    public IteratingCausalDriver(String name, CausalGraph causalGraph) {
         super(name, causalGraph);
         // set up libDAI runtime
         Path workDir1 = null;
@@ -30,7 +30,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
         updateCnt = 0;
     }
 
-    public IteratingCausalDriver(CausalGraph<String> causalGraph) {
+    public IteratingCausalDriver(CausalGraph causalGraph) {
         this(causalGraph.getName(), causalGraph);
     }
 

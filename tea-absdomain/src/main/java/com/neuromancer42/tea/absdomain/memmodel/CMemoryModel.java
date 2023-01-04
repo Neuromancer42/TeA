@@ -277,7 +277,7 @@ public class CMemoryModel extends AbstractAnalysis {
             } else {
                 posStr = "0~unknown";
             }
-            String contentPath = accessPath + "[" + posStr + "]";
+            String contentPath = "*" + accessPath + "";
             IMemObj contentObj = createStackObj(contentPath, contentType);
             posMap.put(posStr, contentObj);
 
