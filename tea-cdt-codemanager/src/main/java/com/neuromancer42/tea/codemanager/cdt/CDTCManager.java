@@ -14,7 +14,6 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexMap;
 import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Trgt;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 import org.eclipse.cdt.core.dom.ast.*;
@@ -31,8 +30,7 @@ import org.neuromancer42.tea.ir.Expr;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.*;
 
 @TeAAnalysis(name = "cmanager")
@@ -583,13 +581,16 @@ public class CDTCManager extends AbstractAnalysis {
         }
 
         public int instrumentEnterMethod(String fRepr) {
-            if (fRepr == null)
+            if (fRepr == null || !domM.contains(fRepr))
                 return -1;
             IFunction func = builder.getFunc(fRepr);
             return instrumentEnterMethod(func);
         }
 
         public int instrumentEnterMethod(int mId) {
+            if (mId < 0 || mId >= domM.size()) {
+                return -1;
+            }
             return instrumentEnterMethod(domM.get(mId));
         }
 
@@ -689,15 +690,18 @@ public class CDTCManager extends AbstractAnalysis {
             return instrTU;
         }
 
-
         public void dumpInstrumented(Path newFilePath) {
             try {
                 List<String> lines = new ArrayList<>();
-                lines.add("extern int printf(const char*restrict  __format, ...); \n" +
-                        "void* peek (int type, int id, void *ptr) { \n" +
-                        "        printf(\"peek\t%d\t%d\t%ld\\n\", type, id, (long) ptr); \n" +
-                        "        return ptr; \n" +
-                        "}\n");
+                lines.add("""
+                        #include <stdio.h>
+                        void* peek (int type, int id, void *ptr) {
+                                FILE *fptr = fopen("peek.log", "a");
+                                fprintf(fptr, "%d\t%d\t%ld\\n", type, id, (long) ptr);
+                                fclose(fptr);
+                                return ptr;
+                        }
+                        """);
                 for (IASTPreprocessorIncludeStatement incl : translationUnit.getIncludeDirectives()) {
                     if (incl.isSystemInclude())
                         lines.add(incl.toString());
@@ -763,21 +767,19 @@ public class CDTCManager extends AbstractAnalysis {
                 built = true;
             }
 
-            String output = runTest(argList.toArray(new String[0]));
-            String[] lines = output.split("\n");
+            List<String> peekLines = runInstrumentedAndPeek(argList.toArray(new String[0]));
 
             List<Trace> traces = new ArrayList<>();
 
-            for (String line : lines) {
+            for (String line : peekLines) {
                 String[] words = line.split("\t");
-                if (words.length >= 2 && words[0].equals("peek")) {
-                    int id = Integer.parseInt(words[1]);
-                    long[] content = new long[words.length - 2];
-                    for (int i = 0; i < content.length; ++i) {
-                        content[i] = Long.parseLong(words[i+2]);
-                    }
-                    traces.add(new Trace(id, content));
+                int id = Integer.parseInt(words[1]);
+                long[] content = new long[words.length - 2];
+                for (int i = 0; i < content.length; ++i) {
+                    content[i] = Long.parseLong(words[i + 2]);
                 }
+                traces.add(new Trace(id, content));
+
             }
             Set<Trgt.Tuple> triggerd = new LinkedHashSet<>();
             triggerd.addAll(processTraceCIIM(traces));
@@ -786,19 +788,23 @@ public class CDTCManager extends AbstractAnalysis {
             return triggerd;
         }
 
-        public String runTest(String ... argList) {
+        private int testTime = 0;
+        public List<String> runInstrumentedAndPeek(String ... argList) {
             List<String> executeCmd = new ArrayList<>();
             executeCmd.add("./instrumented");
             executeCmd.addAll(List.of(argList));
-
-            String output;
             try {
-                output = executeExternal(true, executeCmd, instrWorkDirPath);
+                Path peekLog = instrWorkDirPath.resolve("peek.log");
+                Files.deleteIfExists(peekLog);
+                int retval = execute(true, executeCmd, String.format("test-%03d.out", testTime));
+                List<String> peekLines = Files.readAllLines(peekLog);
+                Files.move(peekLog, peekLog.resolveSibling(String.format("peek-%03d.log", testTime)), StandardCopyOption.REPLACE_EXISTING);
+                testTime++;
+                return peekLines;
             } catch (InterruptedException | IOException e) {
-                Messages.error("CInstrument: failed to execute cmd {%s}, skip: %s", StringUtil.join(executeCmd, " "), e.getMessage());
-                output = "";
+                Messages.error("CInstrument: failed to execute cmd {%s}, skip: %s", StringUtil.join(executeCmd, " "), e.toString());
             }
-            return output;
+            return new ArrayList<>();
         }
 
         public void compile() {
@@ -811,27 +817,33 @@ public class CDTCManager extends AbstractAnalysis {
                 if (flags.length > 0)
                     compileCmd.addAll(List.of(flags));
                 compileCmd.addAll(List.of("instrumented.c", "-o", "instrumented"));
-                executeExternal(false, compileCmd, instrWorkDirPath);
+                execute(false, compileCmd, null);
             } catch (IOException | InterruptedException e) {
                 Messages.error("CInstrument: failed to execute instrumenting commands");
                 Messages.fatal(e);
             }
         }
 
-        private static String executeExternal(boolean ignoreRetVal, List<String> cmd, Path path) throws IOException, InterruptedException {
+        private int execute(boolean ignoreRetVal, List<String> cmd, String outputFile) throws IOException, InterruptedException {
             ProcessBuilder builder = new ProcessBuilder(cmd);
-            builder.directory(path.toFile());
+            builder.directory(instrWorkDirPath.toFile());
+            if (outputFile != null)
+                builder.redirectOutput(instrWorkDirPath.resolve(outputFile).toFile());
             Messages.log("Executing: " + StringUtil.join(cmd, " "));
             Process cmdProcess = builder.start();
             int cmdRetVal = cmdProcess.waitFor();
-            String outputStr = new String(cmdProcess.getInputStream().readAllBytes());
             if (!ignoreRetVal && cmdRetVal != 0) {
                 String errString = new String(cmdProcess.getErrorStream().readAllBytes());
-                Messages.fatal(new RuntimeException(outputStr + '\n' + errString));
+                Messages.error("Abnormal exit with retval %d", cmdRetVal);
+                Messages.fatal(new RuntimeException(errString));
             }
+            String outputStr;
+            if (outputFile == null)
+                outputStr = new String(cmdProcess.getInputStream().readAllBytes());
+            else
+                outputStr = Files.readString(instrWorkDirPath.resolve(outputFile));
             Messages.debug("Output:\n%s", outputStr);
-
-            return outputStr;
+            return cmdRetVal;
         }
 
         public class InstrVisitor extends ASTVisitor {
@@ -912,6 +924,10 @@ public class CDTCManager extends AbstractAnalysis {
         }
 
         public boolean instrument(Trgt.Tuple tuple) {
+            if (builder == null) {
+                Messages.fatal("CInstrument: build cfg first before instrumenting");
+                assert false;
+            }
             return switch (tuple.getRelName()) {
                 case "ci_IM" -> instrumentCIIM(tuple.getAttribute(0), tuple.getAttribute(1));
                 case "ci_reachableM" -> instrumentReachableM(tuple.getAttribute(0));
