@@ -773,10 +773,10 @@ public class CDTCManager extends AbstractAnalysis {
 
             for (String line : peekLines) {
                 String[] words = line.split("\t");
-                int id = Integer.parseInt(words[1]);
-                long[] content = new long[words.length - 2];
+                int id = Integer.parseInt(words[0]);
+                long[] content = new long[words.length - 1];
                 for (int i = 0; i < content.length; ++i) {
-                    content[i] = Long.parseLong(words[i + 2]);
+                    content[i] = Long.parseLong(words[i + 1]);
                 }
                 traces.add(new Trace(id, content));
 
