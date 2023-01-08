@@ -23,6 +23,7 @@ import org.eclipse.cdt.internal.core.dom.parser.c.CASTName;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTTranslationUnit;
 import org.eclipse.cdt.internal.core.dom.parser.c.CNodeFactory;
 import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
+import org.eclipse.cdt.internal.core.parser.scanner.InternalFileContentProvider;
 import org.eclipse.core.runtime.CoreException;
 import org.neuromancer42.tea.ir.CFG;
 import org.neuromancer42.tea.ir.Expr;
@@ -139,6 +140,7 @@ public class CDTCManager extends AbstractAnalysis {
     private CFGBuilder builder;
 
     private final File sourceFile;
+    private final String compileCmd;
     private Path workPath;
 
     public List<ProgramDom> getProducedDoms() {
@@ -159,16 +161,76 @@ public class CDTCManager extends AbstractAnalysis {
         );
     }
 
-    public CDTCManager(Path workPath, String fileName, Map<String, String> definedSymbols, List<String> includePaths) {
+    public CDTCManager(Path workPath, String fileName, String command) {
+        compileCmd = command;
         sourceFile = new File(fileName);
         this.workPath = workPath;
         if (!sourceFile.isFile()) {
             Messages.fatal("CParser: the referenced path %s is not a source file", sourceFile.toString());
         }
+        List<String> includePaths = new ArrayList<>();
+        Map<String, String> definedSymbols = new LinkedHashMap<>();
+        boolean isInclude = false;
+        boolean isDefine = false;
+        for (String cmdPart : command.split(" ")) {
+            if (cmdPart.isBlank()) {
+                continue;
+            }
+            if (isInclude) {
+                if (cmdPart.startsWith("\"") && cmdPart.endsWith("\"")) {
+                    cmdPart = cmdPart.substring(1, cmdPart.length() - 1);
+                }
+                for (String includePath : cmdPart.split(File.pathSeparator))  {
+                    Messages.log("CParser: add include path %s", includePath);
+                    includePaths.add(includePath);
+                }
+                isInclude = false;
+            } else if (cmdPart.equals("-I")) {
+                isInclude = true;
+            } else if (cmdPart.startsWith("-I")) {
+                cmdPart = cmdPart.substring(2);
+                if (cmdPart.startsWith("\"") && cmdPart.endsWith("\"")) {
+                    cmdPart = cmdPart.substring(1, cmdPart.length() - 1);
+                }
+                for (String includePath : cmdPart.split(File.pathSeparator)) {
+                    Messages.log("CParser: add include path %s", includePath);
+                    includePaths.add(includePath);
+                }
+            } else if (isDefine) {
+                if (cmdPart.startsWith("\"") && cmdPart.endsWith("\"")) {
+                    cmdPart = cmdPart.substring(1, cmdPart.length() - 1);
+                }
+                String[] pair = cmdPart.split("=");
+                String symbol = pair[0];
+                String value = "";
+                if (pair.length > 1)
+                    value = pair[1];
+                Messages.log("CParser: add defined symbol %s=%s", symbol, value);
+                definedSymbols.put(symbol, value);
+                isDefine = false;
+            } else if (cmdPart.equals("-D")) {
+                isDefine = true;
+            } else if (cmdPart.startsWith("-D")) {
+                cmdPart = cmdPart.substring(2);
+                if (cmdPart.startsWith("\"") && cmdPart.endsWith("\"")) {
+                    cmdPart = cmdPart.substring(1, cmdPart.length() - 1);
+                }
+                String[] pair = cmdPart.split("=");
+                String symbol = pair[0];
+                String value = "";
+                if (pair.length > 1)
+                    value = pair[1];
+                Messages.log("CParser: add defined symbol %s=%s", symbol, value);
+                definedSymbols.put(symbol, value);
+            }
+        }
+        // Note: special handling for invoking asm parser
+        definedSymbols.putIfAbsent("__GNUC__", "11");
+        definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
         FileContent fileContent = FileContent.createForExternalFileLocation(fileName);
         IScannerInfo scannerInfo = new ScannerInfo(definedSymbols, includePaths.toArray(new String[0]));
         IParserLogService log = new DefaultLogService();
-        IncludeFileContentProvider includeContents = IncludeFileContentProvider.getSavedFilesProvider();
+        IncludeFileContentProvider includeContents = InternalFileContentProvider.getEmptyFilesProvider();
         int opts = 0;
 
         try {
@@ -490,15 +552,49 @@ public class CDTCManager extends AbstractAnalysis {
 
     private CInstrument instr;
 
+
+    public void setInstrument() {
+        String target = null;
+        List<String> splitted = new ArrayList<>(List.of(compileCmd.split(" ")));
+        if (splitted.contains("-o")) {
+            for (int i = splitted.indexOf("-o") + 1; i < splitted.size(); ++i) {
+                if (!splitted.get(i).isBlank()) {
+                    target = splitted.get(i);
+                    break;
+                }
+            }
+        } else {
+            for (String part : splitted) {
+                if (part.startsWith("-o")) {
+                    target = part.substring(2);
+                    break;
+                }
+            }
+        }
+        assert compileCmd.contains(sourceFile.getName());
+        for (int i = 0; i < splitted.size(); ++i) {
+            if (splitted.get(i).contains(sourceFile.getName())) {
+                splitted.set(i, "instrumented.c");
+            }
+        }
+        if (target == null) {
+            splitted.add("-oinstrumented");
+            target = "instrumented";
+        }
+        String newCommand = StringUtil.join(splitted, " ");
+        try {
+            Path path = Files.createDirectories(workPath.resolve("instr"));
+            instr = new CInstrument(path, newCommand, target, "instrumented.c");
+        } catch (IOException e) {
+            Messages.error("CParser: failed to create working directory for instrumentor");
+            Messages.fatal(e);
+        }
+    }
+
     public CInstrument getInstrument() {
         if (instr == null) {
-            try {
-                Path path = Files.createDirectories(workPath.resolve("instr"));
-                instr = new CInstrument(path);
-            } catch (IOException e) {
-                Messages.error("CParser: failed to create working directory for instrumentor");
-                Messages.fatal(e);
-            }
+            Messages.fatal("CParser: set instrument first!");
+            assert false;
         }
         return instr;
     }
@@ -513,9 +609,15 @@ public class CDTCManager extends AbstractAnalysis {
         private final CASTTranslationUnit instrTU = (CASTTranslationUnit) translationUnit.copy(IASTNode.CopyStyle.withLocations);
 
         private final Path instrWorkDirPath;
+        private final String compileCmd;
+        private final String target;
+        private final String source;
 
-        public CInstrument(Path path) {
+        public CInstrument(Path path, String cmd, String target, String source) {
             this.instrWorkDirPath = path;
+            this.compileCmd = cmd;
+            this.target = target;
+            this.source = source;
         }
         //    private final ASTModificationStore modStore;
         private final Map<IASTNode, IASTNode> modMap = new LinkedHashMap<>();
@@ -703,8 +805,7 @@ public class CDTCManager extends AbstractAnalysis {
                         }
                         """);
                 for (IASTPreprocessorIncludeStatement incl : translationUnit.getIncludeDirectives()) {
-                    if (incl.isSystemInclude())
-                        lines.add(incl.toString());
+                    lines.add(incl.toString());
                 }
                 try {
                     lines.add(new ASTWriter().write(instrumented()));
@@ -791,7 +892,12 @@ public class CDTCManager extends AbstractAnalysis {
         private int testTime = 0;
         public List<String> runInstrumentedAndPeek(String ... argList) {
             List<String> executeCmd = new ArrayList<>();
-            executeCmd.add("./instrumented");
+            Path targetPath = instrWorkDirPath.resolve(target);
+            if (!Files.isExecutable(targetPath)) {
+                Messages.error("CInstrument: target executable %s does not exist, skip", targetPath.toString());
+                return new ArrayList<>();
+            }
+            executeCmd.add(targetPath.toAbsolutePath().toString());
             executeCmd.addAll(List.of(argList));
             try {
                 Path peekLog = instrWorkDirPath.resolve("peek.log");
@@ -809,15 +915,10 @@ public class CDTCManager extends AbstractAnalysis {
 
         public void compile() {
             try {
-                Path instrFile = instrWorkDirPath.resolve("instrumented.c");
+                Path instrFile = instrWorkDirPath.resolve(source);
                 dumpInstrumented(instrFile);
-                List<String> compileCmd = new ArrayList<>();
-                compileCmd.add("clang");
-                String[] flags = System.getProperty("chord.source.flags", "").split(" ");
-                if (flags.length > 0)
-                    compileCmd.addAll(List.of(flags));
-                compileCmd.addAll(List.of("instrumented.c", "-o", "instrumented"));
-                execute(false, compileCmd, null);
+                List<String> compileCmdList = List.of(compileCmd.split(" "));
+                execute(false, compileCmdList, null);
             } catch (IOException | InterruptedException e) {
                 Messages.error("CInstrument: failed to execute instrumenting commands");
                 Messages.fatal(e);

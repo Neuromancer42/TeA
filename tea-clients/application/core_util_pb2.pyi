@@ -37,12 +37,12 @@ class ApplicationResponse(_message.Message):
     def __init__(self, msg: _Optional[str] = ..., alarm: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Compilation(_message.Message):
-    __slots__ = ["flag", "source"]
-    FLAG_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["command", "source"]
+    COMMAND_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
-    flag: _containers.RepeatedScalarFieldContainer[str]
+    command: str
     source: str
-    def __init__(self, source: _Optional[str] = ..., flag: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, source: _Optional[str] = ..., command: _Optional[str] = ...) -> None: ...
 
 class Test(_message.Message):
     __slots__ = ["arg", "test_id"]

@@ -119,26 +119,8 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
                     .build();
         } else {
             String sourceFile = option.get(Constants.OPT_SRC);
-            String[] flags = option.getOrDefault(Constants.OPT_SRC_FLAGS, "").split(" ");
-            List<String> includePaths = new ArrayList<>();
-            Map<String, String> definedSymbols = new LinkedHashMap<>();
-            for (String flag : flags) {
-                if (flag.startsWith("-I")) {
-                    for (String includePath : flag.substring(2).split(File.pathSeparator))  {
-                        Messages.log("CParser: add include path %s", includePath);
-                        includePaths.add(includePath);
-                    }
-                } else if (flag.startsWith("-D")) {
-                    String[] pair = flag.substring(2).split("=");
-                    String symbol = pair[0];
-                    String value = "";
-                    if (pair.length > 1)
-                        value = pair[1];
-                    Messages.log("CParser: add defined symbol %s=%s", symbol, value);
-                    definedSymbols.put(symbol, value);
-                }
-            }
-            cmanager = new CDTCManager(workPath, sourceFile, definedSymbols, includePaths);
+            String cmd = option.getOrDefault(Constants.OPT_SRC_CMD, "");
+            cmanager = new CDTCManager(workPath, sourceFile, cmd);
             runResults = AnalysisUtil.runAnalysis(cmanager, request);
         }
         responseObserver.onNext(runResults);
@@ -163,6 +145,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
     public void instrument(Analysis.InstrumentRequest request, StreamObserver<Analysis.InstrumentResponse> responseObserver) {
         Messages.log("CParser: processing instrument request");
         Analysis.InstrumentResponse.Builder respBuilder = Analysis.InstrumentResponse.newBuilder();
+        cmanager.setInstrument();
         for (Trgt.Tuple tuple : request.getInstrTupleList()) {
             if (cmanager.getInstrument().instrument(tuple)) {
                 respBuilder.addSuccTuple(tuple);

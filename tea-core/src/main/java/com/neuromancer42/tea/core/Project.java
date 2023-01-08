@@ -336,11 +336,12 @@ public class Project {
 
     private Set<ProviderGrpc.ProviderBlockingStub> observers = new LinkedHashSet<>();
 
-    public Set<Trgt.Tuple> setObservation(Trgt.Provenance provenance) {
+    public Set<Trgt.Tuple> setObservation(Trgt.Provenance provenance, Map<String, String> options) {
         Set<Trgt.Tuple> observableTuples = new LinkedHashSet<>();
         for (ProviderGrpc.ProviderBlockingStub observer : observableRels.keySet()) {
             Set<Trgt.Tuple> obsTuples = ProvenanceUtil.filterTuple(provenance, observableRels.get(observer));
             Analysis.InstrumentRequest instrReq = Analysis.InstrumentRequest.newBuilder()
+                    .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
                     .addAllInstrTuple(obsTuples)
                     .build();
             Analysis.InstrumentResponse resp = observer.instrument(instrReq);
@@ -353,9 +354,10 @@ public class Project {
         return observableTuples;
     }
 
-    public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase) {
+    public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase, Map<String, String> options) {
         Messages.log("Project: started to running test %s", TextFormat.shortDebugString(testCase));
         Analysis.TestRequest testReq = Analysis.TestRequest.newBuilder()
+                .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
                 .addAllArg(testCase.getArgList())
                 .build();
         Map<Trgt.Tuple, Boolean> obs = new LinkedHashMap<>();

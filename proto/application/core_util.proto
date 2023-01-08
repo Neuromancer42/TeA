@@ -9,7 +9,7 @@ service CoreService {
 
 message Compilation {
     string source = 1;
-    repeated string flag = 2;
+    string command = 2;
 }
 
 message Test {

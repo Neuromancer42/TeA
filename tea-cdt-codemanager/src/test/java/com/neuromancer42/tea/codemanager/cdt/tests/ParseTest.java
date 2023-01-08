@@ -7,12 +7,10 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Messages;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.junit.jupiter.api.*;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,60 +18,84 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ParseTest {
-    private static final String simpleFilename = "simple.c";
-    private static Path simpleSrcPath;
+    private static final String simpleName = "simple.c";
+    private static Path simplePath;
     private static final String simpleDotName = "simple.dot";
-    private static final String arrFilename = "array.c";
-    private static Path arrSrcPath;
-    private static final String funcArrFilename = "funcptr_arraystruct.c";
-    private static Path funcArrSrcPath;
+    private static final String arrName = "array.c";
+    private static Path arrPath;
+    private static final String funcArrName = "funcptr_arraystruct.c";
+    private static Path funcArrPath;
+    private static final String inclHeaderName = "incl.h";
+    private static Path inclHeaderPath;
+    private static final String inclSrcName = "incl.c";
+    private static Path inclSrcPath;
 
-    private static Path workDirPath = Paths.get("test-out").resolve("test-cdt");
+    private static final Path rootDir = Paths.get("test-out").resolve("test-parse");
 
 
     @BeforeAll
     public static void setup() throws IOException {
-        Files.createDirectories(workDirPath);
+        Path inclDir = Files.createDirectories(rootDir.resolve("include"));
+        Path srcDir = Files.createDirectories(rootDir.resolve("source"));
 
-        InputStream simpleIn = CDTCManager.class.getClassLoader().getResourceAsStream(simpleFilename);
-        System.err.println("Writing " + simpleFilename);
-        simpleSrcPath = workDirPath.resolve(simpleFilename);
-        Files.copy(simpleIn, simpleSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        InputStream simpleIn = CDTCManager.class.getClassLoader().getResourceAsStream(simpleName);
+        System.err.println("Writing " + simpleName);
+        simplePath = srcDir.resolve(simpleName);
+        assert simpleIn != null;
+        Files.copy(simpleIn, simplePath, StandardCopyOption.REPLACE_EXISTING);
         simpleIn.close();
 
-        InputStream arrIn = CDTCManager.class.getClassLoader().getResourceAsStream(arrFilename);
-        System.err.println("Writing " + arrFilename);
-        arrSrcPath = workDirPath.resolve(arrFilename);
-        Files.copy(arrIn, arrSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        InputStream arrIn = CDTCManager.class.getClassLoader().getResourceAsStream(arrName);
+        System.err.println("Writing " + arrName);
+        arrPath = srcDir.resolve(arrName);
+        assert arrIn != null;
+        Files.copy(arrIn, arrPath, StandardCopyOption.REPLACE_EXISTING);
         arrIn.close();
 
-        InputStream funcArrIn = CDTCManager.class.getClassLoader().getResourceAsStream(funcArrFilename);
-        System.err.println("Writing " + funcArrFilename);
-        funcArrSrcPath = workDirPath.resolve(funcArrFilename);
-        Files.copy(funcArrIn, funcArrSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        InputStream funcArrIn = CDTCManager.class.getClassLoader().getResourceAsStream(funcArrName);
+        System.err.println("Writing " + funcArrName);
+        funcArrPath = srcDir.resolve(funcArrName);
+        assert funcArrIn != null;
+        Files.copy(funcArrIn, funcArrPath, StandardCopyOption.REPLACE_EXISTING);
         funcArrIn.close();
+
+        InputStream inclHeaderIn = CDTCManager.class.getClassLoader().getResourceAsStream(inclHeaderName);
+        System.err.println("Writing " + inclHeaderName);
+        inclHeaderPath = inclDir.resolve(inclHeaderName);
+        assert inclHeaderIn != null;
+        Files.copy(inclHeaderIn, inclHeaderPath, StandardCopyOption.REPLACE_EXISTING);
+        inclHeaderIn.close();
+        InputStream inclSrcIn = CDTCManager.class.getClassLoader().getResourceAsStream(inclSrcName);
+        System.err.println("Writing " + inclSrcName);
+        inclSrcPath = srcDir.resolve(inclSrcName);
+        assert inclSrcIn != null;
+        Files.copy(inclSrcIn, inclSrcPath, StandardCopyOption.REPLACE_EXISTING);
+        inclSrcIn.close();
     }
 
     @Test
     @Order(1)
     @DisplayName("CDT C manager created  correctly")
     public void newManagerTest() throws IOException {
-        System.err.println("Opening " + simpleSrcPath);
-        CDTCManager cdtcManager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-newmanager"));
+        System.err.println("Opening " + simplePath);
+        CDTCManager cdtcManager = new CDTCManager(workDir, simplePath.toString(), "");
     }
 
     @Test
     @Order(2)
     @DisplayName("CDT C manager builds CFG correctly")
     public void cfgBuilderTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-cfgbuilder"));
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
         CFGBuilder cfgBuilder = new CFGBuilder(cmanager.getTranslationUnit());
         cfgBuilder.build();
         try {
-            BufferedWriter bw = Files.newBufferedWriter(workDirPath.resolve(simpleDotName), StandardCharsets.UTF_8);
+            BufferedWriter bw = Files.newBufferedWriter(workDir.resolve(simpleDotName), StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
             cfgBuilder.dumpDot(pw);
         } catch (IOException e) {
@@ -86,15 +108,17 @@ public class ParseTest {
     @Order(3)
     @DisplayName("CDT C manager generate relations correctly")
     public void runAnalysisTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-simple"));
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
         cmanager.run();
     }
 
     @Test
     @Order(4)
-    @DisplayName("CDT C manager run correclty in reflection mode")
+    @DisplayName("CDT C manager run correctly in reflection mode")
     public void reflectAnalysisTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, simpleSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-reflect"));
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmanager, new HashMap<>(), new HashMap<>());
         Assertions.assertNotNull(output);
         Object[] domNames = cmanager.getProducedDoms().stream().map(ProgramDom::getName).sorted().toArray();
@@ -104,8 +128,11 @@ public class ParseTest {
     }
 
     @Test
+    @Order(5)
+    @DisplayName("CDT C manager parses array correctly")
     public void parseArrayTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, arrSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-array"));
+        CDTCManager cmanager = new CDTCManager(workDir, arrPath.toString(), "");
         cmanager.run();
         for (ProgramRel rel: cmanager.getProducedRels()) {
             if (rel.getName().equals("ArrContentType")) {
@@ -129,8 +156,11 @@ public class ParseTest {
     }
 
     @Test
+    @Order(5)
+    @DisplayName("CDT C manager parses array of funcptrs  correctly")
     public void parseFuncArrayStructTest() throws IOException {
-        CDTCManager cmanager = new CDTCManager(workDirPath, funcArrSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+        Path workDir = Files.createDirectories(rootDir.resolve("test-funcarr"));
+        CDTCManager cmanager = new CDTCManager(workDir, funcArrPath.toString(), "");
         cmanager.run();
         for (ProgramRel rel: cmanager.getProducedRels()) {
             if (rel.getName().equals("LoadArr") || rel.getName().equals("LoadFld")) {
@@ -151,5 +181,15 @@ public class ParseTest {
                 rel.close();
             }
         }
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("CDT handles includes correctly")
+    public void parseInclude() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-include"));
+        CDTCManager cmanager = new CDTCManager(workDir, inclSrcPath.toString(), String.format("clang %s -I%s -o incl", inclSrcPath.toAbsolutePath(), inclHeaderPath.getParent().toAbsolutePath()));
+        cmanager.run();
+        System.err.println(new ASTWriter().write(cmanager.getTranslationUnit()));
     }
 }

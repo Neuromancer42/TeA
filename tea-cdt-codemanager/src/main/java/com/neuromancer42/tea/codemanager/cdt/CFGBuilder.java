@@ -8,12 +8,14 @@ import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexMap;
+import com.neuromancer42.tea.commons.util.WeakIdentityHashMap;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.c.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
+import org.eclipse.cdt.internal.core.dom.parser.ProblemBinding;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
 import org.eclipse.cdt.internal.core.dom.parser.c.CPointerType;
 import org.neuromancer42.tea.ir.CFG;
@@ -36,6 +38,7 @@ public class CFGBuilder {
     // 5. <Pair<GepExpression, Integer>> inserted gep result for field/offset access
     // 6. <Pair<Integer, IArrayType>> inserted load instruction to get base pointer of an array reference
     // 7. <Number> constant integers
+    // 8. <Pair<Type, String>> a pointer points to an undeclared identifier (a.k.a. in an include file)
     
     private int gepIdx = 0;
 
@@ -49,6 +52,7 @@ public class CFGBuilder {
 
     private final Map<IFunction, int[]> funcArgsMap;
     private final Map<IBinding, Integer> refRegMap;
+    private Map<Pair<IType, String>, Integer> inclIdMap;
     private final Map<IASTExpression, IFunction> staticInvkMap;
     private final Map<String, Integer> stringConstants;
     private final Map<Integer, String> simpleConstants;
@@ -67,7 +71,7 @@ public class CFGBuilder {
     private int nodeIdx;
     private CFG.CFGNode prevNode;
     private ImmutableValueGraph.Builder<CFG.CFGNode, Integer> intraCFGBuilder;
-    
+
     public CFGBuilder(IASTTranslationUnit tu) {
         this.transUnit = tu;
         intraCFGMap = new HashMap<>();
@@ -83,6 +87,7 @@ public class CFGBuilder {
 
         funcArgsMap = new HashMap<>();
         refRegMap = new HashMap<>();
+        inclIdMap = new HashMap<>();
         staticInvkMap = new LinkedHashMap<>();
         stringConstants = new LinkedHashMap<>();
         simpleConstants = new LinkedHashMap<>();
@@ -159,6 +164,20 @@ public class CFGBuilder {
         Messages.debug("CParser: create ref-pointer *(%s)@%d for %s#%s in (%s)", var.getType(), vReg, var.getName(), Integer.toUnsignedString(var.hashCode()), var.getOwner());
         return vReg;
     }
+
+    private int processIdentifier(IType type, IASTName name) {
+        String id = new String(name.toCharArray());
+        Pair<IType, String> globVar = new ImmutablePair<>(type, id);
+        registers.add(globVar);
+        int reg = registers.indexOf(globVar);
+        inclIdMap.put(globVar, reg);
+        staticRefs.add(reg);
+        allocaMap.put(reg, newAlloca(reg, id, type));
+        processType(type);
+        Messages.debug("CParser: create ref-pointer *(%s)@%d for identifier %s#%s", type, reg, name, Integer.toUnsignedString(name.hashCode()));
+        return reg;
+    }
+
 
     private int processFunction(IFunction func) {
         registers.add(func);
@@ -738,7 +757,12 @@ public class CFGBuilder {
     private int handleLvalue(IASTExpression expression) {
         if (expression instanceof IASTIdExpression) {
             // No need to compute target
-            IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
+            IASTName name = ((IASTIdExpression) expression).getName();
+            IBinding binding = name.resolveBinding();
+            if (binding instanceof ProblemBinding p && p.getID() == ISemanticProblem.BINDING_NOT_FOUND) {
+                Messages.debug("CParser: get address of included identifier %s@{%s} at line#%d (%s)", "int", name.getRawSignature(), expression.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                return processIdentifier(CBasicType.INT, name);
+            }
             int refReg = getRefReg(binding);
             if (refReg < 0) {
                 if (binding instanceof IFunction) {
@@ -824,16 +848,24 @@ public class CFGBuilder {
             return reg;
         } else if (expression instanceof IASTIdExpression) {
             int reg = createRegister(expression);
-            String name = new String(((IASTIdExpression) expression).getName().toCharArray());
-            if (name.equals("NULL")) {
-                Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), name);
-                Messages.debug("CParser: set NULL constant %s@%d := %s", expression.getExpressionType(), reg, name);
-                simpleConstants.put(reg, name);
+            IASTName name = ((IASTIdExpression) expression).getName();
+            String id = new String(name.toCharArray());
+            if (id.equals("NULL")) {
+                Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), id);
+                Messages.debug("CParser: set NULL constant %s@%d := %s", expression.getExpressionType(), reg, id);
+                simpleConstants.put(reg, id);
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
                 prevNode = connect(prevNode, evalNode);
             } else {
-                IBinding binding = ((IASTIdExpression) expression).getName().resolveBinding();
-                if (binding instanceof IVariable) {
+                IBinding binding = name.resolveBinding();
+                if (binding instanceof IProblemBinding p && p.getID() == ISemanticProblem.BINDING_NOT_FOUND) {
+                    int refReg = processIdentifier(CBasicType.INT, name);
+                    assert refReg >= 0;
+                    Messages.debug("CParser: read from included location %s@%d <- *@%d (%s)", "int", reg, refReg, expression.getRawSignature());
+                    CFG.CFGNode loadNode = newLoadNode(reg, refReg);
+                    prevNode = connect(prevNode, loadNode);
+                    return reg;
+                } else if (binding instanceof IVariable) {
                     // TODO: special handling of array-to-pointer conversion
                     int refReg = getRefReg(binding);
                     if (refReg < 0) {
@@ -1229,7 +1261,7 @@ public class CFGBuilder {
             opStr = Constants.OP_OR;
         Expr.Expression expr = newBinaryExpr(expression.getExpressionType(), lReg, rReg, opStr, expression);
         int reg = createRegister(expression);
-        Messages.debug("CParser: compute result of and/or in %s@%d := %s", expr.getType(), reg, expr);
+        Messages.debug("CParser: compute result of and/or in %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
         CFG.CFGNode evalNode = newEvalNode(reg, expr);
         prevNode = connect(prevNode, evalNode);
         return reg;
@@ -1882,6 +1914,15 @@ public class CFGBuilder {
                 .setReg(CDTUtil.regToRepr(refReg))
                 .setType(CDTUtil.typeToRepr(var.getType()))
                 .setVariable(CDTUtil.varToRepr(var))
+                .build();
+    }
+
+
+    private CFG.Alloca newAlloca(int refReg, String id, IType type) {
+        return CFG.Alloca.newBuilder()
+                .setReg(CDTUtil.regToRepr(refReg))
+                .setType(CDTUtil.typeToRepr(type))
+                .setVariable(CDTUtil.varToRepr(id))
                 .build();
     }
 

@@ -2,14 +2,13 @@ import grpc
 import application.core_util_pb2_grpc as app_grpc
 import application.core_util_pb2 as app_msg
 
-def run_analysis(filename, compile_flags, analyses, alarm_rels, need_rank, tests, core_addr, options):
-    print("Querying core server [%s] for file \"%s\" with flag \"%s\", requiring analyses \"%s\", for %s alarms \"%s\", providing %d test cases, other options %s"%(core_addr, filename, " ".join(compile_flags), ",".join(analyses), "ranked" if need_rank else "unordered", ",".join(alarm_rels), len(tests), str(options)))
+def run_analysis(filename, compile_cmd, analyses, alarm_rels, need_rank, tests, core_addr, options):
+    print("Querying core server [%s] for file \"%s\" with command \"%s\", requiring analyses \"%s\", for %s alarms \"%s\", providing %d test cases, other options %s"%(core_addr, filename, compile_cmd, ",".join(analyses), "ranked" if need_rank else "unordered", ",".join(alarm_rels), len(tests), str(options)))
     req = app_msg.ApplicationRequest()
     for key in options:
         req.option[key] = options[key]
     req.source.source = filename
-    for flag in compile_flags:
-        req.source.flag.append(flag)
+    req.source.command = compile_cmd
     for analysis in analyses:
         req.analysis.append(analysis)
     for alarm in alarm_rels:
@@ -31,11 +30,11 @@ import sys
 import configparser
 
 if len(sys.argv) != 4:
-    print("Usage: ./basic_client.py <config_file> <source_file> <compile_flags>")
+    print("Usage: ./basic_client.py <config_file> <source_file> <compile_command>")
     sys.exit(-1)
 
-compile_flags = sys.argv[3].split()
-filename = sys.argv[2]
+compile_command = sys.argv[3].strip('\"')
+filename = sys.argv[2].strip('\"')
 config_file = sys.argv[1]
 config = configparser.ConfigParser()
 config.read(config_file)
@@ -58,4 +57,4 @@ if "tests" in config["project"]:
 reserved_keys = ["analyses", "alarms", "rank", "tests"]
 options = {key: config["project"][key] for key in config["project"] if not key in reserved_keys}
 
-run_analysis(filename, compile_flags, analyses, alarms, need_rank, tests, addr, options)
+run_analysis(filename, compile_command, analyses, alarms, need_rank, tests, addr, options)

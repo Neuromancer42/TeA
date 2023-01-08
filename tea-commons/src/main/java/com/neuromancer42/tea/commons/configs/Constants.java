@@ -8,7 +8,7 @@ public class Constants {
     public static final String ENV_DEBUG = "TEA_DEBUG";
 
     public static final String OPT_SRC = "tea.source";
-    public static final String OPT_SRC_FLAGS = "tea.source.flags";
+    public static final String OPT_SRC_CMD = "tea.source.cmd";
 
     public static final String OPT_PROJ = "name";
     public static final String OPT_HOST = "host";

@@ -4,18 +4,12 @@ import com.google.common.base.Stopwatch;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.inference.Categorical01;
-import com.neuromancer42.tea.commons.provenance.Provenance;
 import com.neuromancer42.tea.commons.provenance.ProvenanceUtil;
-import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang3.StringUtils;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
     /**
@@ -32,11 +26,10 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             CoreUtil.ApplicationResponse response = respBuilder.build();
             responseObserver.onNext(response);
         }
-        Map<String, String> appOption = new LinkedHashMap<>();
-        appOption.putAll(request.getOptionMap());
+        Map<String, String> appOption = new LinkedHashMap<>(request.getOptionMap());
         CoreUtil.Compilation compInfo = request.getSource();
         appOption.put(Constants.OPT_SRC, compInfo.getSource());
-        appOption.put(Constants.OPT_SRC_FLAGS, StringUtils.join(compInfo.getFlagList().toArray(new String[0]), " "));
+        appOption.put(Constants.OPT_SRC_CMD, compInfo.getCommand());
 
         List<String> schedule = ProjectBuilder.g().scheduleProject(request.getAnalysisList());
 
@@ -120,7 +113,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 responseObserver.onNext(response);
             }
             Stopwatch instrTimer = Stopwatch.createStarted();
-            Set<Trgt.Tuple> obsTuples = proj.setObservation(prov);
+            Set<Trgt.Tuple> obsTuples = proj.setObservation(prov, appOption);
             instrTimer.stop();
             {
                 CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
@@ -131,7 +124,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             Stopwatch testTimer = Stopwatch.createStarted();
             List<Map<Trgt.Tuple, Boolean>> trace = new ArrayList<>();
             for (CoreUtil.Test testCase : request.getTestSuiteList()) {
-                Map<Trgt.Tuple, Boolean> obs = proj.testAndObserve(testCase);
+                Map<Trgt.Tuple, Boolean> obs = proj.testAndObserve(testCase, appOption);
                 trace.add(obs);
             }
             testTimer.stop();

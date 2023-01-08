@@ -63,6 +63,10 @@ public class CDTUtil {
         return var.getName();
     }
 
+    public static String varToRepr(String id) {
+        return id;
+    }
+
     public static String invkToRepr(CFG.Invoke invk) {
         return TextFormat.shortDebugString(invk);
     }
@@ -91,4 +95,5 @@ public class CDTUtil {
             return null;
         }
     }
+
 }

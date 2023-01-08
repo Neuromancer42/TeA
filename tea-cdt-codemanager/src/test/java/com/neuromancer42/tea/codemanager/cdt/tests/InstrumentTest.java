@@ -12,31 +12,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 public class InstrumentTest {
-    private static Path workDirPath = Paths.get("test-out").resolve("test-cdt");
+    private static final Path rootDir = Paths.get("test-out").resolve("test-instr");
 
     private static final String execFilename = "exec.c";
     private static Path execSrcPath;
 
     @BeforeAll
     public static void setup() throws IOException {
-        Files.createDirectories(workDirPath);
+        Path srcDir = Files.createDirectories(rootDir.resolve("source"));
 
         InputStream execIn = CDTCManager.class.getClassLoader().getResourceAsStream(execFilename);
         System.err.println("Writing " + execFilename);
-        execSrcPath = workDirPath.resolve(execFilename);
+        execSrcPath = srcDir.resolve(execFilename);
         assert execIn != null;
         Files.copy(execIn, execSrcPath, StandardCopyOption.REPLACE_EXISTING);
         execIn.close();
     }
 
     @Test
-    public void execTest() {
-        CDTCManager cmanager = new CDTCManager(workDirPath, execSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+    public void execTest() throws IOException {
+        Path workDirPath = Files.createDirectories(rootDir.resolve("test-exec"));
+        CDTCManager cmanager = new CDTCManager(workDirPath, execSrcPath.toString(), "clang exec.c -o exec");
+        cmanager.setInstrument();
         cmanager.getInstrument().compile();
         List<String> output = cmanager.getInstrument().runInstrumentedAndPeek("1");
         Assertions.assertEquals(1, output.size());
@@ -44,8 +44,10 @@ public class InstrumentTest {
     }
 
     @Test
-    public void execCrashTest() {
-        CDTCManager cmanager = new CDTCManager(workDirPath, execSrcPath.toString(), new HashMap<>(), new ArrayList<>());
+    public void execCrashTest() throws IOException {
+        Path workDirPath = Files.createDirectories(rootDir.resolve("test-crash"));
+        CDTCManager cmanager = new CDTCManager(workDirPath, execSrcPath.toString(), "clang exec.c -o exec_crash");
+        cmanager.setInstrument();
         cmanager.getInstrument().compile();
         List<String> output = cmanager.getInstrument().runInstrumentedAndPeek();
         Assertions.assertEquals(1, output.size());
