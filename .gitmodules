@@ -1,5 +1,5 @@
 [submodule "libdai"]
-	path = tea-libdai/libdai
+	path = tea-jlibdai/libdai
 	url = https://github.com/Neuromancer42/libdai.git
 	branch = master
 [submodule "tea-llvm-codemanager"]
