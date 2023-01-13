@@ -27,6 +27,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
 
     public static void init(Path workPath) throws IOException {
         Files.createDirectories(workPath);
+        CDTCManager.setDummySysroot(workPath);
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

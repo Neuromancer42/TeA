@@ -12,6 +12,7 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexMap;
+import com.neuromancer42.tea.commons.util.ProcessExecutor;
 import com.neuromancer42.tea.commons.util.StringUtil;
 import com.neuromancer42.tea.core.analysis.Trgt;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
@@ -142,6 +143,7 @@ public class CDTCManager extends AbstractAnalysis {
     private final File sourceFile;
     private final String compileCmd;
     private Path workPath;
+    private static Path dummySysrootPath;
 
     public List<ProgramDom> getProducedDoms() {
         return List.of(
@@ -224,22 +226,75 @@ public class CDTCManager extends AbstractAnalysis {
                 definedSymbols.put(symbol, value);
             }
         }
-        // Note: special handling for invoking asm parser
-        definedSymbols.putIfAbsent("__GNUC__", "11");
-        definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
-        FileContent fileContent = FileContent.createForExternalFileLocation(fileName);
+
+        String ppFilename = preprocess(command, fileName, includePaths, definedSymbols);
+
+        FileContent fileContent = FileContent.createForExternalFileLocation(ppFilename);
         IScannerInfo scannerInfo = new ScannerInfo(definedSymbols, includePaths.toArray(new String[0]));
         IParserLogService log = new DefaultLogService();
-        IncludeFileContentProvider includeContents = InternalFileContentProvider.getEmptyFilesProvider();
+        IncludeFileContentProvider includeContents = InternalFileContentProvider.getSavedFilesProvider();
         int opts = 0;
 
         try {
+            // Note: special handling for invoking asm parser
+            definedSymbols.putIfAbsent("__GNUC__", "11");
+            definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
             translationUnit = GCCLanguage.getDefault().getASTTranslationUnit(fileContent, scannerInfo, includeContents, null, opts, log);
         } catch (CoreException e) {
-            Messages.error("CParser: failed to crete parser for file %s, exit.", fileName);
+            Messages.error("CParser: failed to crete parser for file %s, exit.", ppFilename);
             Messages.fatal(e);
             assert false;
         }
+    }
+
+    private static final String incDirective = "tea_include";
+    public static void setDummySysroot(Path path) {
+        try {
+            dummySysrootPath = Files.createDirectories(path.resolve("dummy-sysroot"));
+            String[] headers = {"stdio.h", "stdlib.h", "stddef.h",
+                    "time.h", "limits.h", "string.h", "stdint.h", "ctype.h", "fcntl.h",
+                    "sys/types.h", "sys/stat.h", "io.h"
+            };
+            for (String header : headers) {
+                String dummyInclude = String.format("%s <%s>", incDirective, header);
+                List<String> lines = List.of(dummyInclude);
+                Path headerPath = dummySysrootPath.resolve(header);
+                if (!headerPath.getParent().toFile().isDirectory()) {
+                    Files.createDirectories(headerPath.getParent());
+                }
+                Files.write(headerPath, lines, StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            Messages.error("CParser: failed to set dummy headers");
+            Messages.fatal(e);
+        }
+    }
+
+    private String preprocess(String command, String filename, List<String> includes, Map<String, String> defines) {
+        String[] commands = command.split(" ");
+        List<String> ppCmd = new ArrayList<>();
+        ppCmd.add(commands[0]);
+        ppCmd.add("-E");
+        ppCmd.add(String.format("-D%s=#include", incDirective));
+        ppCmd.add("-I" + dummySysrootPath.toAbsolutePath());
+        for (String inc : includes) {
+            ppCmd.add("-I" + Paths.get(inc).toAbsolutePath());
+        }
+        for (Map.Entry<String, String> def : defines.entrySet()) {
+            ppCmd.add("-D" + def.getKey() + "=" + def.getValue());
+        }
+        ppCmd.add(Paths.get(filename).toAbsolutePath().toString());
+
+        try {
+            ProcessExecutor.simpleExecute(workPath, false, ppCmd, "preprocessed.c");
+        } catch (IOException | InterruptedException e) {
+            Messages.error("CParser: failed to preprocess source file");
+            Messages.fatal(e);
+            assert false;
+        }
+        Path ppPath = workPath.resolve("preprocessed.c");
+        Messages.log("CParser: dumping preprocessed file to %s", ppPath);
+        return ppPath.toAbsolutePath().toString();
     }
 
     public void init() {
@@ -902,7 +957,7 @@ public class CDTCManager extends AbstractAnalysis {
             try {
                 Path peekLog = instrWorkDirPath.resolve("peek.log");
                 Files.deleteIfExists(peekLog);
-                int retval = execute(true, executeCmd, String.format("test-%03d.out", testTime));
+                int retval = ProcessExecutor.simpleExecute(instrWorkDirPath, true, executeCmd, String.format("test-%03d.out", testTime));
                 List<String> peekLines = Files.readAllLines(peekLog);
                 Files.move(peekLog, peekLog.resolveSibling(String.format("peek-%03d.log", testTime)), StandardCopyOption.REPLACE_EXISTING);
                 testTime++;
@@ -918,33 +973,11 @@ public class CDTCManager extends AbstractAnalysis {
                 Path instrFile = instrWorkDirPath.resolve(source);
                 dumpInstrumented(instrFile);
                 List<String> compileCmdList = List.of(compileCmd.split(" "));
-                execute(false, compileCmdList, null);
+                ProcessExecutor.simpleExecute(instrWorkDirPath, false, compileCmdList, null);
             } catch (IOException | InterruptedException e) {
                 Messages.error("CInstrument: failed to execute instrumenting commands");
                 Messages.fatal(e);
             }
-        }
-
-        private int execute(boolean ignoreRetVal, List<String> cmd, String outputFile) throws IOException, InterruptedException {
-            ProcessBuilder builder = new ProcessBuilder(cmd);
-            builder.directory(instrWorkDirPath.toFile());
-            if (outputFile != null)
-                builder.redirectOutput(instrWorkDirPath.resolve(outputFile).toFile());
-            Messages.log("Executing: " + StringUtil.join(cmd, " "));
-            Process cmdProcess = builder.start();
-            int cmdRetVal = cmdProcess.waitFor();
-            if (!ignoreRetVal && cmdRetVal != 0) {
-                String errString = new String(cmdProcess.getErrorStream().readAllBytes());
-                Messages.error("Abnormal exit with retval %d", cmdRetVal);
-                Messages.fatal(new RuntimeException(errString));
-            }
-            String outputStr;
-            if (outputFile == null)
-                outputStr = new String(cmdProcess.getInputStream().readAllBytes());
-            else
-                outputStr = Files.readString(instrWorkDirPath.resolve(outputFile));
-            Messages.debug("Output:\n%s", outputStr);
-            return cmdRetVal;
         }
 
         public class InstrVisitor extends ASTVisitor {

@@ -16,9 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class ParseTest {
@@ -75,6 +73,8 @@ public class ParseTest {
         assert inclSrcIn != null;
         Files.copy(inclSrcIn, inclSrcPath, StandardCopyOption.REPLACE_EXISTING);
         inclSrcIn.close();
+
+        CDTCManager.setDummySysroot(rootDir);
     }
 
     @Test
@@ -83,7 +83,7 @@ public class ParseTest {
     public void newManagerTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-newmanager"));
         System.err.println("Opening " + simplePath);
-        CDTCManager cdtcManager = new CDTCManager(workDir, simplePath.toString(), "");
+        CDTCManager cdtcManager = new CDTCManager(workDir, simplePath.toString(), "clang");
     }
 
     @Test
@@ -91,7 +91,7 @@ public class ParseTest {
     @DisplayName("CDT C manager builds CFG correctly")
     public void cfgBuilderTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-cfgbuilder"));
-        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "clang");
         CFGBuilder cfgBuilder = new CFGBuilder(cmanager.getTranslationUnit());
         cfgBuilder.build();
         try {
@@ -109,7 +109,7 @@ public class ParseTest {
     @DisplayName("CDT C manager generate relations correctly")
     public void runAnalysisTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-simple"));
-        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "clang");
         cmanager.run();
     }
 
@@ -118,7 +118,7 @@ public class ParseTest {
     @DisplayName("CDT C manager run correctly in reflection mode")
     public void reflectAnalysisTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-reflect"));
-        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "");
+        CDTCManager cmanager = new CDTCManager(workDir, simplePath.toString(), "clang");
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmanager, new HashMap<>(), new HashMap<>());
         Assertions.assertNotNull(output);
         Object[] domNames = cmanager.getProducedDoms().stream().map(ProgramDom::getName).sorted().toArray();
@@ -132,7 +132,7 @@ public class ParseTest {
     @DisplayName("CDT C manager parses array correctly")
     public void parseArrayTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-array"));
-        CDTCManager cmanager = new CDTCManager(workDir, arrPath.toString(), "");
+        CDTCManager cmanager = new CDTCManager(workDir, arrPath.toString(), "clang");
         cmanager.run();
         for (ProgramRel rel: cmanager.getProducedRels()) {
             if (rel.getName().equals("ArrContentType")) {
@@ -160,7 +160,7 @@ public class ParseTest {
     @DisplayName("CDT C manager parses array of funcptrs  correctly")
     public void parseFuncArrayStructTest() throws IOException {
         Path workDir = Files.createDirectories(rootDir.resolve("test-funcarr"));
-        CDTCManager cmanager = new CDTCManager(workDir, funcArrPath.toString(), "");
+        CDTCManager cmanager = new CDTCManager(workDir, funcArrPath.toString(), "clang");
         cmanager.run();
         for (ProgramRel rel: cmanager.getProducedRels()) {
             if (rel.getName().equals("LoadArr") || rel.getName().equals("LoadFld")) {

@@ -30,6 +30,8 @@ public class InstrumentTest {
         assert execIn != null;
         Files.copy(execIn, execSrcPath, StandardCopyOption.REPLACE_EXISTING);
         execIn.close();
+
+        CDTCManager.setDummySysroot(rootDir);
     }
 
     @Test

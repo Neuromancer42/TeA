@@ -1,5 +1,7 @@
+#include <stdio.h>
 #include "incl.h"
 
 int main() {
-    return foo;
+    printf("%d", foo);
+    return 0;
 }

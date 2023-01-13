@@ -1,5 +1,7 @@
 package com.neuromancer42.tea.commons.util;
 
+import com.neuromancer42.tea.commons.configs.Messages;
+
 import static com.neuromancer42.tea.commons.util.ExceptionUtil.fail;
 
 import java.io.File;
@@ -9,6 +11,9 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.TimerTask;
 import java.util.Timer;
 
@@ -18,6 +23,28 @@ import java.util.Timer;
  * @author Mayur Naik (mhn@cs.stanford.edu)
  */
 public final class ProcessExecutor {
+
+    public static int simpleExecute(Path path, boolean ignoreRetVal, List<String> cmd, String outputFile) throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder(cmd);
+        builder.directory(path.toFile());
+        if (outputFile != null)
+            builder.redirectOutput(path.resolve(outputFile).toFile());
+        Messages.log("Executing: " + StringUtil.join(cmd, " "));
+        Process cmdProcess = builder.start();
+        int cmdRetVal = cmdProcess.waitFor();
+        if (!ignoreRetVal && cmdRetVal != 0) {
+            String errString = new String(cmdProcess.getErrorStream().readAllBytes());
+            Messages.error("Abnormal exit with retval %d", cmdRetVal);
+            Messages.fatal(new RuntimeException(errString));
+        }
+        String outputStr;
+        if (outputFile == null)
+            outputStr = new String(cmdProcess.getInputStream().readAllBytes());
+        else
+            outputStr = Files.readString(path.resolve(outputFile));
+        Messages.debug("Output:\n%s", outputStr);
+        return cmdRetVal;
+    }
 	/**
 	 * Executes a given system command specified as a string in a separate process.
 	 * <p>
