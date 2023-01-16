@@ -21,11 +21,12 @@ public class SouffleSingleRunTest {
     private static SouffleAnalysis analysis;
     private static String dlogName = "simple.dl";
     private static Path workDirPath = Paths.get("test-out").resolve("test-jsouffle");
+    private static Path buildPath = Paths.get("test-out").resolve("build");
 
 
     @BeforeAll
     public static void setup() throws IOException {
-        SouffleRuntime.init(workDirPath);
+        SouffleRuntime.init(buildPath, workDirPath.resolve("test-cache"));
 
         InputStream dlogIn = SouffleSingleRunTest.class.getClassLoader().getResourceAsStream(dlogName);
         System.err.println("Writing " + dlogName);
@@ -57,7 +58,7 @@ public class SouffleSingleRunTest {
     @Order(2)
     @DisplayName("SouffleSolver generates provenance correctly")
     public void provenanceTest() throws IOException {
-        analysis.activateProver(workDirPath);
+        analysis.activateProver(analysis.getProofDir());
         List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
         Assertions.assertEquals(proofLines.size(), 1);
     }

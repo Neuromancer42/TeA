@@ -288,6 +288,6 @@ public class CMemModelTest {
         ProgramDom domH = new ProgramDom("H");
         assert output.getLeft().containsKey("H");
         domH.load(output.getLeft().get("H"));
-        Assertions.assertEquals(2, domH.size());
+        Assertions.assertTrue(2 <= domH.size());
     }
 }

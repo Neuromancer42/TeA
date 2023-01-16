@@ -271,21 +271,23 @@ public class CMemoryModel extends AbstractAnalysis {
             arraySizeMap.put(obj, sizeStr);
 
             Map<String, IMemObj> posMap = new LinkedHashMap<>();
-            String posStr;
+            String[] posStrs = new String[2];
+            posStrs[0] = "0";
             if (!sizeStr.equals("unknown")) {
-                posStr = "0~" + (Integer.parseInt(sizeStr) - 1);
+                posStrs[1] = "1~" + (Integer.parseInt(sizeStr) - 1);
             } else {
-                posStr = "0~unknown";
+                posStrs[1] = "1~unknown";
             }
-            String contentPath = "*" + accessPath + "";
-            IMemObj contentObj = createStackObj(contentPath, contentType);
-            posMap.put(posStr, contentObj);
+            for (String posStr : posStrs) {
+                String contentPath = accessPath + "[" + posStr + "]";
+                IMemObj contentObj = createStackObj(contentPath, contentType);
+                posMap.put(posStr, contentObj);
 
-            if (posStr.startsWith("0")) {
-                ptrStoreMap.put(obj, contentObj);
-                Messages.debug("CMemoryModel: array base {%s} points to first element {%s}", obj.toString(), contentObj.toString());
+                if (posStr.startsWith("0")) {
+                    ptrStoreMap.put(obj, contentObj);
+                    Messages.debug("CMemoryModel: array base {%s} points to first element {%s}", obj.toString(), contentObj.toString());
+                }
             }
-
             arrayStoreMap.put(obj, posMap);
         } else if (fldTypeMap.containsKey(type)) {
             Map<String, String> fieldMap = fldTypeMap.get(type);

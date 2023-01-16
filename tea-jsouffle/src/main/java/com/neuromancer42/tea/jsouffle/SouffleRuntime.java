@@ -56,7 +56,15 @@ public final class SouffleRuntime {
         String workDir = Constants.DEFAULT_ROOT_DIR;
         if (args.length > 1)
             workDir = args[1];
-        SouffleRuntime.init(Paths.get(workDir, NAME_SOUFFLE));
+        Path rootWorkPath = Paths.get(workDir, NAME_SOUFFLE);
+        Path cachePath = rootWorkPath.resolve(CACHE_DIR_NAME);
+
+        String buildDir = config.getSection(NAME_SOUFFLE).getString(Constants.OPT_BUILD_DIR, "");
+        Path buildPath = rootWorkPath.resolve(BUILD_DIR_NAME);
+        if (buildDir != null && !buildDir.isBlank())
+            buildPath = Paths.get(buildDir);
+        
+        SouffleRuntime.init(buildPath, cachePath);
         for (Iterator<String> it = config.getSection(NAME_SOUFFLE).getKeys(); it.hasNext(); ) {
             String key = it.next();
             if (!key.startsWith(PREFIX_SOUFFLE))
@@ -96,7 +104,7 @@ public final class SouffleRuntime {
         return runtime;
     }
 
-    public static void init(Path baseWorkDirPath) {
+    public static void init(Path buildPath, Path cachePath) {
         Timer timer = new Timer(NAME_SOUFFLE);
         Messages.log("ENTER: Souffle Runtime Initialization started at " + (new Date()));
         timer.init();
@@ -106,13 +114,13 @@ public final class SouffleRuntime {
 
         // 1. New runtime instance, setting paths and toolchains
         try {
-            Files.createDirectories(baseWorkDirPath.resolve(BUILD_DIR_NAME));
-            Files.createDirectories(baseWorkDirPath.resolve(CACHE_DIR_NAME));
+            Files.createDirectories(buildPath);
+            Files.createDirectories(cachePath);
         } catch (IOException e) {
             Messages.error("SouffleRuntime: failed to create working directory");
             Messages.fatal(e);
         }
-        runtime = new SouffleRuntime(baseWorkDirPath);
+        runtime = new SouffleRuntime(buildPath, cachePath);
         try {
             // 0. copy files from bundles
             {
@@ -212,9 +220,9 @@ public final class SouffleRuntime {
     private final Set<String> loadedLibraries;
     private final Map<String, String> loadedProvenances;
 
-    public SouffleRuntime(Path rootDir) {
-        this.buildPath = rootDir.resolve(BUILD_DIR_NAME);
-        this.cachePath = rootDir.resolve(CACHE_DIR_NAME);
+    public SouffleRuntime(Path buildPath, Path cachePath) {
+        this.buildPath = buildPath;
+        this.cachePath = cachePath;
         loadedLibraries = new HashSet<>();
         loadedProvenances = new HashMap<>();
     }

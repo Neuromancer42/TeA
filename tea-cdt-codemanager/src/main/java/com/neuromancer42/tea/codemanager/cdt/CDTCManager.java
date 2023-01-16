@@ -1004,9 +1004,56 @@ public class CDTCManager extends AbstractAnalysis {
 
             @Override
             public int visit(IASTExpression expression) {
-                if (expression instanceof IASTBinaryExpression && expression.getParent() instanceof IASTIfStatement) {
-                    IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
-                    IASTNode origNode = binExpr.getOriginalNode();
+                if (expression.getParent() instanceof IASTIfStatement
+                        && ((IASTIfStatement) expression.getParent()).getConditionExpression().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting if-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTIfStatement ifStat = (IASTIfStatement) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        ifStat.setConditionExpression((IASTExpression) newNode);
+
+                    }
+                }
+                if (expression.getParent() instanceof IASTWhileStatement
+                        && ((IASTWhileStatement) expression.getParent()).getCondition().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting while-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTWhileStatement whileStat = (IASTWhileStatement) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        whileStat.setCondition((IASTExpression) newNode);
+
+                    }
+                }
+                if (expression.getParent() instanceof IASTDoStatement
+                        && ((IASTDoStatement) expression.getParent()).getCondition().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting dowhile-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTDoStatement doStat = (IASTDoStatement) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        doStat.setCondition((IASTExpression) newNode);
+
+                    }
+                }
+                if (expression.getParent() instanceof IASTForStatement
+                        && ((IASTForStatement) expression.getParent()).getConditionExpression().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting for-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTForStatement doStat = (IASTForStatement) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        doStat.setConditionExpression((IASTExpression) newNode);
+
+                    }
+                }
+//                if (expression instanceof IASTBinaryExpression) {
+//                    IASTBinaryExpression binExpr = (IASTBinaryExpression) expression;
 //                    if (binExpr.getOperator() == IASTBinaryExpression.op_assign && modMap.containsKey(origNode)) {
 //                        IASTNode newRhs = modMap.get(origNode);
 //                        binExpr.setOperand2((IASTExpression) newRhs);
@@ -1017,15 +1064,7 @@ public class CDTCManager extends AbstractAnalysis {
 //                        binExpr.setOperand2((IASTExpression) newDivider);
 //                        newDivider.setParent(binExpr);
 //                    }
-                    Messages.debug("CInstrument: visiting binary cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), binExpr.hashCode(), origNode.hashCode());
-                    if (modMap.containsKey(origNode)) {
-                        IASTNode newNode = modMap.get(origNode);
-                        IASTIfStatement ifStat = (IASTIfStatement) binExpr.getParent();
-                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
-                        ifStat.setConditionExpression((IASTExpression) newNode);
-
-                    }
-                }
+//                }
                 if (expression instanceof IASTFunctionCallExpression) {
                     IASTFunctionCallExpression callExpr = (IASTFunctionCallExpression) expression;
                     IASTExpression fNameExpr = callExpr.getFunctionNameExpression();
