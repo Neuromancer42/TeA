@@ -1839,6 +1839,9 @@ public class Rel {
         int[] idxs = new int[vals.length];
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
+            if (idxs[i] < 0) {
+                Messages.error("Rel: cannot find val %s in dom %s", vals[i], doms[i].getName());
+            }
         }
         add(idxs);
     }
@@ -1868,6 +1871,9 @@ public class Rel {
         int[] idxs = new int[vals.length];
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
+            if (idxs[i] < 0) {
+                Messages.error("Rel: cannot find val %s in dom %s", vals[i], doms[i].getName());
+            }
         }
         remove(idxs);
     }
@@ -1897,6 +1903,9 @@ public class Rel {
         int[] idxs = new int[vals.length];
         for (int i  = 0; i < vals.length; ++i) {
             idxs[i] = doms[i].indexOf(vals[i]);
+            if (idxs[i] < 0) {
+                Messages.error("Rel: cannot find val %s in dom %s", vals[i], doms[i].getName());
+            }
         }
         return contains(idxs);
     }

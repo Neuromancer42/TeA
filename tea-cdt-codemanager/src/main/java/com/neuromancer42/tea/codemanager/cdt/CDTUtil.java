@@ -7,6 +7,9 @@ import org.eclipse.cdt.core.dom.ast.c.ICQualifierType;
 import org.neuromancer42.tea.ir.CFG;
 import org.neuromancer42.tea.ir.Expr;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public class CDTUtil {
     private CDTUtil() {}
 
@@ -30,29 +33,56 @@ public class CDTUtil {
         return getRawType(type);
     }
 
+    // TODO handle recursive maps?
+    private static Map<IType, String> typeNameMap = new LinkedHashMap<>();
+
     private static String getRawType(IType type) {
+        if (typeNameMap.containsKey(type)) {
+            return typeNameMap.get(type);
+        }
         if (type instanceof IBasicType) {
-            return type.toString();
+            String typeStr = type.toString();
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         } else if (type instanceof IArrayType) {
             IArrayType arrType = (IArrayType) type;
-            return getRawType(arrType.getType()) + "[" + arrType.getSize() + "]";
+            String typeStr = getRawType(arrType.getType()) + "[" + arrType.getSize() + "]";
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         } else if (type instanceof IPointerType) {
-            return getRawType(((IPointerType) type).getType()) + "*";
+            String typeStr = getRawType(((IPointerType) type).getType()) + "*";
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         } else if (type instanceof ITypedef) {
-            return getRawType(((ITypedef) type).getType());
+            ITypedef typedef = (ITypedef) type;
+            String typeStr = getRawType(typedef.getType());
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         } else if (type instanceof ICompositeType) {
-            StringBuilder sb = new StringBuilder();
             ICompositeType compType = (ICompositeType) type;
-            sb.append("composite {");
-            for (IField f : compType.getFields())
-                sb.append(getRawType(f.getType())).append(":").append(CDTUtil.fieldToRepr(f)).append(";");
-            sb.append("}");
-            return sb.toString();
+            if (compType.getName() == null || compType.getName().isBlank()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("composite{");
+                for (IField f : compType.getFields())
+                    sb.append(getRawType(f.getType())).append(":").append(CDTUtil.fieldToRepr(f)).append(";");
+                sb.append("}");
+                String typeStr = sb.toString();
+                typeNameMap.put(type, typeStr);
+                return typeStr;
+            } else {
+                String typeStr = "composite_" + compType.getName();
+                typeNameMap.put(type, typeStr);
+                return typeStr;
+            }
         } else if (type instanceof ICQualifierType) {
-            return getRawType(((ICQualifierType) type).getType());
+            String typeStr = getRawType(((ICQualifierType) type).getType());
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         }  else if (type instanceof IFunctionType) {
             IFunctionType funcType = (IFunctionType) type;
-            return "func";
+            String typeStr = "func";
+            typeNameMap.put(type, typeStr);
+            return typeStr;
         } else {
             Messages.error("CParser: unhandled type %s[%s]", type.getClass().getSimpleName(), type);
             return "unknown";

@@ -1,0 +1,2 @@
+../scripts/interval.sh -c ../scripts/interval_rank.ini -f large_17.c -a "clang large_17.c /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport/io.c -I /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport -DINCLUDEMAIN" -o "test-large_17-interval_rank"
+../scripts/interval.sh -c ../scripts/interval_rank.ini -f large_44.c -a "clang large_44.c /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport/io.c -I /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport -DINCLUDEMAIN" -o "test-large_44-interval_rank"

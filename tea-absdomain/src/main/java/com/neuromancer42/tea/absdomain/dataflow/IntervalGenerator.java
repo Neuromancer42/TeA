@@ -135,7 +135,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                     try {
                         int primVal = Integer.parseInt(constRepr);
                         regToLiteral.put(reg, primVal);
-                        Messages.debug("IntervalGenerator: find new constant integer %d", primVal);
+                        Messages.debug("IntervalGenerator: find new constant integer %d in reg %s", primVal, reg);
                         intConstants.add(primVal);
                         intConstants.add(-primVal);
                     } catch (NumberFormatException e) {
@@ -147,10 +147,13 @@ public class IntervalGenerator extends AbstractAnalysis {
             } else if (expr.hasUnary()) {
                 //TODO separate numerics and pointers?
                 primitiveVars.add(reg);
+                primitiveVars.add(expr.getUnary().getOprand());
                 String op = expr.getUnary().getOperator();
                 domOP.add(op);
             } else if (expr.hasBinary()) {
                 primitiveVars.add(reg);
+                primitiveVars.add(expr.getBinary().getOprand1());
+                primitiveVars.add(expr.getBinary().getOprand2());
                 String op = expr.getBinary().getOperator();
                 domOP.add(op);
             }
@@ -347,13 +350,17 @@ public class IntervalGenerator extends AbstractAnalysis {
                 ItvPredicate pred = null;
                 String condv = (String) tuple[2];
 
-                // strip out outermost negations
+                // strip out outermost unary operations
+                // TODO: handling ++ and --?
                 boolean negated = false;
                 Expr.Expression expr = regToEval.get(condv);
-                while (expr.hasUnary() && expr.getUnary().getOprand().equals(Constants.OP_NOT)) {
+                while (expr != null && expr.hasUnary()) {
+//                    Messages.debug("IntervalGenerator: strip cond-var %s to expression {%s}", condv, TextFormat.shortDebugString(expr));
                     condv = expr.getUnary().getOprand();
+                    if (expr.getUnary().getOprand().equals(Constants.OP_NOT)) {
+                        negated = !negated;
+                    }
                     expr = regToEval.get(condv);
-                    negated = !negated;
                 }
 
                 // TODO: add handling of pointer's NULL-check, e.g. if (ptr) a = *ptr;
@@ -361,11 +368,14 @@ public class IntervalGenerator extends AbstractAnalysis {
                     int l1 = regToLiteral.get(condv);
                     u1 = new Interval(l1);
                     u2 = new Interval(0);
+//                    Messages.debug("IntervalGenerator: cond-var %s is literal %s", condv, u1);
                 } else if (regToHeap.containsKey(condv)) {
                     h1 = regToHeap.get(condv);
                     u2 = new Interval(0);
                     pred = new ItvPredicate(Constants.OP_NE, negated);
-                } else if (expr.hasBinary()) {
+//                    Messages.debug("IntervalGenerator: cond-var %s is var %s", condv, h1);
+                } else if (expr != null && expr.hasBinary()) {
+//                    Messages.debug("IntervalGenerator: cond-var %s is expr %s", condv, TextFormat.shortDebugString(expr));
                     pred = new ItvPredicate(expr.getBinary().getOperator(), negated);
                     String v1 = expr.getBinary().getOprand1();
                     Integer l1 = regToLiteral.get(v1);
@@ -378,6 +388,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                 }
                 assert ((u1 == null || h1 == null) && (u2 == null || h2 == null));
                 if (pred == null) {
+                    Messages.debug("IntervalGenerator: cannot handle cond-var %s, mark as unknown", condv);
                     relPredUnknown.add(condv);
                 } else {
                     if (h1 != null && h2 != null) {
@@ -399,9 +410,10 @@ public class IntervalGenerator extends AbstractAnalysis {
                         }
                         relPredR.add(condv, pred.toString(), u1.toString(), h2);
                     } else if (u1 != null && u2 != null) {
-                        Messages.error("Interval: cond-val @%d is constant [%d]", condv, regToLiteral.get(condv));
+                        Messages.error("IntervalGenerator: cond-val @%d is constant [%d]", condv, regToLiteral.get(condv));
                         relPredUnknown.add(condv);
                     } else {
+                        Messages.error("IntervalGenerator: unhandled binary expr for cond-var %s", condv);
                         relPredUnknown.add(condv);
                     }
                 }
@@ -452,8 +464,9 @@ public class IntervalGenerator extends AbstractAnalysis {
         Map<String, String> val2heap = new HashMap<>();
         for (Object[] tuple : relLoadPtr.getValTuples()) {
             String u = (String) tuple[0];
+            String ptr = (String) tuple[1];
+//            Messages.debug("IntervalGenerator: reg %s is loaded from ptr %s", u, ptr);
             if (primitiveVars.contains(u)) {
-                String ptr = (String) tuple[1];
                 Set<String> objs = pt.get(ptr);
                 if (objs != null && objs.size() == 1) {
                     for (String obj : objs) {

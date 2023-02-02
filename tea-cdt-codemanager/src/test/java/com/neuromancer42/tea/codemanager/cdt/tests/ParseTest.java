@@ -31,6 +31,10 @@ public class ParseTest {
     private static Path inclHeaderPath;
     private static final String inclSrcName = "incl.c";
     private static Path inclSrcPath;
+    private static final String typedefName = "typedef.c";
+    private static Path typedefPath;
+    private static final String mallocName = "malloc.c";
+    private static Path mallocPath;
 
     private static final Path rootDir = Paths.get("test-out").resolve("test-parse");
 
@@ -73,6 +77,20 @@ public class ParseTest {
         assert inclSrcIn != null;
         Files.copy(inclSrcIn, inclSrcPath, StandardCopyOption.REPLACE_EXISTING);
         inclSrcIn.close();
+
+        InputStream typedefIn = CDTCManager.class.getClassLoader().getResourceAsStream(typedefName);
+        System.err.println("Writing " + typedefName);
+        typedefPath = srcDir.resolve(typedefName);
+        assert typedefIn != null;
+        Files.copy(typedefIn, typedefPath, StandardCopyOption.REPLACE_EXISTING);
+        typedefIn.close();
+
+        InputStream mallocIn = CDTCManager.class.getClassLoader().getResourceAsStream(mallocName);
+        System.err.println("Writing " + mallocName);
+        mallocPath = srcDir.resolve(mallocName);
+        assert mallocIn != null;
+        Files.copy(mallocIn, mallocPath, StandardCopyOption.REPLACE_EXISTING);
+        mallocIn.close();
 
         CDTCManager.setDummySysroot(rootDir);
     }
@@ -191,5 +209,39 @@ public class ParseTest {
         CDTCManager cmanager = new CDTCManager(workDir, inclSrcPath.toString(), String.format("clang %s -I%s -o incl", inclSrcPath.toAbsolutePath(), inclHeaderPath.getParent().toAbsolutePath()));
         cmanager.run();
         System.err.println(new ASTWriter().write(cmanager.getTranslationUnit()));
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("CDT handles typedefs correctly")
+    public void parseTypedef() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-typedef"));
+        CDTCManager cmanager = new CDTCManager(workDir, typedefPath.toString(), "clang");
+        cmanager.run();
+        for (ProgramDom dom : cmanager.getProducedDoms()) {
+            if (dom.getName().equals("T")) {
+                Assertions.assertNotEquals(0, dom.size());
+                for (String tStr : dom) {
+                    Messages.log(tStr);
+                }
+            }
+        }
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("CDT handles mallocs correctly")
+    public void parseMalloc() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-malloc"));
+        CDTCManager cmanager = new CDTCManager(workDir, mallocPath.toString(), "clang");
+        cmanager.run();
+        for (ProgramDom dom : cmanager.getProducedDoms()) {
+            if (dom.getName().equals("A")) {
+                Assertions.assertNotEquals(0, dom.size());
+                for (String tStr : dom) {
+                    Messages.log(tStr);
+                }
+            }
+        }
     }
 }

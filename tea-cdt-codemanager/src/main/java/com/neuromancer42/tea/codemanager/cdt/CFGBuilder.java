@@ -15,7 +15,9 @@ import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.c.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
+import org.eclipse.cdt.internal.core.dom.parser.IntegralValue;
 import org.eclipse.cdt.internal.core.dom.parser.ProblemBinding;
+import org.eclipse.cdt.internal.core.dom.parser.c.CArrayType;
 import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
 import org.eclipse.cdt.internal.core.dom.parser.c.CPointerType;
 import org.neuromancer42.tea.ir.CFG;
@@ -46,6 +48,7 @@ public class CFGBuilder {
     private final Map<IFunction, Set<Integer>> funcVars;
     private final Set<Integer> staticRefs;
     private final Map<Integer, CFG.Alloca> allocaMap;
+    private final Map<IASTExpression, CFG.Alloca> mallocMap;
 
     private final Set<IType> types;
     private final Set<IField> fields;
@@ -82,6 +85,7 @@ public class CFGBuilder {
         funcVars = new HashMap<>();
         staticRefs = new LinkedHashSet<>();
         allocaMap = new LinkedHashMap<>();
+        mallocMap = new LinkedHashMap<>();
         types = new LinkedHashSet<>();
         fields = new LinkedHashSet<>();
 
@@ -135,6 +139,10 @@ public class CFGBuilder {
             IVariable var = (IVariable) binding;
             if (refRegMap.containsKey(var))
                 Messages.warn("CParser: re-declare variable %s[%s] at line#%d: (%s)", var.getClass().getSimpleName(), var, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
+            if (var.getType().isSameType(CBasicType.VOID)) {
+                Messages.warn("CParser: skip declared null variable %s[%s] at line#%d: (%s)", var.getClass().getSimpleName(), var, declarator.getFileLocation().getStartingLineNumber(), declarator.getRawSignature());
+                return null;
+            }
             processVariable(var, isStatic);
         } else if (binding instanceof IFunction) {
             IFunction func = (IFunction) binding;
@@ -280,7 +288,19 @@ public class CFGBuilder {
     }
 
     public CFG.Alloca getAllocaForRef(int reg) {
-        return allocaMap.get(reg);
+        CFG.Alloca alloca = allocaMap.get(reg);
+        if (alloca == null) {
+            Messages.error("CParser: reg %d has no alloca processed", reg);
+        }
+        return alloca;
+    }
+
+    public Set<IASTExpression> getMallocs() {
+        return mallocMap.keySet();
+    }
+
+    public CFG.Alloca getAllocaForMalloc(IASTExpression mallocExpr) {
+        return mallocMap.get(mallocExpr);
     }
 
     public Set<Integer> getMethodVars(IFunction func) {
@@ -328,7 +348,7 @@ public class CFGBuilder {
         for (int i = 0; i < paramDtors.length; ++i) {
             IASTDeclarator dtor = paramDtors[i];
             IParameter param = (IParameter) processDeclarator(dtor, false);
-            if (param.getType().isSameType(CBasicType.VOID)) {
+            if (param == null) {
                 break;
             }
             int refReg = getRefReg(param);
@@ -1071,43 +1091,67 @@ public class CFGBuilder {
             IASTFunctionCallExpression invk = (IASTFunctionCallExpression) expression;
 
             IASTExpression fNameExpr = unparenthesize(invk.getFunctionNameExpression());
-            int fReg = handleFunctionName(fNameExpr);
-
-            // TODO: C standard does not specify the evaluation order of arguments
-            int[] fArgRegs = new int[invk.getArguments().length];
-            for (int i = 0; i < fArgRegs.length; ++i) {
-                IASTExpression fArgExpr = unparenthesize((IASTExpression) invk.getArguments()[i]);
-                if (fArgExpr instanceof IASTFunctionCallExpression) {
-                    Messages.warn("CParser: embedded function call in [%s]", expression.getRawSignature());
-                }
-                fArgRegs[i] = handleRvalue(fArgExpr);
-            }
-
-            CFG.CFGNode invkNode;
-            int reg = createRegister(expression);
-            if (fReg < 0) {
-                IFunction f = staticInvkMap.get(fNameExpr);
-                if (f == null) {
-                    Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
-                }
-                invkNode = newStaticCallNode(reg, f, fArgRegs, invk);
+            if (isMallocLike(fNameExpr)) {
+                // Note: special handling of malloc
+                int reg = createRegister(expression);
+                Integer size = getMallocSize(invk);
+                CFG.CFGNode allocNode = newAllocaNode(reg, invk, CBasicType.VOID, size);
+                Messages.debug("CParser: create alloc node {%s} for malloc-like expression {%s}", TextFormat.shortDebugString(allocNode), expression.getRawSignature());
+                prevNode = connect(prevNode, allocNode);
+                return reg;
             } else {
-                invkNode = newIndirectCallNode(reg, fReg, fArgRegs, invk);
+                int fReg = handleFunctionName(fNameExpr);
+
+                // TODO: C standard does not specify the evaluation order of arguments
+                int[] fArgRegs = new int[invk.getArguments().length];
+                for (int i = 0; i < fArgRegs.length; ++i) {
+                    IASTExpression fArgExpr = unparenthesize((IASTExpression) invk.getArguments()[i]);
+                    if (fArgExpr instanceof IASTFunctionCallExpression) {
+                        Messages.warn("CParser: embedded function call in [%s]", expression.getRawSignature());
+                    }
+                    fArgRegs[i] = handleRvalue(fArgExpr);
+                }
+
+                CFG.CFGNode invkNode;
+                int reg = createRegister(expression);
+                if (fReg < 0) {
+                    IFunction f = staticInvkMap.get(fNameExpr);
+                    if (f == null) {
+                        Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                        assert false;
+                    }
+                    invkNode = newStaticCallNode(reg, f, fArgRegs, invk);
+                } else {
+                    invkNode = newIndirectCallNode(reg, fReg, fArgRegs, invk);
+                }
+                Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
+
+                prevNode = connect(prevNode, invkNode);
+
+                return reg;
             }
-            Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
-
-            prevNode = connect(prevNode, invkNode);
-
-            return reg;
         } else if (expression instanceof IASTCastExpression) {
             IASTExpression innerExpr = unparenthesize(((IASTCastExpression) expression).getOperand());
-            int innerReg = handleRvalue(innerExpr);
-            Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId(), expression);
-            int reg = createRegister(expression);
-            Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
-            CFG.CFGNode evalNode = newEvalNode(reg, expr);
-            prevNode = connect(prevNode, evalNode);
-            return reg;
+            if (innerExpr instanceof IASTFunctionCallExpression
+                    && isMallocLike(((IASTFunctionCallExpression) innerExpr).getFunctionNameExpression())) {
+                int reg = createRegister(expression);
+                // Note get the actual type of malloc-ed object?
+                IType ptrType = expression.getExpressionType();
+                IType baseType = ((IPointerType) ptrType).getType();
+                Integer size = getMallocSize((IASTFunctionCallExpression) innerExpr);
+                CFG.CFGNode allocNode = newAllocaNode(reg, expression, baseType, size);
+                Messages.debug("CParser: create alloc node {%s} for malloc-like expression {%s}", TextFormat.shortDebugString(allocNode), expression.getRawSignature());
+                prevNode = connect(prevNode, allocNode);
+                return reg;
+            } else {
+                int innerReg = handleRvalue(innerExpr);
+                Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId(), expression);
+                int reg = createRegister(expression);
+                Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
+                CFG.CFGNode evalNode = newEvalNode(reg, expr);
+                prevNode = connect(prevNode, evalNode);
+                return reg;
+            }
         } else if (expression instanceof IASTTypeIdExpression) {
             IASTTypeIdExpression typeIdExpression = (IASTTypeIdExpression) expression;
             if (typeIdExpression.getOperator() == IASTTypeIdExpression.op_sizeof) {
@@ -1132,6 +1176,37 @@ public class CFGBuilder {
         int reg = registers.indexOf(expression);
         Messages.error("CParser: skip unsupported C Rvalue expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         return reg;
+    }
+
+    private static final List<String> mallocLikeFuncs = List.of("malloc", "alloca");
+    private static boolean isMallocLike(IASTExpression fNameExpr) {
+        fNameExpr = unparenthesize(fNameExpr);
+        if (fNameExpr instanceof IASTIdExpression) {
+            String fName = new String(((IASTIdExpression) fNameExpr).getName().toCharArray());
+            return mallocLikeFuncs.contains(fName);
+        }
+        return false;
+    }
+    private Integer getMallocSize(IASTFunctionCallExpression innerExpr) {
+        IASTExpression sizeExpr = unparenthesize((IASTExpression) innerExpr.getArguments()[0]);
+        Integer size = null;
+        if (sizeExpr instanceof IASTLiteralExpression) {
+            size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) sizeExpr).getValue()));
+        } else if (sizeExpr instanceof IASTTypeIdExpression) {
+            size = 1;
+        } else if (sizeExpr instanceof IASTBinaryExpression) {
+            IASTBinaryExpression bSizeExpr = (IASTBinaryExpression) sizeExpr;
+            if (bSizeExpr.getOperator() == IASTBinaryExpression.op_multiply) {
+                IASTExpression op1 = unparenthesize(bSizeExpr.getOperand1());
+                IASTExpression op2 = unparenthesize(bSizeExpr.getOperand2());
+                if (op1 instanceof IASTLiteralExpression && op2 instanceof IASTTypeIdExpression) {
+                    size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) op1).getValue()));
+                } else if (op1 instanceof IASTTypeIdExpression && op2 instanceof IASTLiteralExpression) {
+                    size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) op2).getValue()));
+                }
+            }
+        }
+        return size;
     }
 
     private int handleFieldReference(IASTExpression baseExpr, IField field, boolean isPointerDereference) {
@@ -1431,7 +1506,7 @@ public class CFGBuilder {
     }
 
     private CFG.CFGNode connect(CFG.CFGNode prevNode, CFG.CFGNode postNode) {
-        if (prevNode.hasReturn() || prevNode.hasGoto() || prevNode == null) {
+        if (prevNode == null || prevNode.hasReturn() || prevNode.hasGoto()) {
             unreachable.add(postNode);
             return null;
         }
@@ -1440,7 +1515,7 @@ public class CFGBuilder {
     }
 
     private CFG.CFGNode branch(CFG.CFGNode prevNode, CFG.CFGNode postNode, int condReg, boolean positive) {
-        if (prevNode.hasReturn() || prevNode.hasGoto() || prevNode == null) {
+        if (prevNode == null || prevNode.hasReturn() || prevNode.hasGoto()) {
             unreachable.add(postNode);
             return null;
         }
@@ -1452,7 +1527,7 @@ public class CFGBuilder {
     }
 
     private CFG.CFGNode jump(CFG.CFGNode prevNode, CFG.CFGNode postNode) {
-        if (prevNode.hasReturn() || prevNode.hasGoto() || prevNode == null) {
+        if (prevNode == null || prevNode.hasReturn() || prevNode.hasGoto()) {
             return null;
         }
         assert postNode.hasLabel();
@@ -1528,12 +1603,12 @@ public class CFGBuilder {
     }
 
     private int createRegister(IASTExpression expression) {
+        int reg = getRegister(expression, true);
         if (expression.getExpressionType().isSameType(CBasicType.VOID)) {
-            Messages.debug("CParser: create null register -1 for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
-            return -1;
+            Messages.debug("CParser: create null register %d for void-type expression %s[%s]", reg, expression.getClass().getSimpleName(), expression.getRawSignature());
 //            Messages.warn("CParser: create register for void-type expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         }
-        return getRegister(expression, true);
+        return reg;
     }
     
     private int createRegister(Expr.Expression gepExpr) {
@@ -1909,6 +1984,28 @@ public class CFGBuilder {
                 .build();
     }
 
+    private CFG.CFGNode newAllocaNode(int refReg, IASTExpression mallocExpr, IType contentType, Integer length) {
+        String id = mallocExpr.getRawSignature() + "#"+ mallocExpr.getFileLocation().getStartingLineNumber();
+
+        CArrayType arrType;
+        if (length != null) {
+            arrType = new CArrayType(contentType, false, false, false, IntegralValue.create(length));
+            registers.add(length);
+            int reg = registers.indexOf(length);
+            simpleConstants.put(reg, String.valueOf(length));
+        } else {
+            arrType = new CArrayType(contentType);
+        }
+        types.add(arrType);
+        CFG.Alloca heapAlloc = newAlloca(refReg, id, arrType);
+        allocaMap.put(refReg, heapAlloc);
+        mallocMap.put(mallocExpr, heapAlloc);
+        return CFG.CFGNode.newBuilder()
+                .setId(newNodeIdx())
+                .setAlloca(heapAlloc)
+                .build();
+    }
+
     private CFG.Alloca newAlloca(int refReg, IVariable var) {
         return CFG.Alloca.newBuilder()
                 .setReg(CDTUtil.regToRepr(refReg))
@@ -1986,6 +2083,7 @@ public class CFGBuilder {
 
     private Expr.Expression newGetFieldPtrEval(IType baseType, int basePtr, IField field) {
         IType elemPtrType = new CPointerType(field.getType(), 0);
+        types.add(elemPtrType);
         return Expr.Expression.newBuilder()
                 // the result is a pointer to the field
                 .setType(CDTUtil.typeToRepr(elemPtrType))
@@ -2000,6 +2098,7 @@ public class CFGBuilder {
     private Expr.Expression newGetIndexPtrEval(IType baseType, int basePtr, int posReg) {
         IType elemType = ((ITypeContainer) baseType).getType();
         IType elemPtrType = new CPointerType(elemType, 0);
+        types.add(elemPtrType);
         return Expr.Expression.newBuilder()
                 // the result is a pointer to the element
                 .setType(CDTUtil.typeToRepr(elemPtrType))

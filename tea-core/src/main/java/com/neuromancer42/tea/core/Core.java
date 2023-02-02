@@ -54,7 +54,9 @@ public class Core {
                 String host = config.getSection(providerName).getString(Constants.OPT_HOST);
                 int port = Integer.parseInt(config.getSection(providerName).getString(Constants.OPT_PORT));
                 Messages.log("Core: configured provider %s [%s:%d] at %s", providerName, host, port, allTimer);
-                Channel channel = Grpc.newChannelBuilderForAddress(host, port, InsecureChannelCredentials.create()).build();
+                Channel channel = Grpc.newChannelBuilderForAddress(host, port, InsecureChannelCredentials.create())
+                        .maxInboundMessageSize(Integer.MAX_VALUE)
+                        .build();
                 ProviderGrpc.ProviderBlockingStub stub = ProviderGrpc.newBlockingStub(channel);
                 providerMap.put(providerName, stub);
             }

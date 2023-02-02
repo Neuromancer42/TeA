@@ -251,9 +251,10 @@ public class CDTCManager extends AbstractAnalysis {
     public static void setDummySysroot(Path path) {
         try {
             dummySysrootPath = Files.createDirectories(path.resolve("dummy-sysroot"));
-            String[] headers = {"stdio.h", "stdlib.h", "stddef.h",
-                    "time.h", "limits.h", "string.h", "stdint.h", "ctype.h", "fcntl.h",
-                    "sys/types.h", "sys/stat.h", "io.h"
+            String[] headers = {"stdio.h", "stdlib.h", "stddef.h", "stdarg.h", "stdint.h",
+                    "time.h", "limits.h", "string.h", "ctype.h", "wchar.h", "fcntl.h", "signal.h", "errno.h",
+                    "sys/types.h", "sys/stat.h", "sys/sysmacros.h", "io.h", "libio.h", "assert.h", "unistd.h",
+                    "bits/types.h"
             };
             for (String header : headers) {
                 String dummyInclude = String.format("%s <%s>", incDirective, header);
@@ -407,6 +408,9 @@ public class CDTCManager extends AbstractAnalysis {
         }
         for (int refReg : builder.getGlobalRefs()) {
             domA.add(builder.getAllocaForRef(refReg).getVariable());
+        }
+        for (IASTExpression mallocExpr : builder.getMallocs()) {
+            domA.add(builder.getAllocaForMalloc(mallocExpr).getVariable());
         }
         int maxNumArg = 0;
         for (IFunction meth : builder.getFuncs()) {
