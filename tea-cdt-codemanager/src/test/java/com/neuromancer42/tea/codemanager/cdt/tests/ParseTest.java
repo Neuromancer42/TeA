@@ -35,6 +35,12 @@ public class ParseTest {
     private static Path typedefPath;
     private static final String mallocName = "malloc.c";
     private static Path mallocPath;
+    private static final String typesName = "types.c";
+    private static Path typesPath;
+    private static final String vlaName = "vla.c";
+    private static Path vlaPath;
+    private static final String sizeofName = "sizeof.c";
+    private static Path sizeofPath;
 
     private static final Path rootDir = Paths.get("test-out").resolve("test-parse");
 
@@ -92,7 +98,27 @@ public class ParseTest {
         Files.copy(mallocIn, mallocPath, StandardCopyOption.REPLACE_EXISTING);
         mallocIn.close();
 
+        InputStream typesIn = CDTCManager.class.getClassLoader().getResourceAsStream(typesName);
+        System.err.println("Writing " + typesName);
+        typesPath = srcDir.resolve(typesName);
+        assert typesIn != null;
+        Files.copy(typesIn, typesPath, StandardCopyOption.REPLACE_EXISTING);
+        typesIn.close();
         CDTCManager.setDummySysroot(rootDir);
+
+        InputStream vlaIn = CDTCManager.class.getClassLoader().getResourceAsStream(vlaName);
+        System.err.println("Writing " + vlaName);
+        vlaPath = srcDir.resolve(vlaName);
+        assert vlaIn != null;
+        Files.copy(vlaIn, vlaPath, StandardCopyOption.REPLACE_EXISTING);
+        vlaIn.close();
+
+        InputStream sizeofIn = CDTCManager.class.getClassLoader().getResourceAsStream(sizeofName);
+        System.err.println("Writing " + sizeofName);
+        sizeofPath = srcDir.resolve(sizeofName);
+        assert sizeofIn != null;
+        Files.copy(sizeofIn, sizeofPath, StandardCopyOption.REPLACE_EXISTING);
+        sizeofIn.close();
     }
 
     @Test
@@ -241,6 +267,112 @@ public class ParseTest {
                 for (String tStr : dom) {
                     Messages.log(tStr);
                 }
+            }
+        }
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("CDT handles types correctly")
+    public void parseTypes() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-types"));
+        CDTCManager cmanager = new CDTCManager(workDir, typesPath.toString(), "clang");
+        cmanager.run();
+        for (ProgramDom dom : cmanager.getProducedDoms()) {
+            if (dom.getName().equals("T")) {
+                Assertions.assertNotEquals(0, dom.size());
+                for (String t : dom) {
+                    Messages.log(t);
+                }
+            }
+        }
+        for (ProgramRel rel : cmanager.getProducedRels()) {
+            if (rel.getName().equals("Alloca") || rel.getName().equals("TypeWidth")) {
+                rel.load();
+                Assertions.assertNotEquals(0, rel.size());
+                for (Object[] tuple : rel.getValTuples()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(rel.getName()).append("(");
+                    for (int i = 0; i < tuple.length; ++i) {
+                        if (i > 0) {
+                            sb.append(",");
+                        }
+                        sb.append((String) tuple[i]);
+                    }
+                    sb.append(")");
+                    Messages.log(sb.toString().replaceAll("%", "%%"));
+                }
+                rel.close();
+            }
+        }
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("CDT handles VLA correctly")
+    public void parseVla() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-vla"));
+        CDTCManager cmanager = new CDTCManager(workDir, vlaPath.toString(), "clang");
+        cmanager.run();
+        for (ProgramDom dom : cmanager.getProducedDoms()) {
+            if (dom.getName().equals("T")) {
+                for (String a : dom) {
+                    Messages.log(a);
+                }
+            }
+        }
+        for (ProgramRel rel : cmanager.getProducedRels()) {
+            if (rel.getName().equals("ArrContentType")) {
+                rel.load();
+                Assertions.assertNotEquals(0, rel.size());
+                for (Object[] tuple : rel.getValTuples()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(rel.getName()).append("(");
+                    for (int i = 0; i < tuple.length; ++i) {
+                        if (i > 0) {
+                            sb.append(",");
+                        }
+                        sb.append((String) tuple[i]);
+                    }
+                    sb.append(")");
+                    Messages.log(sb.toString().replaceAll("%", "%%"));
+                }
+                rel.close();
+            }
+        }
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("CDT handles sizeof correctly")
+    public void parseSizeof() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-sizeof"));
+        CDTCManager cmanager = new CDTCManager(workDir, sizeofPath.toString(), "clang");
+        cmanager.run();
+        for (ProgramDom dom : cmanager.getProducedDoms()) {
+            if (dom.getName().equals("T")) {
+                for (String a : dom) {
+                    Messages.log(a);
+                }
+            }
+        }
+        for (ProgramRel rel : cmanager.getProducedRels()) {
+            if (rel.getName().equals("Econst") || rel.getName().equals("TypeWidth")) {
+                rel.load();
+                Assertions.assertNotEquals(0, rel.size());
+                for (Object[] tuple : rel.getValTuples()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(rel.getName()).append("(");
+                    for (int i = 0; i < tuple.length; ++i) {
+                        if (i > 0) {
+                            sb.append(",");
+                        }
+                        sb.append((String) tuple[i]);
+                    }
+                    sb.append(")");
+                    Messages.log(sb.toString().replaceAll("%", "%%"));
+                }
+                rel.close();
             }
         }
     }

@@ -1,14 +1,12 @@
 .type V <: unsigned
 .type H <: unsigned
-.type SZ <: unsigned
 .type P <: unsigned
 .type U <: unsigned
+.type T <: unsigned
+.type C <: unsigned
 
 .decl ci_pt(v:V, h:H)
 .input ci_pt
-
-.decl ci_apt(h:H, i:SZ, o:H)
-.input ci_apt
 
 .decl Pload(p:P,v:V)
 .input Pload
@@ -21,22 +19,48 @@
 
 .decl ci_Vval(v:V,val:U)
 .input ci_Vval
+.decl ci_Voffset(v:V,content:H,type:T,offset:U)
+.input ci_Voffset
 
-.decl MayOutOfBound(p:SZ,i:U,b:SZ)
-.input MayOutOfBound
+.decl TypeWidth(type:T,width:C)
+.input TypeWidth
+.decl FixArrayShape(content:H,t:T,l:C)
+.input FixArrayShape
+.decl VarArrayShape(content:H,t:T,l:V)
+.input VarArrayShape
+.decl ConstU(c:C,u:U)
+.input ConstU
+.decl evalPlusU(o1:U,o2:U,o:U)
+.input evalPlusU
+.decl evalMultU(o1:U,o2:U,o:U)
+.input evalMultU
+.decl evalLEU(o1:U,o2:U)
+.input evalLEU
 
-.decl HeapArraySize(h:H,b:SZ)
-.input HeapArraySize
-
-.decl CWE119_out_of_bound(p:P, v:V, i:V, pos:SZ, offset:U, bound:SZ)
+.decl CWE119_out_of_bound(p:P, v:V, i:V, content:H, type:T, o1:U, o2:U, bytes:U)
 .output CWE119_out_of_bound
 
-CWE119_out_of_bound(p,v,i,pos,offset,bound) :-
-    Pload(p,u), LoadArr(u,v,i),
-    ci_pt(v,h), ci_apt(b,pos,h), HeapArraySize(b,bound),
-    ci_Vval(i,offset), MayOutOfBound(pos,offset,bound).
+CWE119_out_of_bound(p,v,i,content,t1,o1,o2,bytes) :-
+    AccessArray(p,v,i),
+    ci_Voffset(v,content,t1,o1), ci_Vval(i,o2),
+    OutOfBound(content,t1,o1,o2,bytes).
 
-CWE119_out_of_bound(p,v,i,pos,offset,bound) :-
-    Pstore(p,v), StoreArr(u,i,v),
-    ci_pt(u,h), ci_apt(b,pos,h), HeapArraySize(b,bound),
-    ci_Vval(i,offset), MayOutOfBound(pos,offset,bound).
+.decl AccessArray(p:P,v:V,i:V)
+.decl OutOfBound(content:H,t1:T,o1:U,o2:U,bytes:U)
+.decl ArrayLength(content:H,bound:U)
+
+AccessArray(p,v,i) :- Pload(p,u), LoadArr(u,v,i).
+AccessArray(p,v,i) :- Pstore(p,u), StoreArr(v,i,u).
+
+OutOfBound(content,t1,o1,o2,bound) :-
+    TypeWidth(t1,w1), ConstU(w1,wu1),
+    evalPlusU(o1,o2,o), evalMultU(o,wu1,offset),
+    ArrayLength(content,bound), evalLEU(bound,offset).
+
+ArrayLength(content,bound) :-
+    FixArrayShape(content,t2,c), ConstU(c,b),
+    TypeWidth(t2,w2), ConstU(w2,wu2), evalMultU(b,wu2,bound).
+
+ArrayLength(content,bound) :-
+    VarArrayShape(content,t2,n), ci_Vval(n,b),
+    TypeWidth(t2,w2), ConstU(w2,wu2), evalMultU(b,wu2,bound).

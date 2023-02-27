@@ -4,6 +4,7 @@ import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.absdomain.memmodel.CMemoryModel;
+import com.neuromancer42.tea.commons.configs.Constants;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -60,8 +61,19 @@ public class CMemModelTest {
 
         ProgramDom domC = new ProgramDom("C");
         domC.init();
+        domC.add(Constants.NULL);
         domC.save(dir);
         domLocMap.put("C", dir);
+
+        ProgramDom domI = new ProgramDom("I");
+        domI.init();
+        domI.save(dir);
+        domLocMap.put("I", dir);
+
+        ProgramDom domZ = new ProgramDom("Z");
+        domZ.init();
+        domZ.save(dir);
+        domLocMap.put("Z", dir);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
@@ -95,6 +107,24 @@ public class CMemModelTest {
         relArrContentType.close();
         relLocMap.put("ArrContentType", dir);
 
+        ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
+        relStaticCall.init();
+        relStaticCall.save(dir);
+        relStaticCall.close();
+        relLocMap.put("StaticCall", dir);
+
+        ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
+        relIinvkRet.init();
+        relIinvkRet.save(dir);
+        relIinvkRet.close();
+        relLocMap.put("IinvkRet", dir);
+
+        ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
+        relIinvkArg.init();
+        relIinvkArg.save(dir);
+        relIinvkArg.close();
+        relLocMap.put("IinvkArg", dir);
+
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);
 
@@ -102,7 +132,7 @@ public class CMemModelTest {
         ProgramDom domH = new ProgramDom("H");
         assert output.getLeft().containsKey("H");
         domH.load(output.getLeft().get("H"));
-        Assertions.assertEquals(1, domH.size());
+        Assertions.assertEquals(2, domH.size());
     }
 
     @Test
@@ -152,8 +182,19 @@ public class CMemModelTest {
 
         ProgramDom domC = new ProgramDom("C");
         domC.init();
+        domC.add(Constants.NULL);
         domC.save(dir);
         domLocMap.put("C", dir);
+
+        ProgramDom domI = new ProgramDom("I");
+        domI.init();
+        domI.save(dir);
+        domLocMap.put("I", dir);
+
+        ProgramDom domZ = new ProgramDom("Z");
+        domZ.init();
+        domZ.save(dir);
+        domLocMap.put("Z", dir);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
@@ -188,6 +229,24 @@ public class CMemModelTest {
         relArrContentType.close();
         relLocMap.put("ArrContentType", dir);
 
+        ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
+        relStaticCall.init();
+        relStaticCall.save(dir);
+        relStaticCall.close();
+        relLocMap.put("StaticCall", dir);
+
+        ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
+        relIinvkRet.init();
+        relIinvkRet.save(dir);
+        relIinvkRet.close();
+        relLocMap.put("IinvkRet", dir);
+
+        ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
+        relIinvkArg.init();
+        relIinvkArg.save(dir);
+        relIinvkArg.close();
+        relLocMap.put("IinvkArg", dir);
+
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);
 
@@ -195,7 +254,7 @@ public class CMemModelTest {
         ProgramDom domH = new ProgramDom("H");
         assert output.getLeft().containsKey("H");
         domH.load(output.getLeft().get("H"));
-        Assertions.assertEquals(2, domH.size());
+        Assertions.assertEquals(3, domH.size());
     }
 
     @Test
@@ -245,8 +304,19 @@ public class CMemModelTest {
         ProgramDom domC = new ProgramDom("C");
         domC.init();
         domC.add(arrSize);
+        domC.add(Constants.NULL);
         domC.save(dir);
         domLocMap.put("C", dir);
+
+        ProgramDom domI = new ProgramDom("I");
+        domI.init();
+        domI.save(dir);
+        domLocMap.put("I", dir);
+
+        ProgramDom domZ = new ProgramDom("Z");
+        domZ.init();
+        domZ.save(dir);
+        domLocMap.put("Z", dir);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
@@ -280,6 +350,24 @@ public class CMemModelTest {
         relArrContentType.save(dir);
         relArrContentType.close();
         relLocMap.put("ArrContentType", dir);
+
+        ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
+        relStaticCall.init();
+        relStaticCall.save(dir);
+        relStaticCall.close();
+        relLocMap.put("StaticCall", dir);
+
+        ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
+        relIinvkRet.init();
+        relIinvkRet.save(dir);
+        relIinvkRet.close();
+        relLocMap.put("IinvkRet", dir);
+
+        ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
+        relIinvkArg.init();
+        relIinvkArg.save(dir);
+        relIinvkArg.close();
+        relLocMap.put("IinvkArg", dir);
 
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);

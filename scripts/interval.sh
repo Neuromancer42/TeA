@@ -50,16 +50,19 @@ done
 nohup ../tea-core/build/install/tea-core/bin/tea-core ${config_file} ${outdir} > ${outdir}/tea-core.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-core, pid: ${nohup_pids[0]}"
+finish_all () {
+  for pid in "${nohup_pids[@]}"
+  do
+    echo "killing pid: $pid"
+    kill -9 $pid
+  done
+  popd || exit 1
+  exit 0
+}
 
+trap finish_all SIGINT
 python3 ../tea-clients/basic_client.py ${config_file} ${source_file} "${compile_cmd}"
 
-for pid in "${nohup_pids[@]}"
-do
-  echo "killing pid: $pid"
-  kill -9 $pid
-done
-popd || exit 1
-
-
+finish_all
 
 

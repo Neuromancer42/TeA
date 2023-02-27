@@ -4,19 +4,24 @@
 .type F <: unsigned // field names
 .type I <: unsigned // invocation sites
 .type Z <: unsigned // integers for counting function arguments
-.type SZ <: unsigned // interval representation of array indexes and sizes
+.type C <: unsigned
+.type E <: unsigned
+.type OP <: unsigned
+.type T <: unsigned
 
 // declared variables
 .decl AllocMem(y:V,h:H)
 .input AllocMem
 .decl GlobalAllocMem(y:V,h:H)
 .input GlobalAllocMem
-.decl HeapAllocPtr(o:H,h:H)
-.input HeapAllocPtr
-.decl HeapAllocArr(o:H,p:SZ,h:H)
-.input HeapAllocArr
-.decl HeapAllocFld(o:H,f:F,h:H)
-.input HeapAllocFld
+.decl MallocMem(x:V,h:H)
+.input MallocMem
+//.decl HeapAllocPtr(o:H,h:H)
+//.input HeapAllocPtr
+.decl HeapArrayContent(o:H,h:H)
+.input HeapArrayContent
+.decl HeapStructField(o:H,f:F,h:H)
+.input HeapStructField
 
 // rhs $y[*x]
 .decl LoadPtr(y:V,x:V)
@@ -80,10 +85,26 @@
 // structs
 .decl ci_fpt(h:H,f:F,o:H)
 .output ci_fpt
-// arrays
-.decl ci_apt(h:H,i:SZ,o:H)
-.output ci_apt
 // arrays are handled as pointers
+
+// pointer arithmetics
+.decl Econst(v:V,c:C)
+.input Econst
+.decl Eunary(v:V,op:OP,o1:V)
+.input Eunary
+.decl Ebinop(v:V,op:OP,o1:V,o2:V)
+.input Ebinop
+.decl PtrOP(op:OP)
+.input PtrOP
+.decl NotPtrOP(op:OP)
+.input NotPtrOP
+.decl Eprimcast(v:V,t:T,u:V)
+.input Eprimcast
+.decl Eptrcast(v:V,t:T,u:V)
+.input Eptrcast
+
+.decl ConstAddr(c:C,h:H)
+.input ConstAddr
 
 .decl ci_MH(m:M, h:H)
 .output ci_MH
@@ -110,19 +131,28 @@ ci_reachableH(h) :- ci_fpt(_,_,h).
 
 ci_pt(v,h) :- GlobalAllocMem(v,h).
 ci_pt(v,h) :- ci_reachableM(m), MV(m,v), AllocMem(v,h).
+ci_pt(v,h) :- ci_reachableM(m), MV(m,v), MallocMem(v,h).
 
-ci_hpt(h,o) :- ci_reachableH(h), HeapAllocPtr(h,o).
+//ci_hpt(h,o) :- ci_reachableH(h), HeapAllocPtr(h,o).
 ci_hpt(h,o) :- StorePtr(u,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadPtr(u,v), ci_pt(v,h), ci_hpt(h,o).
+ci_pt(u,o) :- LoadPtr(u,v), ci_pt(v,h), HeapArrayContent(h,o). // an array object can be de-referenced to its content
 
-ci_fpt(h,f,o) :- ci_reachableH(h), HeapAllocFld(h,f,o).
+ci_fpt(h,f,o) :- ci_reachableH(h), HeapStructField(h,f,o).
 ci_fpt(h,f,o) :- StoreFld(u,f,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadFld(u,v,f), ci_pt(v,h), ci_fpt(h,f,o).
 
-ci_apt(h,i,o) :- ci_reachableH(h), HeapAllocArr(h,i,o).
-ci_apt(b,i,o) :- StoreArr(u,_,v), ci_pt(u,h), ci_apt(b,i,h), ci_pt(v,o). // useless rule
-ci_pt(u,o) :- LoadArr(u,v,_), ci_pt(v,h), ci_apt(b,_,h), ci_apt(b,_,o). // ignore idx difference
+ci_pt(u,h) :- LoadArr(u,v,_), ci_pt(v,h). // ignore idx difference
+
+// ignore pointer arithmetic
+ci_pt(u,h) :- Eunary(u,_,v), ci_pt(v,h).
+ci_pt(u,h) :- Ebinop(u,_,v,_), ci_pt(v,h).
+ci_pt(u,h) :- Ebinop(u,_,_,v), ci_pt(v,h).
+ci_pt(v,h) :- Eptrcast(v,_,u), ci_pt(u,h).
+ci_pt(v,h) :- Eprimcast(v,_,u), ci_pt(u,h).
+ci_pt(v,h) :- Econst(v,c), ConstAddr(c,h).
 
 ci_MH(m,h) :- MV(m,v), ci_pt(v,h).
 ci_MH(m,o) :- ci_MH(m,h), ci_hpt(h,o).
 ci_MH(m,o) :- ci_MH(m,h), ci_fpt(h,_,o).
+ci_MH(m,h) :- ci_reachableM(m), GlobalAllocMem(_,h).

@@ -8,18 +8,14 @@ import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexMap;
-import com.neuromancer42.tea.commons.util.WeakIdentityHashMap;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.c.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.ICASTKnRFunctionDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.ITypeContainer;
-import org.eclipse.cdt.internal.core.dom.parser.IntegralValue;
 import org.eclipse.cdt.internal.core.dom.parser.ProblemBinding;
-import org.eclipse.cdt.internal.core.dom.parser.c.CArrayType;
-import org.eclipse.cdt.internal.core.dom.parser.c.CBasicType;
-import org.eclipse.cdt.internal.core.dom.parser.c.CPointerType;
+import org.eclipse.cdt.internal.core.dom.parser.c.*;
 import org.neuromancer42.tea.ir.CFG;
 import org.neuromancer42.tea.ir.Expr;
 
@@ -48,7 +44,6 @@ public class CFGBuilder {
     private final Map<IFunction, Set<Integer>> funcVars;
     private final Set<Integer> staticRefs;
     private final Map<Integer, CFG.Alloca> allocaMap;
-    private final Map<IASTExpression, CFG.Alloca> mallocMap;
 
     private final Set<IType> types;
     private final Set<IField> fields;
@@ -74,6 +69,7 @@ public class CFGBuilder {
     private int nodeIdx;
     private CFG.CFGNode prevNode;
     private ImmutableValueGraph.Builder<CFG.CFGNode, Integer> intraCFGBuilder;
+    public util util = new util();
 
     public CFGBuilder(IASTTranslationUnit tu) {
         this.transUnit = tu;
@@ -85,7 +81,6 @@ public class CFGBuilder {
         funcVars = new HashMap<>();
         staticRefs = new LinkedHashSet<>();
         allocaMap = new LinkedHashMap<>();
-        mallocMap = new LinkedHashMap<>();
         types = new LinkedHashSet<>();
         fields = new LinkedHashSet<>();
 
@@ -151,7 +146,7 @@ public class CFGBuilder {
             processFunction(func);
         } else if (binding instanceof ITypedef) {
             ITypedef typedef = (ITypedef) binding;
-            Messages.warn("CParser: skip typedef %s[%s]", typedef.getClass().getSimpleName(), typedef);
+            Messages.debug("CParser: skip typedef %s[%s]", typedef.getClass().getSimpleName(), typedef);
         } else {
             Messages.error("CParser: unhandled declaration %s[%s] (%s[%s])", binding.getClass().getSimpleName(), binding, declarator.getClass().getSimpleName(), declarator.getRawSignature());
         }
@@ -190,7 +185,7 @@ public class CFGBuilder {
     private int processFunction(IFunction func) {
         registers.add(func);
         int fReg = registers.indexOf(func);
-        funcs.put(CDTUtil.methToRepr(func), func);
+        funcs.put(util.methToRepr(func), func);
         types.add(func.getType());
         refRegMap.put(func, fReg);
         funcVars.putIfAbsent(func, new LinkedHashSet<>());
@@ -223,7 +218,7 @@ public class CFGBuilder {
                 Number size = arrType.getSize().numberValue();
                 if (size == null) {
                     //TODO: Variable-Length Array?
-                    String unkStr = "unknown";
+                    String unkStr = Constants.UNKNOWN;
                     registers.add(unkStr);
                     int reg = registers.indexOf(unkStr);
                     simpleConstants.put(reg, unkStr);
@@ -293,14 +288,6 @@ public class CFGBuilder {
             Messages.error("CParser: reg %d has no alloca processed", reg);
         }
         return alloca;
-    }
-
-    public Set<IASTExpression> getMallocs() {
-        return mallocMap.keySet();
-    }
-
-    public CFG.Alloca getAllocaForMalloc(IASTExpression mallocExpr) {
-        return mallocMap.get(mallocExpr);
     }
 
     public Set<Integer> getMethodVars(IFunction func) {
@@ -692,7 +679,7 @@ public class CFGBuilder {
                 int rValReg = handleRvalue(rval);
 
                 int postReg = createRegister(expression);
-                String opStr = "Unknown";
+                String opStr = Constants.UNKNOWN;
                 switch (op) {
                     case IASTBinaryExpression.op_plusAssign: opStr = Constants.OP_ADD; break;
                     case IASTBinaryExpression.op_minusAssign: opStr = Constants.OP_SUB; break;
@@ -737,7 +724,7 @@ public class CFGBuilder {
                 prevNode = connect(prevNode, loadNode);
 
                 int postReg = createRegister(expression);
-                String opStr = "Unknown";
+                String opStr = Constants.UNKNOWN;
                 switch (op) {
                     case IASTUnaryExpression.op_prefixIncr:
                     case IASTUnaryExpression.op_postFixIncr:
@@ -870,12 +857,11 @@ public class CFGBuilder {
             int reg = createRegister(expression);
             IASTName name = ((IASTIdExpression) expression).getName();
             String id = new String(name.toCharArray());
-            if (id.equals("NULL")) {
+            if (id.equals("NULL") || id.equals("nullptr")) {
                 Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), id);
                 Messages.debug("CParser: set NULL constant %s@%d := %s", expression.getExpressionType(), reg, id);
-                simpleConstants.put(reg, id);
-                CFG.CFGNode evalNode = newEvalNode(reg, expr);
-                prevNode = connect(prevNode, evalNode);
+                CFG.CFGNode alloca = newAllocaNode(reg, Constants.NULL, CBasicType.VOID);
+                prevNode = connect(prevNode, alloca);
             } else {
                 IBinding binding = name.resolveBinding();
                 if (binding instanceof IProblemBinding p && p.getID() == ISemanticProblem.BINDING_NOT_FOUND) {
@@ -931,7 +917,7 @@ public class CFGBuilder {
                 }
             } else if (op == IASTUnaryExpression.op_plus || op == IASTUnaryExpression.op_minus || op == IASTUnaryExpression.op_not) {
                 int innerReg = handleRvalue(inner);
-                String opStr = "Unknown";
+                String opStr = Constants.UNKNOWN;
                 switch (op) {
                     case IASTUnaryExpression.op_plus: opStr = Constants.OP_ID; break;
                     case IASTUnaryExpression.op_minus: opStr = Constants.OP_NEG; break;
@@ -958,19 +944,43 @@ public class CFGBuilder {
                 return handleLvalue(inner);
             } else if (op == IASTUnaryExpression.op_sizeof) {
                 int reg = createRegister(expression);
-                if (inner.getExpressionType() instanceof IArrayType) {
+                if (inner.getExpressionType() instanceof IArrayType && !((IArrayType) inner.getExpressionType()).hasSize()) {
+                    // TODO: only consider vlas, sizeof fixed-array is constant
                     int innerReg = handleRvalue(inner);
                     Expr.Expression expr = newSizeOfExpr(expression.getExpressionType(), innerReg);
                     CFG.CFGNode evalNode = newEvalNode(reg, expr);
                     prevNode = connect(prevNode, evalNode);
                 } else {
                     String constant;
-                    if (inner instanceof IASTLiteralExpression && ((IASTLiteralExpression) inner).getKind() == IASTLiteralExpression.lk_string_literal) {
-                        processStringConstant((IASTLiteralExpression) inner);
-                        constant = "sizeof(" + String.valueOf(((IASTLiteralExpression) inner).getValue()) + ")";
+                    if (inner instanceof IASTLiteralExpression) {
+                        IASTLiteralExpression literal = (IASTLiteralExpression) inner;
+                        if (literal.getKind() == IASTLiteralExpression.lk_string_literal) {
+                            String s = String.valueOf(((IASTLiteralExpression) inner).getValue());
+                            int stringLen = s.length() - 1;
+                            // TODO: should consider escaped charactors, e.g. "H\0E\0" goes to ['H', '\\', '0', 'E', '\\', '0']
+                            Messages.debug("CParser: get sizeof %s as constant %d", literal.getRawSignature(), stringLen);
+                            constant = String.valueOf(stringLen);
+                        } else if (literal.getKind() == IASTLiteralExpression.lk_char_constant) {
+                            Integer width = util.typeWidth(CBasicType.INT);
+                            Messages.debug("CParser: get sizeof %s (type int) as constant %d", literal.getRawSignature(), width);
+                            constant = String.valueOf(width);
+                        } else {
+                            IType type = literal.getExpressionType();
+                            Integer width = util.typeWidth(type);
+                            if (width != null)
+                                constant = width.toString();
+                            else
+                                constant = Constants.UNKNOWN;
+                            Messages.debug("CParser: get sizeof %s (type %s[%s]) as constant %s", literal.getRawSignature(), type.getClass().getSimpleName(), type.toString(), constant);
+                        }
                     } else {
-                        Messages.debug("CParser: do not evaluate non-VLA type %s[%s] in %s[%s]", inner.getExpressionType().getClass().getSimpleName(), inner.getExpressionType(), expression.getClass().getSimpleName(), expression.getRawSignature());
-                        constant = "sizeof(" + inner.getExpressionType() + ")";
+                        IType type = inner.getExpressionType();
+                        Integer width = util.typeWidth(type);
+                        if (width != null)
+                            constant = width.toString();
+                        else
+                            constant = Constants.UNKNOWN;
+                        Messages.debug("CParser: get sizeof %s (type %s[%s]) as constant %s", inner.getRawSignature(), type.getClass().getSimpleName(), type.toString(), constant);
                     }
                     Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), constant);
                     Messages.debug("CParser: assign constant %s@%d := %s", expression.getExpressionType(), reg, constant);
@@ -1008,7 +1018,7 @@ public class CFGBuilder {
                 IASTExpression op2 = unparenthesize(binExpr.getOperand2());
                 int r2 = handleRvalue(op2);
 
-                String opStr = "Unknown";
+                String opStr = Constants.UNKNOWN;
                 switch (op) {
                     case IASTBinaryExpression.op_plus:
                         opStr = Constants.OP_ADD;
@@ -1091,75 +1101,87 @@ public class CFGBuilder {
             IASTFunctionCallExpression invk = (IASTFunctionCallExpression) expression;
 
             IASTExpression fNameExpr = unparenthesize(invk.getFunctionNameExpression());
-            if (isMallocLike(fNameExpr)) {
-                // Note: special handling of malloc
-                int reg = createRegister(expression);
-                Integer size = getMallocSize(invk);
-                CFG.CFGNode allocNode = newAllocaNode(reg, invk, CBasicType.VOID, size);
-                Messages.debug("CParser: create alloc node {%s} for malloc-like expression {%s}", TextFormat.shortDebugString(allocNode), expression.getRawSignature());
-                prevNode = connect(prevNode, allocNode);
-                return reg;
-            } else {
-                int fReg = handleFunctionName(fNameExpr);
+            int fReg = handleFunctionName(fNameExpr);
 
-                // TODO: C standard does not specify the evaluation order of arguments
-                int[] fArgRegs = new int[invk.getArguments().length];
-                for (int i = 0; i < fArgRegs.length; ++i) {
-                    IASTExpression fArgExpr = unparenthesize((IASTExpression) invk.getArguments()[i]);
-                    if (fArgExpr instanceof IASTFunctionCallExpression) {
-                        Messages.warn("CParser: embedded function call in [%s]", expression.getRawSignature());
-                    }
-                    fArgRegs[i] = handleRvalue(fArgExpr);
+            // TODO: C standard does not specify the evaluation order of arguments
+            int[] fArgRegs = new int[invk.getArguments().length];
+            for (int i = 0; i < fArgRegs.length; ++i) {
+                IASTExpression fArgExpr = unparenthesize((IASTExpression) invk.getArguments()[i]);
+                if (fArgExpr instanceof IASTFunctionCallExpression) {
+                    Messages.warn("CParser: embedded function call in [%s]", expression.getRawSignature());
                 }
-
-                CFG.CFGNode invkNode;
-                int reg = createRegister(expression);
-                if (fReg < 0) {
-                    IFunction f = staticInvkMap.get(fNameExpr);
-                    if (f == null) {
-                        Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
-                        assert false;
-                    }
-                    invkNode = newStaticCallNode(reg, f, fArgRegs, invk);
-                } else {
-                    invkNode = newIndirectCallNode(reg, fReg, fArgRegs, invk);
-                }
-                Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
-
-                prevNode = connect(prevNode, invkNode);
-
-                return reg;
+                fArgRegs[i] = handleRvalue(fArgExpr);
             }
+
+            CFG.CFGNode invkNode;
+            int reg = createRegister(expression);
+            if (fReg < 0) {
+                IFunction f = staticInvkMap.get(fNameExpr);
+                if (f == null) {
+                    Messages.fatal("CParser: cannot resolve function name %s[%s] at line#%d (%s)", fNameExpr.getClass().getSimpleName(), fNameExpr.getRawSignature(), fNameExpr.getFileLocation().getStartingLineNumber(), expression.getRawSignature());
+                    assert false;
+                }
+                invkNode = newStaticCallNode(reg, f, fArgRegs, invk);
+            } else {
+                invkNode = newIndirectCallNode(reg, fReg, fArgRegs, invk);
+            }
+            Messages.debug("CParser: compute invocation in @%d := %s", reg, TextFormat.shortDebugString(invkNode.getInvk()));
+
+            prevNode = connect(prevNode, invkNode);
+
+            return reg;
         } else if (expression instanceof IASTCastExpression) {
             IASTExpression innerExpr = unparenthesize(((IASTCastExpression) expression).getOperand());
-            if (innerExpr instanceof IASTFunctionCallExpression
-                    && isMallocLike(((IASTFunctionCallExpression) innerExpr).getFunctionNameExpression())) {
-                int reg = createRegister(expression);
-                // Note get the actual type of malloc-ed object?
-                IType ptrType = expression.getExpressionType();
-                IType baseType = ((IPointerType) ptrType).getType();
-                Integer size = getMallocSize((IASTFunctionCallExpression) innerExpr);
-                CFG.CFGNode allocNode = newAllocaNode(reg, expression, baseType, size);
-                Messages.debug("CParser: create alloc node {%s} for malloc-like expression {%s}", TextFormat.shortDebugString(allocNode), expression.getRawSignature());
-                prevNode = connect(prevNode, allocNode);
-                return reg;
-            } else {
-                int innerReg = handleRvalue(innerExpr);
-                Expr.Expression expr = newCastExpr(expression.getExpressionType(), innerReg, ((IASTCastExpression) expression).getTypeId(), expression);
-                int reg = createRegister(expression);
-                Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
-                CFG.CFGNode evalNode = newEvalNode(reg, expr);
-                prevNode = connect(prevNode, evalNode);
-                return reg;
-            }
+            int innerReg = handleRvalue(innerExpr);
+            IType castType = expression.getExpressionType();
+            processType(castType);
+            Expr.Expression expr = newCastExpr(castType, innerReg, ((IASTCastExpression) expression).getTypeId(), expression);
+            int reg = createRegister(expression);
+            Messages.debug("CParser: casting expression to %s@%d := %s", expr.getType(), reg, TextFormat.shortDebugString(expr));
+            CFG.CFGNode evalNode = newEvalNode(reg, expr);
+            prevNode = connect(prevNode, evalNode);
+            return reg;
         } else if (expression instanceof IASTTypeIdExpression) {
             IASTTypeIdExpression typeIdExpression = (IASTTypeIdExpression) expression;
             if (typeIdExpression.getOperator() == IASTTypeIdExpression.op_sizeof) {
-                String constant = "sizeof(" + typeIdExpression.getTypeId().getRawSignature() + ")";
+                IASTTypeId typeId = typeIdExpression.getTypeId();
+                String constant = Constants.UNKNOWN;
+                if (typeId.getAbstractDeclarator().getPointerOperators().length > 0) {
+                    constant = String.valueOf(Constants.WIDTH_ADDR);
+                } else {
+                    IASTDeclSpecifier declSpec = typeId.getDeclSpecifier();
+                    if (declSpec instanceof IASTSimpleDeclSpecifier) {
+                        IASTSimpleDeclSpecifier spec = (IASTSimpleDeclSpecifier) declSpec;
+                        Integer width = switch (spec.getType()) {
+                            case IASTSimpleDeclSpecifier.t_void -> Constants.WIDTH_VOID;
+                            case IASTSimpleDeclSpecifier.t_char -> Constants.WIDTH_CHAR;
+                            case IASTSimpleDeclSpecifier.t_bool -> Constants.WIDTH_INT;
+                            case IASTSimpleDeclSpecifier.t_char16_t -> 2;
+                            case IASTSimpleDeclSpecifier.t_char32_t, IASTSimpleDeclSpecifier.t_decimal32 -> 4;
+                            case IASTSimpleDeclSpecifier.t_decimal64 -> 8;
+                            case IASTSimpleDeclSpecifier.t_decimal128, IASTSimpleDeclSpecifier.t_float128, IASTSimpleDeclSpecifier.t_int128 -> 16;
+                            case IASTSimpleDeclSpecifier.t_int -> spec.isShort() ? Constants.WIDTH_SHORT
+                                    : spec.isLongLong() ? Constants.WIDTH_LONG_LONG
+                                    : spec.isLong() ? Constants.WIDTH_LONG
+                                    : Constants.WIDTH_INT;
+                            default -> null;
+                        };
+                        if (width != null && spec.isComplex())
+                            width *= 2;
+                        if (width != null)
+                            constant = width.toString();
+                    } else if (declSpec instanceof ICASTTypedefNameSpecifier) {
+                        IType type = (IType) ((ICASTTypedefNameSpecifier) declSpec).getName().resolveBinding();
+                        Integer width = util.typeWidth(type);
+                        if (width != null) {
+                            constant = width.toString();
+                        }
+                    }
+                }
 
                 Expr.Expression expr = newLiteralExpr(expression.getExpressionType(), constant);
                 int reg = createRegister(expression);
-                Messages.debug("CParser: assign size-of constant %s@%d := %s", expression.getExpressionType(), reg, constant);
+                Messages.debug("CParser: assign sizeof(%s) constant %s@%d := %s", typeId.getRawSignature(), expression.getExpressionType(), reg, constant);
                 simpleConstants.put(reg, constant);
                 CFG.CFGNode evalNode = newEvalNode(reg, expr);
                 prevNode = connect(prevNode, evalNode);
@@ -1167,8 +1189,14 @@ public class CFGBuilder {
             }
         }
         if (expression == null) {
-            registers.add("literal: 1");
-            int reg = registers.indexOf("literal: 1");
+            registers.add(1);
+            int reg = registers.indexOf(1);
+            String constant = "1";
+            Expr.Expression expr = newLiteralExpr(CBasicType.INT, constant);
+            simpleConstants.put(reg, constant);
+            CFG.CFGNode evalNode = newEvalNode(reg, expr);
+            prevNode = connect(prevNode, evalNode);
+
             Messages.debug("CParser: assign null expression as constant value 1");
             return reg;
         }
@@ -1176,37 +1204,6 @@ public class CFGBuilder {
         int reg = registers.indexOf(expression);
         Messages.error("CParser: skip unsupported C Rvalue expression %s[%s]", expression.getClass().getSimpleName(), expression.getRawSignature());
         return reg;
-    }
-
-    private static final List<String> mallocLikeFuncs = List.of("malloc", "alloca");
-    private static boolean isMallocLike(IASTExpression fNameExpr) {
-        fNameExpr = unparenthesize(fNameExpr);
-        if (fNameExpr instanceof IASTIdExpression) {
-            String fName = new String(((IASTIdExpression) fNameExpr).getName().toCharArray());
-            return mallocLikeFuncs.contains(fName);
-        }
-        return false;
-    }
-    private Integer getMallocSize(IASTFunctionCallExpression innerExpr) {
-        IASTExpression sizeExpr = unparenthesize((IASTExpression) innerExpr.getArguments()[0]);
-        Integer size = null;
-        if (sizeExpr instanceof IASTLiteralExpression) {
-            size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) sizeExpr).getValue()));
-        } else if (sizeExpr instanceof IASTTypeIdExpression) {
-            size = 1;
-        } else if (sizeExpr instanceof IASTBinaryExpression) {
-            IASTBinaryExpression bSizeExpr = (IASTBinaryExpression) sizeExpr;
-            if (bSizeExpr.getOperator() == IASTBinaryExpression.op_multiply) {
-                IASTExpression op1 = unparenthesize(bSizeExpr.getOperand1());
-                IASTExpression op2 = unparenthesize(bSizeExpr.getOperand2());
-                if (op1 instanceof IASTLiteralExpression && op2 instanceof IASTTypeIdExpression) {
-                    size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) op1).getValue()));
-                } else if (op1 instanceof IASTTypeIdExpression && op2 instanceof IASTLiteralExpression) {
-                    size = Integer.valueOf(String.valueOf(((IASTLiteralExpression) op2).getValue()));
-                }
-            }
-        }
-        return size;
     }
 
     private int handleFieldReference(IASTExpression baseExpr, IField field, boolean isPointerDereference) {
@@ -1726,7 +1723,7 @@ public class CFGBuilder {
         }
 //            writer.println("subgraph cluster_regs" + Integer.toUnsignedString(func.hashCode()) + " {");
         for (String regRepr : localRegs) {
-            int reg = CDTUtil.reprToReg(regRepr);
+            int reg = util.reprToReg(regRepr);
             Object debugObj = registers.get(reg);
             if (debugObj instanceof IASTExpression) {
                 writer.print("r" + reg + " ");
@@ -1790,8 +1787,8 @@ public class CFGBuilder {
             writer.println("]");
 
             if (p.hasStore()) {
-                int ptr = CDTUtil.reprToReg(p.getStore().getAddr());
-                int reg = CDTUtil.reprToReg(p.getStore().getReg());
+                int ptr = util.reprToReg(p.getStore().getAddr());
+                int reg = util.reprToReg(p.getStore().getReg());
                 writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + ptr);
                 writer.println(" [arrowhead=diamond;color=red;style=dashed]");
                 writer.print("r" + reg + " -> n" + Integer.toUnsignedString(p.hashCode()));
@@ -1799,8 +1796,8 @@ public class CFGBuilder {
                 writer.print("r" + reg + " -> r" + ptr);
                 writer.println(" [arrowhead=open;color=red;style=dotted]");
             } else if (p.hasLoad()) {
-                int ptr = CDTUtil.reprToReg(p.getLoad().getAddr());
-                int reg = CDTUtil.reprToReg(p.getLoad().getReg());
+                int ptr = util.reprToReg(p.getLoad().getAddr());
+                int reg = util.reprToReg(p.getLoad().getReg());
                 writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + ptr);
                 writer.println(" [arrowhead=box;color=green;style=dashed]");
                 writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + reg);
@@ -1809,19 +1806,19 @@ public class CFGBuilder {
                 writer.println(" [arrowhead=open;color=green;style=dotted]");
             } else if (p.hasEval()) {
                 Expr.Expression eval = p.getEval().getExpr();
-                int reg = CDTUtil.reprToReg(p.getEval().getResultReg());
+                int reg = util.reprToReg(p.getEval().getResultReg());
                 if (reg >= 0) {
                     writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + reg);
                     writer.println(" [arrowhead=none;color=blue;style=dashed]");
                     for (String paramRepr : getOprands(eval)) {
-                        int param = CDTUtil.reprToReg(paramRepr);
+                        int param = util.reprToReg(paramRepr);
                         writer.print("r" + param + " -> r" + reg);
                         writer.println(" [arrowhead=open;style=dotted;color=aqua]");
                     }
                 }
             } else if (p.hasInvk()) {
                 if (p.getInvk().hasActualRet()) {
-                    int ret = CDTUtil.reprToReg(p.getInvk().getActualRet());
+                    int ret = util.reprToReg(p.getInvk().getActualRet());
                     writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + ret);
                     writer.println(" [arrowhead=none;color=blue;style=dashed]");
                     if (p.getInvk().hasFuncPtr()) {
@@ -1829,7 +1826,7 @@ public class CFGBuilder {
                         writer.println(" [arrowhead=open;style=dotted;color=aqua]");
                     }
                     for (String argRepr : p.getInvk().getActualArgList()) {
-                        int arg = CDTUtil.reprToReg(argRepr);
+                        int arg = util.reprToReg(argRepr);
                         writer.print("r" + arg + " -> r" + ret);
                         writer.println(" [arrowhead=open;style=dotted;color=aqua]");
                     }
@@ -1837,19 +1834,19 @@ public class CFGBuilder {
             } else if (p.hasAlloca()) {
                 //IType ty = ((AllocNode) p).getAllocType();
                 CFG.Alloca obj = p.getAlloca();
-                int ptr = CDTUtil.reprToReg(obj.getReg());
+                int ptr = util.reprToReg(obj.getReg());
                 writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + ptr);
                 writer.println(" [arrowhead=dot;color=purple;style=dashed]");
                 writer.print("r" + ptr + " -> v" + Integer.toUnsignedString(obj.hashCode()));
                 writer.println(" [arrowhead=odot;color=purple;style=bold]");
             } else if (p.hasReturn()) {
                 if (p.getReturn().hasFormalRet()) {
-                    int reg = CDTUtil.reprToReg(p.getReturn().getFormalRet());
+                    int reg = util.reprToReg(p.getReturn().getFormalRet());
                     writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + reg);
                     writer.println(" [arrowhead=none;color=cyan;style=dashed]");
                 }
             } else if (p.hasCond()) {
-                int reg = CDTUtil.reprToReg(p.getCond().getCondReg());
+                int reg = util.reprToReg(p.getCond().getCondReg());
                 if (reg >= 0) {
                     writer.print("n" + Integer.toUnsignedString(p.hashCode()) + " -> r" + reg);
                     writer.println(" [arrowhead=none;color=violet;style=dashed]");
@@ -1883,7 +1880,7 @@ public class CFGBuilder {
     private CFG.CFGNode newEntryNode(int[] argRegs) {
         CFG.Entry.Builder entryBuilder = CFG.Entry.newBuilder();
         for (int argReg : argRegs) {
-            entryBuilder.addFormalArg(CDTUtil.regToRepr(argReg));
+            entryBuilder.addFormalArg(util.regToRepr(argReg));
         }
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
@@ -1902,20 +1899,20 @@ public class CFGBuilder {
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
                 .setReturn(CFG.Return.newBuilder()
-                        .setFormalRet(CDTUtil.regToRepr(retReg)))
+                        .setFormalRet(util.regToRepr(retReg)))
                 .build();
     }
 
     private CFG.CFGNode newStaticCallNode(int retReg, IFunction f, int[] argRegs, IASTFunctionCallExpression invkExpr) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
         if (retReg >= 0) {
-            invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+            invkBuilder.setActualRet(util.regToRepr(retReg));
         }
         for (int arg : argRegs) {
-            invkBuilder.addActualArg(CDTUtil.regToRepr(arg));
+            invkBuilder.addActualArg(util.regToRepr(arg));
         }
         // TODO function abi ?
-        invkBuilder.setStaticRef(CDTUtil.methToRepr(f));
+        invkBuilder.setStaticRef(util.methToRepr(f));
 
         CFG.Invoke invk = invkBuilder.build();
         invkExprMap.put(invk, invkExpr);
@@ -1928,12 +1925,12 @@ public class CFGBuilder {
     private CFG.CFGNode newIndirectCallNode(int retReg, int funcPtr, int[] argRegs, IASTFunctionCallExpression invkExpr) {
         CFG.Invoke.Builder invkBuilder = CFG.Invoke.newBuilder();
         if (retReg >= 0) {
-            invkBuilder.setActualRet(CDTUtil.regToRepr(retReg));
+            invkBuilder.setActualRet(util.regToRepr(retReg));
         }
         for (int arg : argRegs) {
-            invkBuilder.addActualArg(CDTUtil.regToRepr(arg));
+            invkBuilder.addActualArg(util.regToRepr(arg));
         }
-        invkBuilder.setFuncPtr(CDTUtil.regToRepr(funcPtr));
+        invkBuilder.setFuncPtr(util.regToRepr(funcPtr));
 
         CFG.Invoke invk = invkBuilder.build();
         invkExprMap.put(invk, invkExpr);
@@ -1947,7 +1944,7 @@ public class CFGBuilder {
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
                 .setCond(CFG.Condition.newBuilder()
-                        .setCondReg(CDTUtil.regToRepr(condReg)))
+                        .setCondReg(util.regToRepr(condReg)))
                 .build();
     }
 
@@ -1984,42 +1981,29 @@ public class CFGBuilder {
                 .build();
     }
 
-    private CFG.CFGNode newAllocaNode(int refReg, IASTExpression mallocExpr, IType contentType, Integer length) {
-        String id = mallocExpr.getRawSignature() + "#"+ mallocExpr.getFileLocation().getStartingLineNumber();
-
-        CArrayType arrType;
-        if (length != null) {
-            arrType = new CArrayType(contentType, false, false, false, IntegralValue.create(length));
-            registers.add(length);
-            int reg = registers.indexOf(length);
-            simpleConstants.put(reg, String.valueOf(length));
-        } else {
-            arrType = new CArrayType(contentType);
-        }
-        types.add(arrType);
-        CFG.Alloca heapAlloc = newAlloca(refReg, id, arrType);
-        allocaMap.put(refReg, heapAlloc);
-        mallocMap.put(mallocExpr, heapAlloc);
+    private CFG.CFGNode newAllocaNode(int refReg, String id, IType type) {
+        CFG.Alloca localAlloca = newAlloca(refReg, id, type);
+        allocaMap.put(refReg, localAlloca);
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
-                .setAlloca(heapAlloc)
+                .setAlloca(localAlloca)
                 .build();
     }
 
     private CFG.Alloca newAlloca(int refReg, IVariable var) {
         return CFG.Alloca.newBuilder()
-                .setReg(CDTUtil.regToRepr(refReg))
-                .setType(CDTUtil.typeToRepr(var.getType()))
-                .setVariable(CDTUtil.varToRepr(var))
+                .setReg(util.regToRepr(refReg))
+                .setType(util.typeToRepr(var.getType()))
+                .setVariable(util.varToRepr(var))
                 .build();
     }
 
 
     private CFG.Alloca newAlloca(int refReg, String id, IType type) {
         return CFG.Alloca.newBuilder()
-                .setReg(CDTUtil.regToRepr(refReg))
-                .setType(CDTUtil.typeToRepr(type))
-                .setVariable(CDTUtil.varToRepr(id))
+                .setReg(util.regToRepr(refReg))
+                .setType(util.typeToRepr(type))
+                .setVariable(util.varToRepr(id))
                 .build();
     }
 
@@ -2027,8 +2011,8 @@ public class CFGBuilder {
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
                 .setLoad(CFG.Load.newBuilder()
-                        .setReg(CDTUtil.regToRepr(dst))
-                        .setAddr(CDTUtil.regToRepr(src)))
+                        .setReg(util.regToRepr(dst))
+                        .setAddr(util.regToRepr(src)))
                 .build();
     }
 
@@ -2036,8 +2020,8 @@ public class CFGBuilder {
         return CFG.CFGNode.newBuilder()
                 .setId(newNodeIdx())
                 .setStore(CFG.Store.newBuilder()
-                        .setAddr(CDTUtil.regToRepr(dst))
-                        .setReg(CDTUtil.regToRepr(src)))
+                        .setAddr(util.regToRepr(dst))
+                        .setReg(util.regToRepr(src)))
                 .build();
     }
 
@@ -2046,13 +2030,13 @@ public class CFGBuilder {
                 .setId(newNodeIdx())
                 .setEval(CFG.Evaluation.newBuilder()
                         .setExpr(expr)
-                        .setResultReg(CDTUtil.regToRepr(dst)))
+                        .setResultReg(util.regToRepr(dst)))
                 .build();
     }
 
-    private static Expr.Expression newLiteralExpr(IType exprType, String literal) {
+    private Expr.Expression newLiteralExpr(IType exprType, String literal) {
         return Expr.Expression.newBuilder()
-                .setType(CDTUtil.typeToRepr(exprType))
+                .setType(util.typeToRepr(exprType))
                 .setLiteral(Expr.LiteralExpr.newBuilder()
                         .setLiteral(literal))
                 .build();
@@ -2060,9 +2044,9 @@ public class CFGBuilder {
 
     private Expr.Expression newUnaryExpr(IType exprType, int op, String opStr, IASTExpression uExpr) {
         Expr.Expression expr = Expr.Expression.newBuilder()
-                .setType(CDTUtil.typeToRepr(exprType))
+                .setType(util.typeToRepr(exprType))
                 .setUnary(Expr.UnaryExpr.newBuilder()
-                        .setOprand(CDTUtil.regToRepr(op))
+                        .setOprand(util.regToRepr(op))
                         .setOperator(opStr))
                 .build();
         exprMap.put(expr, uExpr);
@@ -2071,10 +2055,10 @@ public class CFGBuilder {
 
     private Expr.Expression newBinaryExpr(IType exprType, int op1, int op2, String opStr, IASTExpression bExpr) {
         Expr.Expression expr = Expr.Expression.newBuilder()
-                .setType(CDTUtil.typeToRepr(exprType))
+                .setType(util.typeToRepr(exprType))
                 .setBinary(Expr.BinaryExpr.newBuilder()
-                        .setOprand1(CDTUtil.regToRepr(op1))
-                        .setOprand2(CDTUtil.regToRepr(op2))
+                        .setOprand1(util.regToRepr(op1))
+                        .setOprand2(util.regToRepr(op2))
                         .setOperator(opStr))
                 .build();
         exprMap.put(expr, bExpr);
@@ -2086,11 +2070,11 @@ public class CFGBuilder {
         types.add(elemPtrType);
         return Expr.Expression.newBuilder()
                 // the result is a pointer to the field
-                .setType(CDTUtil.typeToRepr(elemPtrType))
+                .setType(util.typeToRepr(elemPtrType))
                 .setGep(Expr.GepExpr.newBuilder()
-                        .setBasePtr(CDTUtil.regToRepr(basePtr))
-                        .setBaseType(CDTUtil.typeToRepr(baseType))
-                        .setField(CDTUtil.fieldToRepr(field)))
+                        .setBasePtr(util.regToRepr(basePtr))
+                        .setBaseType(util.typeToRepr(baseType))
+                        .setField(util.fieldToRepr(field)))
                 .build();
     }
 
@@ -2101,28 +2085,28 @@ public class CFGBuilder {
         types.add(elemPtrType);
         return Expr.Expression.newBuilder()
                 // the result is a pointer to the element
-                .setType(CDTUtil.typeToRepr(elemPtrType))
+                .setType(util.typeToRepr(elemPtrType))
                 .setGep(Expr.GepExpr.newBuilder()
-                        .setBasePtr(CDTUtil.regToRepr(basePtr))
-                        .setBaseType(CDTUtil.typeToRepr(baseType))
-                        .setIndex(CDTUtil.regToRepr(posReg)))
+                        .setBasePtr(util.regToRepr(basePtr))
+                        .setBaseType(util.typeToRepr(baseType))
+                        .setIndex(util.regToRepr(posReg)))
                 .build();
     }
 
-    private static Expr.Expression newSizeOfExpr(IType exprType, int refReg) {
+    private Expr.Expression newSizeOfExpr(IType exprType, int refReg) {
         return Expr.Expression.newBuilder()
-                .setType(CDTUtil.typeToRepr(exprType))
+                .setType(util.typeToRepr(exprType))
                 .setSizeof(Expr.SizeOfExpr.newBuilder()
-                        .setRef(CDTUtil.regToRepr(refReg)))
+                        .setRef(util.regToRepr(refReg)))
                 .build();
     }
 
 
     private Expr.Expression newCastExpr(IType exprType, int innerReg, IASTTypeId typeId, IASTExpression castExpr) {
         Expr.Expression expr = Expr.Expression.newBuilder()
-                .setType(CDTUtil.typeToRepr(exprType))
+                .setType(util.typeToRepr(exprType))
                 .setCast(Expr.CastExpr.newBuilder()
-                        .setInner(CDTUtil.regToRepr(innerReg)))
+                        .setInner(util.regToRepr(innerReg)))
                 .build();
         exprMap.put(expr, castExpr);
         return expr;
@@ -2140,5 +2124,229 @@ public class CFGBuilder {
 
     public IASTExpression getExpression(Expr.Expression expr) {
         return exprMap.get(expr);
+    }
+
+    public class util {
+
+        private util() {}
+
+        public String methToRepr(IFunction meth) {
+            return meth.getName();
+        }
+
+        private Map<Integer, String> debugStrMap = new HashMap<>();
+
+        private String getDebugString(int i) {
+            String debugStr = debugStrMap.get(i);
+            if (debugStr != null) return debugStr;
+            Object regObj = registers.get(i);
+            if (regObj instanceof IASTExpression) {
+                debugStr = ((IASTExpression) regObj).getRawSignature();
+            } else if (regObj instanceof IVariable) {
+                debugStr = ((IVariable) regObj).getName() + ".addr";
+            } else if (regObj instanceof IFunction) {
+                debugStr = ((IFunction) regObj).getName() + ".func";
+            } else if (regObj instanceof String) {
+                debugStr = "\"" + regObj + "\"";
+            } else if (regObj instanceof Number) {
+                debugStr = regObj.toString();
+            } else if (regObj instanceof Pair<?,?>) {
+                Object l = ((Pair<?, ?>) regObj).getLeft();
+                Object r = ((Pair<?, ?>) regObj).getRight();
+                if (l instanceof IFunction && r instanceof Integer) {
+                    IFunction f = (IFunction) l;
+                    IParameter p = f.getParameters()[(int) r];
+                    debugStr = p.getName();
+                } else if (l instanceof IType && r instanceof String) {
+                    debugStr = "(ext)" + (String) r;
+                } else if (l instanceof Integer && r instanceof IArrayType) {
+                    String arrStr = getDebugString((Integer) l);
+                    if (arrStr != null) {
+                        debugStr = "&(*" + arrStr + ")[0]";
+                    }
+                } else if (l instanceof Expr.Expression && r instanceof Integer) {
+                    Expr.Expression gepExpr = (Expr.Expression) l;
+                    if (gepExpr.hasGep()) {
+                        int baseReg = reprToReg(gepExpr.getGep().getBasePtr());
+                        String baseStr = getDebugString(baseReg);
+                        if (gepExpr.getGep().hasField()) {
+                            debugStr = "&(" + baseStr + "->" + gepExpr.getGep().getField() + ")";
+                        } else if (gepExpr.getGep().hasIndex()) {
+                            int idxReg = reprToReg(gepExpr.getGep().getIndex());
+                            String idxStr = getDebugString(idxReg);
+                            debugStr = baseStr + "+" + idxStr;
+                        }
+                    }
+                }
+            }
+            if (debugStr != null) debugStrMap.put(i, debugStr);
+            return debugStr;
+        }
+
+        public String regToRepr(int i) {
+            String debugStr = getDebugString(i);
+            if (debugStr != null) {
+                return "%" + i + ":" + debugStr;
+            }
+            return "%" + i;
+        }
+
+        public int reprToReg(String repr) {
+            int colon = repr.indexOf(":");
+            if (colon >= 0) {
+                return Integer.parseInt(repr.substring(1, colon));
+            } else {
+                return Integer.parseInt(repr.substring(1));
+            }
+        }
+
+        public String fieldToRepr(IField f) {
+            return f.toString();
+        }
+
+        public String typeToRepr(IType type) {
+            return getRawType(type);
+        }
+
+        public Integer typeWidth(IType type) {
+            return typeWidth(getRawType(type));
+        }
+
+        public Integer typeWidth(String type) {
+            return typeWidthMap.get(type);
+        }
+
+        // TODO handle recursive maps?
+        private final Map<IType, String> typeNameMap = new LinkedHashMap<>();
+        private final Map<String, Integer> typeWidthMap = new LinkedHashMap<>();
+
+        private String getRawType(IType type) {
+            if (typeNameMap.containsKey(type)) {
+                return typeNameMap.get(type);
+            }
+            if (type instanceof IBasicType) {
+                String typeStr = type.toString();
+                typeNameMap.put(type, typeStr);
+                IBasicType basicType = (IBasicType) type;
+                Integer width = switch (basicType.getKind()) {
+                    case eUnspecified, eWChar -> null;
+                    case eVoid -> 0;
+                    case eNullPtr -> Constants.WIDTH_ADDR;
+                    case eChar -> Constants.WIDTH_CHAR;
+                    case eChar16 -> 2;
+                    case eBoolean -> Constants.WIDTH_INT;
+                    case eFloat -> Constants.WIDTH_FLOAT;
+                    case eDouble -> basicType.isLong() ? Constants.WIDTH_LONG_DOUBLE : Constants.WIDTH_DOUBLE;
+                    case eChar32, eDecimal32 -> 4;
+                    case eDecimal64 -> 8;
+                    case eInt128, eFloat128, eDecimal128 -> 16;
+                    case eInt -> basicType.isShort() ? Constants.WIDTH_SHORT
+                            : basicType.isLongLong() ? Constants.WIDTH_LONG_LONG
+                            : basicType.isLong() ? Constants.WIDTH_LONG
+                            : Constants.WIDTH_INT;
+                };
+                if (width != null && basicType.isComplex())
+                    width *= 2;
+                if (width != null)
+                    typeWidthMap.put(typeStr, width);
+                return typeStr;
+            } else if (type instanceof IArrayType) {
+                IArrayType arrType = (IArrayType) type;
+                String contentTypeStr = getRawType(arrType.getType());
+                String typeStr;
+                if (arrType.getSize() != null && arrType.getSize().numberValue() != null) {
+                    int size = arrType.getSize().numberValue().intValue();
+                    typeStr = contentTypeStr + "[" + size + "]";
+                    Integer contentWidth = typeWidth(contentTypeStr);
+                    if (contentWidth != null) {
+                        int arrWidth = contentWidth * size;
+                        typeWidthMap.put(typeStr, arrWidth);
+                    }
+                } else {
+                    typeStr = contentTypeStr + "[]";
+                }
+                typeNameMap.put(type, typeStr);
+                return typeStr;
+            } else if (type instanceof IPointerType) {
+                String typeStr = getRawType(((IPointerType) type).getType()) + "*";
+                typeNameMap.put(type, typeStr);
+                typeWidthMap.put(typeStr, Constants.WIDTH_ADDR);
+                return typeStr;
+            } else if (type instanceof ITypedef) {
+                ITypedef typedef = (ITypedef) type;
+                String typeStr = getRawType(typedef.getType());
+                typeNameMap.put(type, typeStr);
+                return typeStr;
+            } else if (type instanceof ICompositeType) {
+                ICompositeType compType = (ICompositeType) type;
+                // Note: do not compute width of composite types, since alignment is confusing
+                if (compType.getName() == null || compType.getName().isBlank()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("composite{");
+                    for (IField f : compType.getFields()) {
+                        String fTypeStr = getRawType(f.getType());
+                        sb.append(fTypeStr).append(":").append(fieldToRepr(f)).append(";");
+                    }
+                    sb.append("}");
+                    String typeStr = sb.toString();
+                    typeNameMap.put(type, typeStr);
+                    return typeStr;
+                } else {
+                    String typeStr = "composite_" + compType.getName();
+                    typeNameMap.put(type, typeStr);
+                    return typeStr;
+                }
+            } else if (type instanceof ICQualifierType) {
+                String typeStr = getRawType(((ICQualifierType) type).getType());
+                typeNameMap.put(type, typeStr);
+                return typeStr;
+            }  else if (type instanceof IFunctionType) {
+                IFunctionType funcType = (IFunctionType) type;
+                String typeStr = "func";
+                typeNameMap.put(type, typeStr);
+                typeWidthMap.put(typeStr, Constants.WIDTH_ADDR);
+                return typeStr;
+            } else {
+                Messages.error("CParser: unhandled type %s[%s], mark as unknown", type.getClass().getSimpleName(), type);
+                return "unknown";
+            }
+        }
+
+        public String varToRepr(IVariable var) {
+            return var.getName();
+        }
+
+        public String varToRepr(String id) {
+            return id;
+        }
+
+        public String invkToRepr(CFG.Invoke invk) {
+            return TextFormat.shortDebugString(invk);
+        }
+
+        public CFG.Invoke reprToInvk(String invkRepr) {
+            try {
+                return TextFormat.parse(invkRepr, CFG.Invoke.class);
+            } catch (TextFormat.ParseException e) {
+                Messages.error("CParser: cannot parse CFG.Invoke from string {%s}: %s", invkRepr, e.getMessage());
+                return null;
+            }
+        }
+        public String exprToRepr(Expr.Expression e) {
+            return TextFormat.shortDebugString(e);
+        }
+
+        public String cfgnodeToRepr(CFG.CFGNode node) {
+            return TextFormat.shortDebugString(node);
+        }
+
+        public CFG.CFGNode reprToCfgNode(String pRepr) {
+            try {
+                return TextFormat.parse(pRepr, CFG.CFGNode.class);
+            } catch (TextFormat.ParseException e) {
+                Messages.error("CParser: cannot parse CFG.CFGNode from string {%s}: %s", pRepr, e.getMessage());
+                return null;
+            }
+        }
     }
 }

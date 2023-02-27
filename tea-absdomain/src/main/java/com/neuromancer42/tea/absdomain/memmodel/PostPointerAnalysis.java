@@ -59,6 +59,9 @@ public class PostPointerAnalysis extends AbstractAnalysis {
     @ProduceRel(name = "P_no_update", doms = {"P", "H"})
     public ProgramRel relPNoUpdate;
 
+    @ProduceRel(name = "ci_non_MH", doms = {"M", "H"})
+    public ProgramRel relNonMH;
+
     public void run(Map<String, ProgramDom> inputDoms, Map<String, ProgramRel> inputRels) {
         domM = inputDoms.get("M");
         domV = inputDoms.get("V");
@@ -77,7 +80,8 @@ public class PostPointerAnalysis extends AbstractAnalysis {
         relPStrongUpdate = new ProgramRel("P_strong_update", domP, domH);
         relPWeakUpdate = new ProgramRel("P_weak_update", domP, domH);
         relPNoUpdate = new ProgramRel("P_no_update", domP, domH);
-        ProgramRel[] generatedRels = new ProgramRel[]{relPStrongUpdate, relPWeakUpdate, relPNoUpdate};
+        relNonMH = new ProgramRel("ci_non_MH", domM, domH);
+        ProgramRel[] generatedRels = new ProgramRel[]{relPStrongUpdate, relPWeakUpdate, relPNoUpdate, relNonMH};
         for (var rel: generatedRels) {
             rel.init();
         }
@@ -144,6 +148,15 @@ public class PostPointerAnalysis extends AbstractAnalysis {
                     }
                 } else {
                     relPNoUpdate.add(p,h);
+                }
+            }
+        }
+
+        for (String m : domM) {
+            Set<String> hs = mh.getOrDefault(m, Set.of());
+            for (String h : domH) {
+                if (!hs.contains(h)) {
+                    relNonMH.add(m, h);
                 }
             }
         }

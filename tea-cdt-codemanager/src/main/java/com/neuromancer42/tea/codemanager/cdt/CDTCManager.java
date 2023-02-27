@@ -20,9 +20,7 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.eclipse.cdt.core.dom.ast.*;
 import org.eclipse.cdt.core.dom.ast.gnu.c.GCCLanguage;
 import org.eclipse.cdt.core.parser.*;
-import org.eclipse.cdt.internal.core.dom.parser.c.CASTName;
-import org.eclipse.cdt.internal.core.dom.parser.c.CASTTranslationUnit;
-import org.eclipse.cdt.internal.core.dom.parser.c.CNodeFactory;
+import org.eclipse.cdt.internal.core.dom.parser.c.*;
 import org.eclipse.cdt.internal.core.dom.rewrite.astwriter.ASTWriter;
 import org.eclipse.cdt.internal.core.parser.scanner.InternalFileContentProvider;
 import org.eclipse.core.runtime.CoreException;
@@ -66,10 +64,15 @@ public class CDTCManager extends AbstractAnalysis {
     @ProduceDom(description = "allocations")
     public ProgramDom domA;
 
+    @ProduceDom(description = "operators")
+    public ProgramDom domOP;
+
     @ProduceRel(doms = {"T", "F", "T"}, description = "field type of structs")
     public ProgramRel relStructFldType;
     @ProduceRel(doms = {"T", "T", "C"}, description = "content type and size of arrays")
     public ProgramRel relArrContentType;
+    @ProduceRel(doms = {"T", "C"}, description = "type width")
+    public ProgramRel relTypeWidth;
 
     @ProduceRel(doms = { "M", "P" }, description = "MPentry(meth,point)")
     public ProgramRel relMPentry;
@@ -137,6 +140,24 @@ public class CDTCManager extends AbstractAnalysis {
     public ProgramRel relVvalue;
     //public final ProgramRel relHvalue;
 
+    // evaluations
+    @ProduceRel(doms = {"V", "C"}, description = "mark constant expressions")
+    public ProgramRel relEconst;
+    @ProduceRel(doms = {"V", "OP", "V"}, description = "mark unary expressions")
+    public ProgramRel relEunary;
+    @ProduceRel(doms = {"V", "OP", "V", "V"}, description = "mark binary expressions")
+    public ProgramRel relEbinop;
+    @ProduceRel(doms = {"V", "V"}, description = "size of vla array")
+    public ProgramRel relEsizeof;
+    @ProduceRel(doms = {"V", "T", "V"}, description = "mark cast of primitive values")
+    public ProgramRel relEprimcast;
+    @ProduceRel(doms = {"V", "T", "V"}, description = "mark cast of pointers")
+    public ProgramRel relEptrcast;
+    @ProduceRel(name = "PtrOP", doms = {"OP"}, description = "operators for pointer computations")
+    public ProgramRel relPtrOP;
+    @ProduceRel(name = "NotPtrOP", doms = {"OP"}, description = "operators not for pointer computations")
+    public ProgramRel relNotPtrOP;
+
     private IASTTranslationUnit translationUnit = null;
     private CFGBuilder builder;
 
@@ -147,19 +168,20 @@ public class CDTCManager extends AbstractAnalysis {
 
     public List<ProgramDom> getProducedDoms() {
         return List.of(
-                domM, domP, domE, domV, domF, domI, domZ, domC, domT, domA
+                domM, domP, domE, domV, domF, domI, domZ, domC, domT, domA, domOP
         );
     }
 
     public List<ProgramRel> getProducedRels() {
         return List.of(
-                relStructFldType, relArrContentType,
+                relStructFldType, relArrContentType, relTypeWidth,
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
                 relPeval, relPload, relPstore, relPalloc, relPinvk, relPnoop,
                 relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relExtMeth, relFuncRef, relMmethArg, relMmethRet, relEntryM,
-                relVvalue
+                relVvalue,
+                relEconst, relEunary, relEbinop, relEsizeof, relEprimcast, relEptrcast, relPtrOP, relNotPtrOP
         );
     }
 
@@ -239,6 +261,16 @@ public class CDTCManager extends AbstractAnalysis {
             // Note: special handling for invoking asm parser
             definedSymbols.putIfAbsent("__GNUC__", "11");
             definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
+            // Note: special handling of some types
+            definedSymbols.putIfAbsent("size_t", "unsigned int");
+            definedSymbols.putIfAbsent("int64_t", "long");
+            definedSymbols.putIfAbsent("uint64_t", "unsigned long");
+            definedSymbols.putIfAbsent("int32_t", "int");
+            definedSymbols.putIfAbsent("uint32_t", "unsigned int");
+            definedSymbols.putIfAbsent("int16_t", "short");
+            definedSymbols.putIfAbsent("uint16_t", "unsigned short");
+            definedSymbols.putIfAbsent("int8_t", "char");
+            definedSymbols.putIfAbsent("uint8_t", "unsigned char");
             translationUnit = GCCLanguage.getDefault().getASTTranslationUnit(fileContent, scannerInfo, includeContents, null, opts, log);
         } catch (CoreException e) {
             Messages.error("CParser: failed to crete parser for file %s, exit.", ppFilename);
@@ -309,10 +341,12 @@ public class CDTCManager extends AbstractAnalysis {
         domC = new ProgramDom("C");
         domT = new ProgramDom("T");
         domA = new ProgramDom("A");
+        domOP = new ProgramDom("OP");
 
         // type hierarchy
         relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
-        relArrContentType = new ProgramRel("ArrFieldType", domT, domT, domC);
+        relArrContentType = new ProgramRel("ArrContentType", domT, domT, domC);
+        relTypeWidth = new ProgramRel("TypeWidth", domT, domC);
 
         // control flow relations
         relMPentry = new ProgramRel("MPentry", domM, domP);
@@ -352,6 +386,16 @@ public class CDTCManager extends AbstractAnalysis {
 
         // values
         relVvalue = new ProgramRel("Vvalue", domV, domC);
+
+        // expressions
+        relEconst = new ProgramRel("Econst", domV, domC);
+        relEunary = new ProgramRel("Eunary", domV, domOP, domV);
+        relEbinop = new ProgramRel("Ebinop", domV, domOP, domV, domV);
+        relEsizeof = new ProgramRel("Esizeof", domV, domV);
+        relEprimcast = new ProgramRel("Eprimcast", domV, domT, domV);
+        relEptrcast = new ProgramRel("Eptrcast", domV, domT, domV);
+        relPtrOP = new ProgramRel("PtrOP", domOP);
+        relNotPtrOP = new ProgramRel("NotPtrOP", domOP);
     }
 
     public void run() {
@@ -401,21 +445,35 @@ public class CDTCManager extends AbstractAnalysis {
 
         int numRegs = builder.getRegisters().size();
         for (int i = 0; i < numRegs; ++i) {
-            domV.add(CDTUtil.regToRepr(i));
+            domV.add(builder.util.regToRepr(i));
         }
         for (var c : builder.getSimpleConstants().values()) {
             domC.add(c);
         }
+        domC.add(Constants.UNKNOWN);
+        domC.add(Constants.NULL);
+        for (Integer a : List.of(0,1,2,4,8,16,32)) {
+            domC.add(a.toString());
+        }
+        for (IType t : builder.getTypes()) {
+            Integer width = builder.util.typeWidth(t);
+            if (width != null) {
+                domC.add(width.toString());
+            }
+        }
+        domA.add(Constants.NULL);
         for (int refReg : builder.getGlobalRefs()) {
             domA.add(builder.getAllocaForRef(refReg).getVariable());
         }
-        for (IASTExpression mallocExpr : builder.getMallocs()) {
-            domA.add(builder.getAllocaForMalloc(mallocExpr).getVariable());
-        }
         int maxNumArg = 0;
+        // Implicitly-used operator for array-access
+        for (String op : List.of(Constants.OP_ADD, Constants.OP_MUL, Constants.OP_LE, Constants.OP_NE, Constants.OP_EQ, Constants.OP_AND, Constants.OP_OR)) {
+            domOP.add(op);
+        }
+
         for (IFunction meth : builder.getFuncs()) {
             // TODO: to more locatable representation?
-            domM.add(CDTUtil.methToRepr(meth));
+            domM.add(builder.util.methToRepr(meth));
             int numMargs = meth.getParameters().length;
             if (numMargs > maxNumArg)
                 maxNumArg = numMargs;
@@ -428,14 +486,18 @@ public class CDTCManager extends AbstractAnalysis {
             }
             for (CFG.CFGNode node : cfg.nodes()) {
                 // TODO: separate index and ir-code
-                domP.add(CDTUtil.cfgnodeToRepr(node));
+                domP.add(builder.util.cfgnodeToRepr(node));
                 if (node.hasEval()) {
                     Expr.Expression e = node.getEval().getExpr();
-                    domE.add(CDTUtil.exprToRepr(e));
+                    domE.add(builder.util.exprToRepr(e));
+                    if (e.hasUnary())
+                        domOP.add(e.getUnary().getOperator());
+                    else if (e.hasBinary())
+                        domOP.add(e.getBinary().getOperator());
                 }
                 if (node.hasInvk()) {
                     CFG.Invoke invk = node.getInvk();
-                    domI.add(CDTUtil.invkToRepr(invk));
+                    domI.add(builder.util.invkToRepr(invk));
                     int numIargs = invk.getActualArgCount();
                     if (numIargs > maxNumArg)
                         maxNumArg = numIargs;
@@ -446,66 +508,81 @@ public class CDTCManager extends AbstractAnalysis {
             domZ.add(Integer.toString(i));
         }
         for (IType type : builder.getTypes()) {
-            // TODO transform to raw types ?
-            domT.add(CDTUtil.typeToRepr(type));
+            domT.add(builder.util.typeToRepr(type));
         }
+        domT.add(builder.util.typeToRepr(CBasicType.VOID));
+        domT.add(builder.util.typeToRepr(CPointerType.VOID_POINTER));
         for (IField field : builder.getFields()) {
-            domF.add(CDTUtil.fieldToRepr(field));
+            domF.add(builder.util.fieldToRepr(field));
         }
     }
 
     @Override
     protected void relPhase() {
+        for (String op : domOP) {
+            if (List.of(Constants.OP_ADD, Constants.OP_SUB, Constants.OP_INCR, Constants.OP_DECR, Constants.OP_ID).contains(op))
+                relPtrOP.add(op);
+            else
+                relNotPtrOP.add(op);
+        }
         for (IType type : builder.getTypes()) {
             if (type instanceof IArrayType) {
                 IArrayType baseType = (IArrayType) type;
                 IType contentType = baseType.getType();
                 String sizeStr = "unknown";
-                Number size = baseType.getSize().numberValue();
-                if (size != null) {
+                if (baseType.getSize() != null && baseType.getSize().numberValue() != null) {
+                    Number size = baseType.getSize().numberValue();
                     sizeStr = String.valueOf(size);
+                } else {
+                    // TODO: vla size?
                 }
-                relArrContentType.add(CDTUtil.typeToRepr(baseType), CDTUtil.typeToRepr(contentType), sizeStr);
+                relArrContentType.add(builder.util.typeToRepr(baseType), builder.util.typeToRepr(contentType), sizeStr);
             } else if (type instanceof ICompositeType) {
                 ICompositeType baseType = (ICompositeType) type;
                 for (IField f : baseType.getFields()) {
                     IType fType = f.getType();
-                    relStructFldType.add(CDTUtil.typeToRepr(baseType), CDTUtil.fieldToRepr(f), CDTUtil.typeToRepr(fType));
+                    relStructFldType.add(builder.util.typeToRepr(baseType), builder.util.fieldToRepr(f), builder.util.typeToRepr(fType));
                 }
             }
+            String typeRepr = builder.util.typeToRepr(type);
+            Integer width = builder.util.typeWidth(type);
+            if (width == null)
+                relTypeWidth.add(typeRepr, Constants.UNKNOWN);
+            else
+                relTypeWidth.add(typeRepr, width.toString());
         }
         for (IFunction func : builder.getFuncs()) {
             int refReg = builder.getRefReg(func);
-            relFuncRef.add(CDTUtil.methToRepr(func), CDTUtil.regToRepr(refReg));
+            relFuncRef.add(builder.util.methToRepr(func), builder.util.regToRepr(refReg));
         }
         for (int refReg : builder.getGlobalRefs()) {
             CFG.Alloca alloca = builder.getAllocaForRef(refReg);
             String variable = alloca.getVariable();
             String type = alloca.getType();
-            relGlobalAlloca.add(CDTUtil.regToRepr(refReg), variable, type);
+            relGlobalAlloca.add(builder.util.regToRepr(refReg), variable, type);
         }
         for (var entry : builder.getSimpleConstants().entrySet()) {
             int reg = entry.getKey();
             String c = entry.getValue();
             if (reg >= 0) {
-                relVvalue.add(CDTUtil.regToRepr(reg), c);
+                relVvalue.add(builder.util.regToRepr(reg), c);
             }
         }
         for (IFunction meth : builder.getFuncs()) {
             if (meth.getName().contentEquals("main")) {
                 Messages.debug("CParser: find entry method %s[%s]", meth.getClass().getSimpleName(), meth);
-                relEntryM.add(CDTUtil.methToRepr(meth));
+                relEntryM.add(builder.util.methToRepr(meth));
             }
             ValueGraph<CFG.CFGNode, Integer> cfg = builder.getIntraCFG(meth);
             if (cfg == null) {
                 Messages.debug("CParser: external function %s[%s]", meth.getClass().getSimpleName(), meth);
-                relExtMeth.add(CDTUtil.methToRepr(meth));
+                relExtMeth.add(builder.util.methToRepr(meth));
                 continue;
             }
-            relMPentry.add(CDTUtil.methToRepr(meth), CDTUtil.cfgnodeToRepr(builder.getEntryNode(meth)));
+            relMPentry.add(builder.util.methToRepr(meth), builder.util.cfgnodeToRepr(builder.getEntryNode(meth)));
             int[] mArgRegs = builder.getFuncArgs(meth);
             for (int i = 0; i < mArgRegs.length; ++i) {
-                relMmethArg.add(CDTUtil.methToRepr(meth), Integer.toString(i), CDTUtil.regToRepr(mArgRegs[i]));
+                relMmethArg.add(builder.util.methToRepr(meth), Integer.toString(i), builder.util.regToRepr(mArgRegs[i]));
             }
             for (EndpointPair<CFG.CFGNode> edge : cfg.edges()) {
                 CFG.CFGNode p = edge.source();
@@ -514,24 +591,24 @@ public class CDTCManager extends AbstractAnalysis {
                 if (cond >= 0) {
                     int condReg = cond / 2;
                     if (cond % 2 == 1) {
-                        relPPtrue.add(CDTUtil.cfgnodeToRepr(p), CDTUtil.cfgnodeToRepr(q), CDTUtil.regToRepr(condReg));
+                        relPPtrue.add(builder.util.cfgnodeToRepr(p), builder.util.cfgnodeToRepr(q), builder.util.regToRepr(condReg));
                     } else {
-                        relPPfalse.add(CDTUtil.cfgnodeToRepr(p), CDTUtil.cfgnodeToRepr(q), CDTUtil.regToRepr(condReg));
+                        relPPfalse.add(builder.util.cfgnodeToRepr(p), builder.util.cfgnodeToRepr(q), builder.util.regToRepr(condReg));
                     }
                 }  else {
-                    relPPdirect.add(CDTUtil.cfgnodeToRepr(p), CDTUtil.cfgnodeToRepr(q));
+                    relPPdirect.add(builder.util.cfgnodeToRepr(p), builder.util.cfgnodeToRepr(q));
                 }
             }
             for (CFG.CFGNode p : cfg.nodes()) {
 //                if (!(p.hasEval() || p.hasEntry() || p.hasLoad() || p.hasAlloc() || p.hasStore() || p.hasInvk())) {
 //                    relPnoop.add(CDTUtil.cfgnodeToRepr(p));
 //                }
-                String pRepr = CDTUtil.cfgnodeToRepr(p);
+                String pRepr = builder.util.cfgnodeToRepr(p);
                 if (p.hasReturn()) {
-                    relMPexit.add(CDTUtil.methToRepr(meth), pRepr);
+                    relMPexit.add(builder.util.methToRepr(meth), pRepr);
                     if (p.getReturn().hasFormalRet()) {
                         String retRegRepr = p.getReturn().getFormalRet();
-                        relMmethRet.add(CDTUtil.methToRepr(meth), retRegRepr);
+                        relMmethRet.add(builder.util.methToRepr(meth), retRegRepr);
                     }
 //                } else if (p.hasCond()) {
 //                    // TODO: fix edge value
@@ -544,7 +621,7 @@ public class CDTCManager extends AbstractAnalysis {
 //                    relPPfalse.add(pRepr, CDTUtil.cfgnodeToRepr(qFalse), condRegRepr);
                 } else if (p.hasInvk()) {
                     CFG.Invoke invk = p.getInvk();
-                    String invkRepr = CDTUtil.invkToRepr(invk);
+                    String invkRepr = builder.util.invkToRepr(invk);
                     relPinvk.add(pRepr, invkRepr);
                     if (invk.hasActualRet()) {
                         relIinvkRet.add(invkRepr, invk.getActualRet());
@@ -577,7 +654,30 @@ public class CDTCManager extends AbstractAnalysis {
                             relLoadFld.add(vRepr, uRepr, gepExpr.getField());
                         }
                     } else {
-                        relPeval.add(pRepr, vRepr, CDTUtil.exprToRepr(e));
+                        relPeval.add(pRepr, vRepr, builder.util.exprToRepr(e));
+                        if (e.hasLiteral()) {
+                            relEconst.add(vRepr, e.getLiteral().getLiteral());
+                        } else if (e.hasUnary()) {
+                            Expr.UnaryExpr uExpr = e.getUnary();
+                            relEunary.add(vRepr, uExpr.getOperator(), uExpr.getOprand());
+                        } else if (e.hasBinary()) {
+                            Expr.BinaryExpr bExpr = e.getBinary();
+                            relEbinop.add(vRepr, bExpr.getOperator(), bExpr.getOprand1(), bExpr.getOprand2());
+                        } else if (e.hasSizeof()) {
+                            Expr.SizeOfExpr sizeof = e.getSizeof();
+                            relEsizeof.add(vRepr, sizeof.getRef());
+                        } else if (e.hasCast()) {
+                            String type = e.getType();
+                            if (type.endsWith("*")) {
+                                String ptType = type.substring(0, type.length() - 1);
+                                relEptrcast.add(vRepr, ptType, e.getCast().getInner());
+                            } else {
+                                relEprimcast.add(vRepr, type, e.getCast().getInner());
+                            }
+                        } else {
+                            // Note: unhandled expr goes to unknown
+                            relEconst.add(vRepr, Constants.UNKNOWN);
+                        }
                     }
                 } else if (p.hasLoad()) {
                     String vRepr = p.getLoad().getReg();
@@ -713,7 +813,7 @@ public class CDTCManager extends AbstractAnalysis {
         public int instrumentBeforeInvoke(String invkRepr) {
             if (invkRepr == null)
                 return -1;
-            CFG.Invoke invk = CDTUtil.reprToInvk(invkRepr);
+            CFG.Invoke invk = builder.util.reprToInvk(invkRepr);
             if (invk == null)
                 return -1;
             return instrumentBeforeInvoke(invk);
@@ -1017,10 +1117,8 @@ public class CDTCManager extends AbstractAnalysis {
                         IASTIfStatement ifStat = (IASTIfStatement) expression.getParent();
                         Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
                         ifStat.setConditionExpression((IASTExpression) newNode);
-
                     }
-                }
-                if (expression.getParent() instanceof IASTWhileStatement
+                } else if (expression.getParent() instanceof IASTWhileStatement
                         && ((IASTWhileStatement) expression.getParent()).getCondition().equals(expression)) {
                     IASTNode origNode = expression.getOriginalNode();
                     Messages.debug("CInstrument: visiting while-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
@@ -1029,10 +1127,8 @@ public class CDTCManager extends AbstractAnalysis {
                         IASTWhileStatement whileStat = (IASTWhileStatement) expression.getParent();
                         Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
                         whileStat.setCondition((IASTExpression) newNode);
-
                     }
-                }
-                if (expression.getParent() instanceof IASTDoStatement
+                } else if (expression.getParent() instanceof IASTDoStatement
                         && ((IASTDoStatement) expression.getParent()).getCondition().equals(expression)) {
                     IASTNode origNode = expression.getOriginalNode();
                     Messages.debug("CInstrument: visiting dowhile-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
@@ -1043,8 +1139,7 @@ public class CDTCManager extends AbstractAnalysis {
                         doStat.setCondition((IASTExpression) newNode);
 
                     }
-                }
-                if (expression.getParent() instanceof IASTForStatement
+                } else if (expression.getParent() instanceof IASTForStatement
                         && ((IASTForStatement) expression.getParent()).getConditionExpression().equals(expression)) {
                     IASTNode origNode = expression.getOriginalNode();
                     Messages.debug("CInstrument: visiting for-cond-expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
@@ -1053,7 +1148,28 @@ public class CDTCManager extends AbstractAnalysis {
                         IASTForStatement doStat = (IASTForStatement) expression.getParent();
                         Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
                         doStat.setConditionExpression((IASTExpression) newNode);
-
+                    }
+                } else if (expression.getParent() instanceof IASTBinaryExpression
+                        && ((IASTBinaryExpression) expression.getParent()).getOperator() == IASTBinaryExpression.op_assign
+                        && ((IASTBinaryExpression) expression.getParent()).getOperand1().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting assign-dst expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTBinaryExpression assignExpr = (IASTBinaryExpression) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        assignExpr.setOperand1((IASTExpression) newNode);
+                    }
+                } else if (expression.getParent() instanceof IASTBinaryExpression
+                        && ((IASTBinaryExpression) expression.getParent()).getOperator() == IASTBinaryExpression.op_assign
+                        && ((IASTBinaryExpression) expression.getParent()).getOperand2().equals(expression)) {
+                    IASTNode origNode = expression.getOriginalNode();
+                    Messages.debug("CInstrument: visiting assign-src expr [%s]#%d (original: %d)", new ASTWriter().write(origNode), expression.hashCode(), origNode.hashCode());
+                    if (modMap.containsKey(origNode)) {
+                        IASTNode newNode = modMap.get(origNode);
+                        IASTBinaryExpression assignExpr = (IASTBinaryExpression) expression.getParent();
+                        Messages.debug("CInstrument: instrumented into [%s]", new ASTWriter().write(newNode));
+                        assignExpr.setOperand2((IASTExpression) newNode);
                     }
                 }
 //                if (expression instanceof IASTBinaryExpression) {
@@ -1193,7 +1309,7 @@ public class CDTCManager extends AbstractAnalysis {
             String pRepr = attrs[0];
             String objRepr = attrs[1];
             String itvRepr = attrs[2];
-            CFG.CFGNode p = CDTUtil.reprToCfgNode(pRepr);
+            CFG.CFGNode p = builder.util.reprToCfgNode(pRepr);
             if (p == null)
                 return false;
             int instrId = instrumentBeforeExpr(p, objRepr);

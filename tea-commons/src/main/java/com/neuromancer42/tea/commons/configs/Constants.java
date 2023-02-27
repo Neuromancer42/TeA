@@ -1,5 +1,7 @@
 package com.neuromancer42.tea.commons.configs;
 
+import java.util.List;
+
 public class Constants {
     public static final int BDD_VERBOSE = 1;
 
@@ -49,7 +51,23 @@ public class Constants {
     public static final String OP_LE = "<=";
     public static final String OP_BIT = "bit";
 
+    public static final String UNKNOWN = "unknown";
+    public static final String NULL = "nullptr";
+
     public static final String TYPE_INT = "int";
+    public static final String TYPE_CHAR = "char";
+    public static final String TYPE_VOID = "void";
 
     public static final String PREFIX_DUMMY = "dummy-";
+
+    public static final int WIDTH_VOID = 0;
+    public static final int WIDTH_CHAR = 1;
+    public static final int WIDTH_SHORT = 2;
+    public static final int WIDTH_INT = 4;
+    public static final int WIDTH_LONG = 8;
+    public static final int WIDTH_LONG_LONG = 16;
+    public static final int WIDTH_FLOAT = 4;
+    public static final int WIDTH_DOUBLE = 8;
+    public static final int WIDTH_LONG_DOUBLE = 16;
+    public static final Integer WIDTH_ADDR = 8;
 }

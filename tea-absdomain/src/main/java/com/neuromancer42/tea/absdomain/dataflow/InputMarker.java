@@ -73,6 +73,8 @@ public class InputMarker extends AbstractAnalysis {
                         relArgInput.add(name, z);
                     }
                 }
+            } else if (name.equals("strlen")) {
+                relRetInput.add(name);
             }
         }
     }

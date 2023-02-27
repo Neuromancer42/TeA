@@ -10,6 +10,11 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexSet;
+import com.neuromancer42.tea.commons.util.WeakIdentityHashMap;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.neuromancer42.tea.ir.Expr;
 
 import java.nio.file.Path;
@@ -36,38 +41,50 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramDom domP;
     @ConsumeDom(description = "expressions")
     public ProgramDom domE;
+    @ConsumeDom(description = "constants")
+    public ProgramDom domC;
+    @ConsumeDom(description = "unary/binary operators")
+    public ProgramDom domOP;
+    @ConsumeDom(description = "types")
+    public ProgramDom domT;
     @ConsumeRel(doms = {"V", "V"})
     public ProgramRel relLoadPtr;
+    @ConsumeRel(doms = {"V", "V"})
+    public ProgramRel relStorePtr;
 
-    @ProduceRel(name = "primV", doms = {"V"}, description = "mark numeric variables")
-    public ProgramRel relPrimV;
-    @ProduceRel(name = "primH", doms = {"H"}, description = "mark numeric heap objects, useful for finding indirect inputs")
-    public ProgramRel relPrimH;
+    @ConsumeRel(doms = {"V", "C"})
+    public ProgramRel relEconst;
+    @ConsumeRel(doms = {"V", "OP", "V"})
+    public ProgramRel relEunary;
+    @ConsumeRel(doms = {"V", "OP", "V", "V"})
+    public ProgramRel relEbinop;
 
-    @ConsumeRel(doms = {"P", "V", "E"})
-    public ProgramRel relPeval;
-    @ProduceDom(description = "operators")
-    public ProgramDom domOP;
     @ProduceDom(description = "intervals")
     public ProgramDom domU;
     @ProduceDom(description = "interval predicates")
     public ProgramDom domUP;
-    @ProduceRel(doms = {"E"}, description = "mark constant expressions")
-    public ProgramRel relEconst;
-    @ProduceRel(doms = {"E", "OP", "V"}, description = "mark unary expressions")
-    public ProgramRel relEunary;
-    @ProduceRel(doms = {"E", "OP", "V", "V"}, description = "mark binary expressions")
-    public ProgramRel relEbinop;
-    @ProduceRel(doms = {"E", "U"}, description = "interval value of constant expressions")
-    public ProgramRel relEConstU;
+    @ProduceRel(doms = {"C", "U"}, description = "interval value of constants")
+    public ProgramRel relConstU;
     @ProduceRel(name = "evalUnaryU", doms = {"OP", "U", "U"}, description = "unary computations of intervals")
     public ProgramRel relEvalUnaryU;
     @ProduceRel(name = "evalBinopU", doms = {"OP", "U", "U", "U"}, description = "binary computations of intervals")
     public ProgramRel relEvalBinopU;
     @ProduceRel(doms = {"U"}, description = "mark special empty value")
     public ProgramRel relUempty;
+    @ProduceRel(doms = {"U"})
+    public ProgramRel relUzero;
+    @ProduceRel(doms = {"U"})
+    public ProgramRel relUnonzero;
+    @ProduceRel(doms = {"U"})
+    public ProgramRel relUunknown;
     @ProduceRel(doms = {"U"}, description = "mark possible values of input")
     public ProgramRel relUinput;
+    @ProduceRel(name = "evalPlusU", doms = {"U", "U", "U"})
+    public ProgramRel relEvalPlusU;
+    @ProduceRel(name = "evalMultU", doms = {"U", "U", "U"})
+    public ProgramRel relEvalMultU;
+    @ProduceRel(name = "evalLEU", doms = {"U", "U"})
+    public ProgramRel relEvalLEU;
 
     @ConsumeRel(doms = {"P", "P", "V"})
     public ProgramRel relPPtrue;
@@ -92,79 +109,46 @@ public class IntervalGenerator extends AbstractAnalysis {
     @ProduceRel(name = "nofilter", doms = {"V", "H"}, description = "cond-var has nothing to do with these heap objects")
     public ProgramRel relNoFilter;
 
-    @ConsumeDom(description = "array size")
-    public ProgramDom domSZ;
-    @ConsumeRel(doms = {"H", "SZ", "H"})
-    public ProgramRel relHeapAllocArr;
-    @ConsumeRel(doms = {"H", "SZ"})
-    public ProgramRel relHeapArraySize;
-    @ProduceRel(doms = {"SZ", "U", "SZ"})
-    public ProgramRel relMayOutOfBound;
-
+    private final Map<String, Integer> literalMap = new HashMap<>();
     private final IndexSet<Interval> sortedITVs = new IndexSet<>();
-    private final Map<String, Expr.Expression> regToEval = new LinkedHashMap<>();
-    private final Map<String, Integer> regToLiteral = new LinkedHashMap<>();
-    private final Set<String> primitiveVars = new LinkedHashSet<>();
-    private final Set<String> primitiveObjs = new LinkedHashSet<>();
-    private Map<String, String> regToHeap = new LinkedHashMap<>();
+    private final Map<String, Integer> regToLiteral = new HashMap<>();
+    private final Map<String, Pair<String, String>> regToUnary = new HashMap<>();
+    private final Map<String, Triple<String, String, String>> regToBinop = new HashMap<>();
 
     @Override
     protected void domPhase() {
         for (ItvPredicate itvp : ItvPredicate.allPredicates())
             domUP.add(itvp.toString());
         Set<Integer> intConstants = new LinkedHashSet<>();
-        for (Object[] tuple : relPeval.getValTuples()) {
-            String reg = (String) tuple[1];
-            String exprStr = (String) tuple[2];
-
-            Expr.Expression expr = null;
+        for (String c : domC) {
             try {
-                expr = TextFormat.parse(exprStr, Expr.Expression.class);
-            } catch (TextFormat.ParseException e) {
-                Messages.error("IntervalGenerator: expression string '%s' cannot be parsed", exprStr);
-                Messages.fatal(e);
-                assert false;
-            }
-
-            regToEval.put(reg, expr);
-            String type = expr.getType();
-            if (expr.hasLiteral()) {
-                String constRepr = expr.getLiteral().getLiteral();
-                if (type.equals(Constants.TYPE_INT)) {
-                    primitiveVars.add(reg);
-                    try {
-                        int primVal = Integer.parseInt(constRepr);
-                        regToLiteral.put(reg, primVal);
-                        Messages.debug("IntervalGenerator: find new constant integer %d in reg %s", primVal, reg);
-                        intConstants.add(primVal);
-                        intConstants.add(-primVal);
-                    } catch (NumberFormatException e) {
-                        Messages.error("IntervalGenerator: not a constant integer %s", constRepr);
-                    }
-                } else {
-                    Messages.error("IntervalGenerator: [TODO] unhandled constant value %s[%s]", type, constRepr);
-                }
-            } else if (expr.hasUnary()) {
-                //TODO separate numerics and pointers?
-                primitiveVars.add(reg);
-                primitiveVars.add(expr.getUnary().getOprand());
-                String op = expr.getUnary().getOperator();
-                domOP.add(op);
-            } else if (expr.hasBinary()) {
-                primitiveVars.add(reg);
-                primitiveVars.add(expr.getBinary().getOprand1());
-                primitiveVars.add(expr.getBinary().getOprand2());
-                String op = expr.getBinary().getOperator();
-                domOP.add(op);
+                int primVal = Integer.parseInt(c);
+                literalMap.put(c, primVal);
+                Messages.debug("IntervalGenerator: find new constant integer %d", primVal);
+                intConstants.add(primVal);
+                intConstants.add(-primVal);
+            } catch (NumberFormatException e) {
+                Messages.error("IntervalGenerator: not a constant integer %s", c);
             }
         }
-        for (String sz : domSZ) {
-            Interval itv = sz2Itv(sz);
-            Messages.debug("IntervalGenerator: find constant array bound %d~%d", itv.lower, itv.upper);
-            intConstants.add(itv.lower);
-            intConstants.add(-itv.lower);
-            intConstants.add(itv.upper);
-            intConstants.add(-itv.upper);
+        for (Object[] tuple : relEconst.getValTuples()) {
+            String v = (String) tuple[0];
+            String c = (String) tuple[1];
+            if (literalMap.containsKey(c))
+                regToLiteral.put(v, literalMap.get(c));
+        }
+        for (Object[] tuple : relEunary.getValTuples()) {
+            String v = (String) tuple[0];
+            String op = (String) tuple[1];
+            String u = (String) tuple[2];
+            regToUnary.put(v, new ImmutablePair<>(op, u));
+        }
+        for (Object[] tuple : relEbinop.getValTuples()) {
+            String v = (String) tuple[0];
+            String op = (String) tuple[1];
+            String u1 = (String) tuple[2];
+            String u2 = (String) tuple[3];
+            regToBinop.put(v, new ImmutableTriple<>(op, u1, u2));
         }
 
         intConstants.add(0);
@@ -192,24 +176,24 @@ public class IntervalGenerator extends AbstractAnalysis {
 
     @Override
     protected void relPhase() {
-        {
-            // mark heaps
-            regToHeap = buildVal2HeapMap();
-            for (String v : primitiveVars)
-                relPrimV.add(v);
-            for (String h : primitiveObjs)
-                relPrimH.add(h);
-        }
+        // mark heaps
+        Map<String, String> regToHeap = new LinkedHashMap<>();
+        regToHeap = buildVarRegToHeap();
         {
             // build arithmetics
             assert domU.contains(emptyRepr);
             assert domU.contains(zeroRepr);
             assert domU.contains(oneRepr);
             relUempty.add(emptyRepr);
+            relUzero.add(zeroRepr);
             for (String u : domU) {
                 if (!(u.equals(emptyRepr) || u.equals(maxinfRepr) || u.equals(mininfRepr))) {
                     relUinput.add(u);
                 }
+                if (!u.equals(zeroRepr)) {
+                    relUnonzero.add(u);
+                }
+                relUunknown.add(u);
             }
             for (String op : domOP) {
                 switch (op) {
@@ -243,13 +227,13 @@ public class IntervalGenerator extends AbstractAnalysis {
                         computeOr(sortedITVs, relEvalBinopU);
                         break;
                     case Constants.OP_ADD:
-                        computePlus(sortedITVs, relEvalBinopU);
+                        computePlus(sortedITVs, relEvalBinopU, relEvalPlusU);
                         break;
                     case Constants.OP_SUB:
                         computeMinus(sortedITVs, relEvalBinopU);
                         break;
                     case Constants.OP_MUL:
-                        computeMultiply(sortedITVs, relEvalBinopU);
+                        computeMultiply(sortedITVs, relEvalBinopU, relEvalMultU);
                         break;
                     case Constants.OP_EQ:
                         computeEQ(sortedITVs, relEvalBinopU);
@@ -261,7 +245,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                         computeLT(sortedITVs, relEvalBinopU);
                         break;
                     case Constants.OP_LE:
-                        computeLE(sortedITVs, relEvalBinopU);
+                        computeLE(sortedITVs, relEvalBinopU, relEvalLEU);
                         break;
                     default:
                         for (String x : domU) {
@@ -271,57 +255,38 @@ public class IntervalGenerator extends AbstractAnalysis {
                         }
                 }
             }
-            for (var entry : regToEval.entrySet()) {
-                String reg = entry.getKey();
-                Expr.Expression expr = entry.getValue();
-                String exprStr = TextFormat.shortDebugString(expr);
-                if (expr.hasLiteral()) {
-                    relEconst.add(exprStr);
-                    Integer literal = regToLiteral.get(reg);
-                    if (literal != null) {
-                        relEConstU.add(exprStr, new Interval(literal).toString());
-                    } else {
-                        relEConstU.add(exprStr, emptyRepr);
-                    }
-                } else if (expr.hasUnary()) {
-                    Expr.UnaryExpr uEval = expr.getUnary();
-                    String op = uEval.getOperator();
-                    String inner = uEval.getOprand();
-                    relEunary.add(exprStr, op, inner);
-                } else if (expr.hasBinary()) {
-                    Expr.BinaryExpr bEval = expr.getBinary();
-                    String op = bEval.getOperator();
-                    String l = bEval.getOprand1();
-                    String r = bEval.getOprand2();
-                    relEbinop.add(exprStr, op, l, r);
+            for (String c : domC) {
+                if (literalMap.containsKey(c)) {
+                    int primVal = literalMap.get(c);
+                    relConstU.add(c, new Interval(primVal).toString());
                 } else {
-                    Messages.warn("IntervalGenerator: mark unhandled eval as EMPTY [%s]", exprStr);
-                    relEconst.add(exprStr);
-                    relEConstU.add(exprStr, emptyRepr);
-                }
-            }
-            {
-                // mark array objects
-                Map<String, Map<String, String>> contentMap = new LinkedHashMap<>();
-                for (Object[] tuple : relHeapAllocArr.getValTuples()) {
-                    String arrObj = (String) tuple[0];
-                    String pos = (String) tuple[1];
-                    String contentObj = (String) tuple[2];
-                    contentMap.computeIfAbsent(arrObj, k -> new LinkedHashMap<>()).put(pos, contentObj);
-                }
-                for (Object[] tuple : relHeapArraySize.getValTuples()) {
-                    String arrObj = (String) tuple[0];
-                    String sz = (String) tuple[1];
-                    for (var entry: contentMap.get(arrObj).entrySet()) {
-                        String pos = entry.getKey();
-                        for (Interval u : sortedITVs) {
-                            if (mayOutOfBound(pos, u, sz)) {
-                                relMayOutOfBound.add(pos, u.toString(), sz);
-                            }
-                        }
+                    for (Interval itv : sortedITVs) {
+                        relConstU.add(c, itv.toString());
                     }
                 }
             }
+//            {
+//                // mark array objects
+//                Map<String, Map<String, String>> contentMap = new LinkedHashMap<>();
+//                for (Object[] tuple : relHeapAllocArr.getValTuples()) {
+//                    String arrObj = (String) tuple[0];
+//                    String pos = (String) tuple[1];
+//                    String contentObj = (String) tuple[2];
+//                    contentMap.computeIfAbsent(arrObj, k -> new LinkedHashMap<>()).put(pos, contentObj);
+//                }
+//                for (Object[] tuple : relHeapArraySize.getValTuples()) {
+//                    String arrObj = (String) tuple[0];
+//                    String sz = (String) tuple[1];
+//                    for (var entry: contentMap.get(arrObj).entrySet()) {
+//                        String pos = entry.getKey();
+//                        for (Interval u : sortedITVs) {
+//                            if (mayOutOfBound(pos, u, sz)) {
+//                                relMayOutOfBound.add(pos, u.toString(), sz);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
         }
 
         {
@@ -353,42 +318,45 @@ public class IntervalGenerator extends AbstractAnalysis {
                 // strip out outermost unary operations
                 // TODO: handling ++ and --?
                 boolean negated = false;
-                Expr.Expression expr = regToEval.get(condv);
-                while (expr != null && expr.hasUnary()) {
-//                    Messages.debug("IntervalGenerator: strip cond-var %s to expression {%s}", condv, TextFormat.shortDebugString(expr));
-                    condv = expr.getUnary().getOprand();
-                    if (expr.getUnary().getOprand().equals(Constants.OP_NOT)) {
+                while (regToUnary.containsKey(condv)) {
+                    Pair<String, String> expr = regToUnary.get(condv);
+                    //Messages.debug("IntervalGenerator: strip cond-var %s to expression {%s}", condv, expr.toString());
+                    condv = expr.getRight();
+                    String op = expr.getLeft();
+                    if (op.equals(Constants.OP_NOT)) {
                         negated = !negated;
                     }
-                    expr = regToEval.get(condv);
                 }
 
                 // TODO: add handling of pointer's NULL-check, e.g. if (ptr) a = *ptr;
                 if (regToLiteral.containsKey(condv)) {
-                    int l1 = regToLiteral.get(condv);
-                    u1 = new Interval(l1);
-                    u2 = new Interval(0);
-//                    Messages.debug("IntervalGenerator: cond-var %s is literal %s", condv, u1);
+                    Integer l1 = regToLiteral.get(condv);
+                    if (l1 != null) {
+                        u1 = new Interval(l1);
+                        u2 = new Interval(0);
+                    }
+                    //Messages.debug("IntervalGenerator: cond-var %s is literal %s", condv, u1);
                 } else if (regToHeap.containsKey(condv)) {
                     h1 = regToHeap.get(condv);
                     u2 = new Interval(0);
                     pred = new ItvPredicate(Constants.OP_NE, negated);
-//                    Messages.debug("IntervalGenerator: cond-var %s is var %s", condv, h1);
-                } else if (expr != null && expr.hasBinary()) {
-//                    Messages.debug("IntervalGenerator: cond-var %s is expr %s", condv, TextFormat.shortDebugString(expr));
-                    pred = new ItvPredicate(expr.getBinary().getOperator(), negated);
-                    String v1 = expr.getBinary().getOprand1();
+                    //Messages.debug("IntervalGenerator: cond-var %s is var %s", condv, h1);
+                } else if (regToBinop.containsKey(condv)) {
+                    Triple<String, String, String> binop = regToBinop.get(condv);
+                    //Messages.debug("IntervalGenerator: cond-var %s is expr %s", condv, binop.toString());
+                    pred = new ItvPredicate(binop.getLeft(), negated);
+                    String v1 = binop.getMiddle();
                     Integer l1 = regToLiteral.get(v1);
                     if (l1 != null) u1 = new Interval(l1);
                     h1 = regToHeap.get(v1);
-                    String v2 = expr.getBinary().getOprand2();
+                    String v2 = binop.getRight();
                     Integer l2 = regToLiteral.get(v2);
                     if (l2 != null) u2 = new Interval(l2);
                     h2 = regToHeap.get(v2);
                 }
                 assert ((u1 == null || h1 == null) && (u2 == null || h2 == null));
                 if (pred == null) {
-                    Messages.debug("IntervalGenerator: cannot handle cond-var %s, mark as unknown", condv);
+                    //Messages.debug("IntervalGenerator: cannot handle cond-var %s, mark as unknown", condv);
                     relPredUnknown.add(condv);
                 } else {
                     if (h1 != null && h2 != null) {
@@ -421,62 +389,28 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
     }
 
-    private static Interval sz2Itv(String sz) {
-        if (sz.contains("~")) {
-            String ls = sz.substring(0, sz.indexOf("~"));
-            String rs = sz.substring(sz.indexOf("~") + 1);
-
-            // Note: l cannot be unknown
-            int l = Integer.parseInt(ls);
-            int r;
-            if (!rs.equals("unknown"))
-                r = Integer.parseInt(rs);
-            else
-                r = Interval.max_bound;
-            return new Interval(l, r);
-        } else {
-            if (!sz.equals("unknown")) {
-                int len = Integer.parseInt(sz);
-                return new Interval(len);
-            } else {
-                return new Interval(0, Interval.max_bound);
-            }
-        }
-    }
-
-    private static boolean mayOutOfBound(String pos, Interval u, String sz) {
-        Interval posItv = sz2Itv(pos);
-        Interval szItv = sz2Itv(sz);
-        assert posItv.lower <= posItv.upper;
-        assert szItv.lower <= posItv.upper;
-        assert u.lower <= u.upper;
-        Interval newPosItv = new Interval(posItv.lower + u.lower, posItv.upper + u.upper);
-        return newPosItv.mayGE(szItv) || newPosItv.mayLT(new Interval(0));
-    }
-
-    private Map<String, String> buildVal2HeapMap() {
+    private Map<String, String> buildVarRegToHeap() {
         Map<String, Set<String>> pt = new HashMap<>();
         for (Object[] tuple : relCIPT.getValTuples()) {
             String v = (String) tuple[0];
             String h = (String) tuple[1];
             pt.computeIfAbsent(v, k -> new HashSet<>()).add(h);
         }
-        Map<String, String> val2heap = new HashMap<>();
+        Map<String, String> reg2Heap = new HashMap<>();
         for (Object[] tuple : relLoadPtr.getValTuples()) {
             String u = (String) tuple[0];
             String ptr = (String) tuple[1];
 //            Messages.debug("IntervalGenerator: reg %s is loaded from ptr %s", u, ptr);
-            if (primitiveVars.contains(u)) {
+            {
                 Set<String> objs = pt.get(ptr);
                 if (objs != null && objs.size() == 1) {
                     for (String obj : objs) {
-                        val2heap.put(u, obj);
-                        primitiveObjs.add(obj);
+                        reg2Heap.put(u, obj);
                     }
                 }
             }
         }
-        return val2heap;
+        return reg2Heap;
     }
 
     private static void computeIncr(IndexSet<Interval> sortedITVs, ProgramRel relEvalUnaryU) {
@@ -567,12 +501,15 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
     }
 
-    private static void computePlus(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computePlus(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU, ProgramRel relEvalPlusU) {
         String op = Constants.OP_ADD;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalPlusU.add(emptyRepr, emptyRepr, emptyRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
+            relEvalPlusU.add(emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalPlusU.add(x.toString(), emptyRepr, emptyRepr);
             for (Interval y : sortedITVs) {
                 int l = x.lower + y.lower;
                 if (x.equals(Interval.MIN_INF) || y.equals(Interval.MIN_INF)) {
@@ -585,6 +522,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                 List<Interval> res = filterInterval(sortedITVs, l, r);
                 for (Interval z : res) {
                     relEvalBinopU.add(op, x.toString(), y.toString(), z.toString());
+                    relEvalPlusU.add(x.toString(), y.toString(), z.toString());
                 }
             }
         }
@@ -613,12 +551,15 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
     }
 
-    private static void computeMultiply(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeMultiply(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU, ProgramRel relEvalMultU) {
         String op = Constants.OP_MUL;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalMultU.add(emptyRepr, emptyRepr, emptyRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
+            relEvalMultU.add(emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalMultU.add(x.toString(), emptyRepr, emptyRepr);
             for (Interval y : sortedITVs) {
                 int p1 =  x.lower * y.lower,
                         p2 = x.lower * y.upper,
@@ -629,6 +570,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                 List<Interval> res = filterInterval(sortedITVs, l, r);
                 for (Interval z : res) {
                     relEvalBinopU.add(op, x.toString(), y.toString(), z.toString());
+                    relEvalMultU.add(x.toString(), y.toString(), z.toString());
                 }
             }
         }
@@ -695,7 +637,7 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
     }
 
-    private static void computeLE(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU) {
+    private static void computeLE(IndexSet<Interval> sortedITVs, ProgramRel relEvalBinopU, ProgramRel relEvalLEU) {
         String op = Constants.OP_LE;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
         for (Interval x : sortedITVs) {
@@ -715,6 +657,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                 List<Interval> res = filterInterval(sortedITVs, l, r);
                 for (Interval y : res) {
                     relEvalBinopU.add(op, x.toString(), y.toString(), oneRepr);
+                    relEvalLEU.add(x.toString(), y.toString());
                 }
             }
         }
