@@ -280,8 +280,29 @@ public class Project {
         driver = DAIDriverFactory.g().createCausalDriver("iterating", cg.getName(), cg);
     }
 
-    public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, List<Trgt.Tuple> alarms) {
-        prepareRanking(provenance, ruleDist, inputRelDist);
+    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, Set<Trgt.Tuple> reservedTuples) {
+        CausalGraph cg = ProvenanceUtil.buildSqueezedCausalGraph(provenance,
+                constr -> ruleDist.apply(constr.getRuleInfo()),
+                input -> inputRelDist.apply(input.getRelName()),
+                reservedTuples
+        );
+        driver = DAIDriverFactory.g().createCausalDriver("iterating", cg.getName(), cg);
+    }
+
+    public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance,
+                                                            Function<String, Categorical01> ruleDist,
+                                                            Function<String, Categorical01> inputRelDist,
+                                                            List<Trgt.Tuple> alarms,
+                                                            Set<Trgt.Tuple> observations,
+                                                            Map<String, String> options) {
+        boolean squeeze = options.getOrDefault(Constants.OPT_SQZ, "false").equals("true");
+        if (squeeze) {
+            Set<Trgt.Tuple> reservedTuples = new HashSet<>(observations);
+            reservedTuples.addAll(alarms);
+            prepareRanking(provenance, ruleDist, inputRelDist, reservedTuples);
+        } else {
+            prepareRanking(provenance, ruleDist, inputRelDist);
+        }
         return postRanking(alarms, null);
     }
 

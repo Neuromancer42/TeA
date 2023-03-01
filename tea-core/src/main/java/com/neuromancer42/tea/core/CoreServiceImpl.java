@@ -94,11 +94,22 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 CoreUtil.ApplicationResponse response = respBuilder.build();
                 responseObserver.onNext(response);
             }
+            Stopwatch instrTimer = Stopwatch.createStarted();
+            Set<Trgt.Tuple> obsTuples = proj.setObservation(prov, appOption);
+            instrTimer.stop();
+            {
+                CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
+                        .setMsg(String.format(Constants.MSG_SUCC + ": instrumenting %d tuples in %s", obsTuples.size(), instrTimer))
+                        .build();
+                responseObserver.onNext(response);
+            }
             Stopwatch priorTimer = Stopwatch.createStarted();
             List<Map.Entry<Trgt.Tuple, Double>> priorRanking = proj.priorRanking(prov,
                     rule -> new Categorical01(0.5, 1.0),
                     rel -> new Categorical01(0.5, 1.0),
-                    alarms
+                    alarms,
+                    obsTuples,
+                    appOption
             );
             priorTimer.stop();
             {
@@ -110,15 +121,6 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                     respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
                 }
                 CoreUtil.ApplicationResponse response = respBuilder.build();
-                responseObserver.onNext(response);
-            }
-            Stopwatch instrTimer = Stopwatch.createStarted();
-            Set<Trgt.Tuple> obsTuples = proj.setObservation(prov, appOption);
-            instrTimer.stop();
-            {
-                CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
-                        .setMsg(String.format(Constants.MSG_SUCC + ": instrumenting %d tuples in %s", obsTuples.size(), instrTimer))
-                        .build();
                 responseObserver.onNext(response);
             }
             Stopwatch testTimer = Stopwatch.createStarted();

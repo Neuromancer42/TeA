@@ -1,6 +1,5 @@
 package com.neuromancer42.tea.commons.provenance;
 
-import com.google.protobuf.*;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
@@ -15,7 +14,7 @@ import java.util.*;
 import java.util.function.Function;
 
 public class ProvenanceUtil {
-    private ProvenanceUtil() {};
+    private ProvenanceUtil() {}
 
     public static boolean dumpProvenance(Trgt.Provenance prov, Path path) {
         IndexMap<String> rules = new IndexMap<>();
@@ -151,6 +150,174 @@ public class ProvenanceUtil {
                 singletons,
                 headToConstrs,
                 constrToBodies,
+                stochMapping);
+    }
+
+    public static CausalGraph buildSqueezedCausalGraph(
+            Trgt.Provenance provenance,
+            Function<Trgt.Constraint, Categorical01> deriveDist,
+            Function<Trgt.Tuple, Categorical01> inputDist,
+            Set<Trgt.Tuple> reservedTuples
+    ) {
+        Set<String> reserved = new HashSet<>();
+        for (Trgt.Tuple t : reservedTuples) {
+            reserved.add(encodeTuple(t));
+        }
+
+        Map<String, Categorical01> stochMapping = new HashMap<>();
+        List<String> singletons = new ArrayList<>();
+        Map<String, Set<String>> headToConstrs = new LinkedHashMap<>();
+        Map<String, Set<String>> bodyToConstrs = new HashMap<>();
+        Map<String, Set<String>> constrToBodies = new HashMap<>();
+        Map<String, String> constrToHead = new HashMap<>();
+
+        Set<String> origHybrid = new HashSet<>();
+        int origParamNum = 0;
+        int origVarNum;
+
+        for (Trgt.Constraint constr : provenance.getConstraintList()) {
+            Categorical01 dist = deriveDist.apply(constr);
+            if (dist != null) {
+                stochMapping.put(encodeConstraint(constr), dist);
+                origParamNum += dist.getSupports().length;
+            }
+        }
+        for (Trgt.Tuple inputTuple : provenance.getInputList()) {
+            Categorical01 dist = inputDist.apply(inputTuple);
+            if (dist != null) {
+                stochMapping.put(encodeTuple(inputTuple), dist);
+                origParamNum += dist.getSupports().length;
+            }
+        }
+
+        origVarNum = stochMapping.size();
+
+        for (Trgt.Tuple tuple : provenance.getInputList()) {
+            singletons.add(encodeTuple(tuple));
+        }
+
+        for (Trgt.Constraint constr : provenance.getConstraintList()) {
+            String constrRepr = encodeConstraint(constr);
+            String headRepr = encodeTuple(constr.getHeadTuple());
+            origHybrid.add(constrRepr);
+            origHybrid.add(headRepr);
+            headToConstrs.computeIfAbsent(headRepr, t -> new LinkedHashSet<>()).add(constrRepr);
+            constrToHead.put(constrRepr, headRepr);
+            Set<String> bodyReprList = new LinkedHashSet<>();
+            for (Trgt.Tuple body : constr.getBodyTupleList()) {
+                String bodyRepr = encodeTuple(body);
+                origHybrid.add(bodyRepr);
+                bodyReprList.add(bodyRepr);
+                bodyToConstrs.computeIfAbsent(bodyRepr, k -> new LinkedHashSet<>()).add(constrRepr);
+            }
+            constrToBodies.put(constrRepr, bodyReprList);
+        }
+
+        Deque<String> eliminatables = new ArrayDeque<>();
+        // Step 1 : eliminate from inputs
+        for (String singleton : singletons) {
+            if (!reserved.contains(singleton)) {
+                eliminatables.push(singleton);
+            }
+        }
+        while (!eliminatables.isEmpty()) {
+            String elimTuple = eliminatables.pop();
+            singletons.remove(elimTuple);
+            Categorical01 pTuple = stochMapping.remove(elimTuple);
+            Set<String> sinkConstrs = bodyToConstrs.remove(elimTuple);
+            if (sinkConstrs == null || sinkConstrs.isEmpty()) {
+                Messages.debug("ProvenanceUtil: totally singleton %s", elimTuple);
+                continue;
+            }
+            Set<String> candHeads = new LinkedHashSet<>();
+            for (String sinkConstr : sinkConstrs) {
+                constrToBodies.get(sinkConstr).remove(elimTuple);
+                Categorical01 pConstr = stochMapping.get(sinkConstr);
+                Categorical01 pNew = Categorical01.multiplyDist(pTuple, pConstr);
+                if (pNew != null)
+                    stochMapping.put(sinkConstr, pNew);
+                if (constrToBodies.get(sinkConstr).isEmpty()) {
+                    candHeads.add(constrToHead.get(sinkConstr));
+                }
+            }
+            for (String head : candHeads) {
+                boolean elimNext = true;
+                for (String peerConstr : headToConstrs.get(head)) {
+                    if (!constrToBodies.get(peerConstr).isEmpty()) {
+                        elimNext = false;
+                    }
+                }
+                if (elimNext) {
+                    Categorical01 pNew = stochMapping.get(head);
+                    Set<String> mergingConstrs = headToConstrs.remove(head);
+                    for (String peerConstr : mergingConstrs) {
+                        constrToBodies.remove(peerConstr);
+                        constrToHead.remove(peerConstr);
+                        Categorical01 pConstr = stochMapping.remove(peerConstr);
+                        pNew = Categorical01.revMultiply(pNew, pConstr);
+                    }
+
+                    stochMapping.put(head, pNew);
+                    singletons.add(head);
+                    if (!reserved.contains(head))
+                        eliminatables.push(head);
+                }
+            }
+        }
+
+        // Step 2: eliminate middle nodes
+        for (String head : headToConstrs.keySet()) {
+            if (!reserved.contains(head) && headToConstrs.get(head).size() == 1 && bodyToConstrs.getOrDefault(head, Set.of()).size() == 1) {
+                eliminatables.push(head);
+            }
+        }
+        while (!eliminatables.isEmpty()) {
+            String elimTuple = eliminatables.pop();
+            String srcConstr = headToConstrs.remove(elimTuple).toArray(new String[0])[0];
+            constrToHead.remove(srcConstr);
+            Set<String> srcBodies = constrToBodies.remove(srcConstr);
+            for (String srcBody : srcBodies) {
+                bodyToConstrs.get(srcBody).remove(srcConstr);
+            }
+            Categorical01 pSrc = stochMapping.remove(srcConstr);
+
+            String sinkConstr = bodyToConstrs.remove(elimTuple).toArray(new String[0])[0];
+            Categorical01 pSink = stochMapping.get(sinkConstr);
+            Set<String> sinkBodies = constrToBodies.get(sinkConstr);
+            sinkBodies.remove(elimTuple);
+            sinkBodies.addAll(srcBodies);
+            for (String srcBody : srcBodies) {
+                bodyToConstrs.get(srcBody).add(sinkConstr);
+            }
+            Categorical01 pNew = Categorical01.multiplyDist(pSrc, pSink);
+            if (pNew != null)
+                stochMapping.put(sinkConstr, pNew);
+        }
+
+        Set<String> hybrid = new LinkedHashSet<>();
+        Map<String, List<String>> newConstrToBodies = new LinkedHashMap<>();
+        Map<String, List<String>> newHeadToConstrs = new LinkedHashMap<>();
+        for (var entry : headToConstrs.entrySet()) {
+            newHeadToConstrs.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            hybrid.add(entry.getKey());
+            hybrid.addAll(entry.getValue());
+            for (var constr : entry.getValue()) {
+                Set<String> bodies = constrToBodies.get(constr);
+                newConstrToBodies.put(constr, new ArrayList<>(bodies));
+                hybrid.addAll(bodies);
+            }
+        }
+        int sqzParamNum = 0;
+        for (Categorical01 dist : stochMapping.values()) {
+            sqzParamNum += dist.getSupports().length;
+        }
+        Messages.log("ProvenanceUtil: squeeze causal graph size from [%d causal + %d random (%d params)] to [%d causal + %d random (%d params)]",
+                origHybrid.size(), origVarNum, origParamNum, hybrid.size(), stochMapping.size(), sqzParamNum);
+        return CausalGraph.createCausalGraph(provenance.getId(),
+                hybrid,
+                singletons,
+                newHeadToConstrs,
+                newConstrToBodies,
                 stochMapping);
     }
 

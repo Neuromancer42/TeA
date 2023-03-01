@@ -7,6 +7,7 @@ import org.apache.commons.math3.distribution.EnumeratedRealDistribution;
 import java.util.*;
 
 public class Categorical01 {
+    private static final double epsilon = 1e-4;
     protected final double[] supports;
     private EnumeratedRealDistribution dist;
 
@@ -80,5 +81,58 @@ public class Categorical01 {
 
     public double probability(double x) {
         return dist.probability(x);
+    }
+
+
+    public static Categorical01 revMultiply(Categorical01 prev, Categorical01 post) {
+        if (prev == null)
+            return post;
+        if (post == null)
+            return prev;
+        Map<Double, Double> probMap = new HashMap<>();
+        for (double p : prev.supports) {
+            for (double q : prev.supports) {
+                double pq = 1 - (1- p) * (1- q);
+                if (pq < 1 && pq > 1 - epsilon)
+                    pq = 1 - epsilon;
+                double w = prev.probability(p) * prev.probability(q);
+                probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
+            }
+        }
+        double[] newSupports = new double[probMap.size()];
+        double[] newProbs = new double[probMap.size()];
+        int i = 0;
+        for (var entry : probMap.entrySet()) {
+            newSupports[i] = entry.getKey();
+            newProbs[i] = entry.getValue();
+            i++;
+        }
+        return new Categorical01(newSupports, newProbs);
+    }
+
+    public static Categorical01 multiplyDist(Categorical01 prev, Categorical01 post) {
+        if (prev == null)
+            return post;
+        if (post == null)
+            return prev;
+        Map<Double, Double> probMap = new HashMap<>();
+        for (double p : prev.supports) {
+            for (double q : prev.supports) {
+                double pq = p * q;
+                if (pq > 0 && pq < epsilon)
+                    pq = epsilon;
+                double w = prev.probability(p) * prev.probability(q);
+                probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
+            }
+        }
+        double[] newSupports = new double[probMap.size()];
+        double[] newProbs = new double[probMap.size()];
+        int i = 0;
+        for (var entry : probMap.entrySet()) {
+            newSupports[i] = entry.getKey();
+            newProbs[i] = entry.getValue();
+            i++;
+        }
+        return new Categorical01(newSupports, newProbs);
     }
 }
