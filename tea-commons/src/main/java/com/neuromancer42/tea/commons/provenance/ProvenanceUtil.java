@@ -171,9 +171,10 @@ public class ProvenanceUtil {
         Map<String, Set<String>> constrToBodies = new HashMap<>();
         Map<String, String> constrToHead = new HashMap<>();
 
+        Map<String, Integer> headToBodiesNum = new HashMap<>();
+
         Set<String> origHybrid = new HashSet<>();
         int origParamNum = 0;
-        int origVarNum;
 
         for (Trgt.Constraint constr : provenance.getConstraintList()) {
             Categorical01 dist = deriveDist.apply(constr);
@@ -190,8 +191,6 @@ public class ProvenanceUtil {
             }
         }
 
-        origVarNum = stochMapping.size();
-
         for (Trgt.Tuple tuple : provenance.getInputList()) {
             singletons.add(encodeTuple(tuple));
         }
@@ -202,6 +201,7 @@ public class ProvenanceUtil {
             origHybrid.add(constrRepr);
             origHybrid.add(headRepr);
             headToConstrs.computeIfAbsent(headRepr, t -> new LinkedHashSet<>()).add(constrRepr);
+            headToBodiesNum.compute(headRepr, (t, num) -> ((num == null) ? 0 : num) + constr.getBodyTupleCount());
             constrToHead.put(constrRepr, headRepr);
             Set<String> bodyReprList = new LinkedHashSet<>();
             for (Trgt.Tuple body : constr.getBodyTupleList()) {
@@ -212,6 +212,8 @@ public class ProvenanceUtil {
             }
             constrToBodies.put(constrRepr, bodyReprList);
         }
+        Messages.log("ProvenanceUtil: original causal graph size [%d causal + %d random (%d params)]",
+                origHybrid.size(), stochMapping.size(), origParamNum);
 
         Deque<String> eliminatables = new ArrayDeque<>();
         // Step 1 : eliminate from inputs
@@ -220,6 +222,7 @@ public class ProvenanceUtil {
                 eliminatables.push(singleton);
             }
         }
+        Messages.debug("ProvenanceUtil: find %d eliminatable input nodes", eliminatables.size());
         while (!eliminatables.isEmpty()) {
             String elimTuple = eliminatables.pop();
             singletons.remove(elimTuple);
@@ -229,25 +232,18 @@ public class ProvenanceUtil {
                 Messages.debug("ProvenanceUtil: totally singleton %s", elimTuple);
                 continue;
             }
-            Set<String> candHeads = new LinkedHashSet<>();
             for (String sinkConstr : sinkConstrs) {
                 constrToBodies.get(sinkConstr).remove(elimTuple);
-                Categorical01 pConstr = stochMapping.get(sinkConstr);
-                Categorical01 pNew = Categorical01.multiplyDist(pTuple, pConstr);
-                if (pNew != null)
-                    stochMapping.put(sinkConstr, pNew);
-                if (constrToBodies.get(sinkConstr).isEmpty()) {
-                    candHeads.add(constrToHead.get(sinkConstr));
+                {
+                    Categorical01 pConstr = stochMapping.get(sinkConstr);
+                    Categorical01 pNew = Categorical01.multiplyDist(pTuple, pConstr);
+                    if (pNew != null)
+                        stochMapping.put(sinkConstr, pNew);
                 }
-            }
-            for (String head : candHeads) {
-                boolean elimNext = true;
-                for (String peerConstr : headToConstrs.get(head)) {
-                    if (!constrToBodies.get(peerConstr).isEmpty()) {
-                        elimNext = false;
-                    }
-                }
-                if (elimNext) {
+                String head = constrToHead.get(sinkConstr);
+                headToBodiesNum.computeIfPresent(head, (t, num) -> num - 1);
+                if (headToBodiesNum.get(head) == 0) {
+                    headToBodiesNum.remove(head);
                     Categorical01 pNew = stochMapping.get(head);
                     Set<String> mergingConstrs = headToConstrs.remove(head);
                     for (String peerConstr : mergingConstrs) {
@@ -256,8 +252,8 @@ public class ProvenanceUtil {
                         Categorical01 pConstr = stochMapping.remove(peerConstr);
                         pNew = Categorical01.revMultiply(pNew, pConstr);
                     }
-
-                    stochMapping.put(head, pNew);
+                    if (pNew != null)
+                        stochMapping.put(head, pNew);
                     singletons.add(head);
                     if (!reserved.contains(head))
                         eliminatables.push(head);
@@ -271,6 +267,7 @@ public class ProvenanceUtil {
                 eliminatables.push(head);
             }
         }
+        Messages.debug("ProvenanceUtil: find %d eliminatable middle nodes", eliminatables.size());
         while (!eliminatables.isEmpty()) {
             String elimTuple = eliminatables.pop();
             String srcConstr = headToConstrs.remove(elimTuple).toArray(new String[0])[0];
@@ -311,8 +308,8 @@ public class ProvenanceUtil {
         for (Categorical01 dist : stochMapping.values()) {
             sqzParamNum += dist.getSupports().length;
         }
-        Messages.log("ProvenanceUtil: squeeze causal graph size from [%d causal + %d random (%d params)] to [%d causal + %d random (%d params)]",
-                origHybrid.size(), origVarNum, origParamNum, hybrid.size(), stochMapping.size(), sqzParamNum);
+        Messages.log("ProvenanceUtil: squeeze causal graph size to [%d causal + %d random (%d params)]",
+                hybrid.size(), stochMapping.size(), sqzParamNum);
         return CausalGraph.createCausalGraph(provenance.getId(),
                 hybrid,
                 singletons,

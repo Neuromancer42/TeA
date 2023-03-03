@@ -28,6 +28,7 @@ public class DAIMetaNetwork {
         Path fgFilePath = dumpDir.resolve(name+".fg");
         int subSize = causalGraph.nodeSize();
         try {
+            Files.deleteIfExists(fgFilePath);
             BufferedWriter bw = Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8);
             PrintWriter pw = new PrintWriter(bw);
             subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats);
@@ -59,6 +60,7 @@ public class DAIMetaNetwork {
             Messages.fatal("DAIMetaNetwork: observation time " + time + " exceeds meta-network size " + numRepeats + ".");
         }
         int fgVarId = offset + time * shift + nodeId;
+        Messages.debug("IteratingInferer: observing node %d(%d@%d) to be %s", fgVarId, nodeId, time, value);
         swigFactorGraph.observeBernoulli(fgVarId, value);
     }
 

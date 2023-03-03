@@ -1,6 +1,5 @@
 package com.neuromancer42.tea.jsouffle.tests;
 
-import com.neuromancer42.tea.commons.provenance.Provenance;
 import com.neuromancer42.tea.jsouffle.SouffleAnalysis;
 import com.neuromancer42.tea.jsouffle.SouffleRuntime;
 import org.junit.jupiter.api.*;
@@ -40,6 +39,7 @@ public class SouffleSingleRunTest {
         List<String> inputLines = new ArrayList<>();
         inputLines.add("1\t2");
         inputLines.add("2\t3");
+        inputLines.add("3\t4");
         Files.write(analysis.getFactDir().resolve("PP.facts"), inputLines, StandardCharsets.UTF_8);
     }
 
@@ -50,16 +50,36 @@ public class SouffleSingleRunTest {
         analysis.activate();
         analysis.close();
         List<String> outputLines = Files.readAllLines(analysis.getOutDir().resolve("PPP.csv"));
-        Assertions.assertEquals(outputLines.size(), 1);
-        Assertions.assertEquals(outputLines.get(0), "1\t3");
+        Assertions.assertEquals(outputLines.size(), 2);
+        Assertions.assertTrue(outputLines.contains("1\t3"));
+        Assertions.assertTrue(outputLines.contains("2\t4"));
     }
 
     @Test
     @Order(2)
     @DisplayName("SouffleSolver generates provenance correctly")
     public void provenanceTest() throws IOException {
+        System.err.println("Proving all outputs");
+        Files.deleteIfExists(analysis.getProofDir().resolve("targets.list"));
+        analysis.activateProver(analysis.getProofDir());
+        List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
+        Assertions.assertEquals(proofLines.size(), 3);
+        for (String line : proofLines) {
+            System.out.println(line);
+        }
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("SouffleSolver generates provenance on demand")
+    public void provenanceOnTargetTest() throws IOException {
+        System.err.println("Proving target PPP(1,3) only");
+        Files.write(analysis.getProofDir().resolve("targets.list"), List.of("PPP\t1\t3"), StandardCharsets.UTF_8);
         analysis.activateProver(analysis.getProofDir());
         List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
         Assertions.assertEquals(proofLines.size(), 1);
+        for (String line : proofLines) {
+            System.out.println(line);
+        }
     }
 }

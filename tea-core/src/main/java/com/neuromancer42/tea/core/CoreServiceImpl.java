@@ -99,7 +99,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             instrTimer.stop();
             {
                 CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
-                        .setMsg(String.format(Constants.MSG_SUCC + ": instrumenting %d tuples in %s", obsTuples.size(), instrTimer))
+                        .setMsg(String.format(Constants.MSG_SUCC + ": instrumented %d tuples in %s", obsTuples.size(), instrTimer))
                         .build();
                 responseObserver.onNext(response);
             }

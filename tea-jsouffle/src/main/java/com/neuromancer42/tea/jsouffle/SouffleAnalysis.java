@@ -9,8 +9,7 @@ import com.neuromancer42.tea.jsouffle.swig.SWIGSouffleProgram;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.*;
 
 public final class SouffleAnalysis {
@@ -18,8 +17,6 @@ public final class SouffleAnalysis {
     private final Path proofDir;
     private SWIGSouffleProgram souffleProgram;
     private SWIGSouffleProgram proverProgram;
-
-    private SouffleProver prover;
 
     private final String analysis; // field for debug; different analysis instance may refer to the same analysis program
     private final Path analysisPath;
@@ -247,70 +244,62 @@ public final class SouffleAnalysis {
     }
 
     public List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
-        if (prover == null) {
-            // 0. activate prover program
-            Messages.log("SouffleAnalysis %s: activate provenance program for the first query", name);
-            activateProver(proofDir);
-            // 1. fetch inputTuples
-            List<Trgt.Tuple> inputs = new ArrayList<>();
-            for (String relName : inputRelNames) {
-                Path factPath = factDir.resolve(relName + ".facts");
-                List<int[]> table = loadTableFromFile(factPath);
-                for (int[] row : table) {
-                    String[] attributes = decodeIndices(relName, row);
-                    assert attributes != null;
-                    Trgt.Tuple inputTuple = Trgt.Tuple.newBuilder()
-                            .setRelName(relName)
-                            .addAllAttribute(List.of(attributes))
-                            .build();
-                    inputs.add(inputTuple);
+        // 0. filter targets and activate prover program
+        List<Trgt.Tuple> outputs = new ArrayList<>();
+        {
+            List<String> lines = new ArrayList<>();
+            for (Trgt.Tuple target : targets) {
+                String relName = target.getRelName();
+                if (outputRelNames.contains(relName)) {
+                    outputs.add(target);
+                    StringBuilder lb = new StringBuilder();
+                    lb.append(relName);
+                    int[] intTuple = encodeIndices(relName, target.getAttributeList().toArray(new String[0]));
+                    assert intTuple != null;
+                    for (int idx : intTuple) {
+                        lb.append("\t").append(idx);
+                    }
+                    lines.add(lb.toString());
                 }
             }
-
-            // 2. fetch outputTuples
-            List<Trgt.Tuple> outputs = new ArrayList<>();
-            for (String relName : outputRelNames) {
-                Path outPath = outDir.resolve(relName + ".csv");
-                List<int[]> table = loadTableFromFile(outPath);
-                for (int[] row : table) {String[] attributes = decodeIndices(relName, row);
-                    assert attributes != null;
-                    Trgt.Tuple outputTuple = Trgt.Tuple.newBuilder()
-                            .setRelName(relName)
-                            .addAllAttribute(List.of(attributes))
-                            .build();
-                    outputs.add(outputTuple);
-                }
-            }
-
-            // 3. fetch ruleInfos
-            List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
-
-            // 4. fetch constraintItems
-            Path consFilePath = proofDir.resolve("cons_all.txt");
-            List<String> consLines = null;
             try {
-                consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
-                Messages.fatal(e);
+                Files.write(proofDir.resolve("targets.list"), lines, StandardCharsets.UTF_8);
+            } catch (IOException ioException) {
+                Messages.error("SouffleAnalysis %s: failed to dump target tuples: %s", name, ioException.getMessage());
             }
-            assert consLines != null;
-            Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
-            for (String line : consLines) {
-                Trgt.Constraint constraint = decodeConstraint(line);
-                clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
-            }
-
-            this.prover = new SouffleProver(clauseMap, inputs, outputs, ruleInfos);
-            Messages.log("SouffleAnalysis %s: provenance finished, freeing prover program", name);
-            proverProgram = null;
         }
-        return prover.prove(targets);
+        Messages.log("SouffleAnalysis %s: activate provenance program to prove %d targets", name, outputs.size());
+        activateProver(proofDir);
+
+        // 3. fetch ruleInfos
+        List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
+
+        // 4. fetch constraintItems
+        Path consFilePath = proofDir.resolve("cons_all.txt");
+        List<String> consLines = null;
+        try {
+            consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
+            Messages.fatal(e);
+        }
+        assert consLines != null;
+        Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
+        for (String line : consLines) {
+            Trgt.Constraint constraint = decodeConstraint(line);
+            clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
+        }
+
+        ProvenanceBuilder provBuilder = new ProvenanceBuilder(clauseMap, ruleInfos);
+        Messages.log("SouffleAnalysis %s: provenance finished, freeing prover program", name);
+        proverProgram = null;
+
+        return provBuilder.prove(targets);
     }
 
     public void activateProver(Path proofPath) {
         if (!activated) {
-            Messages.fatal("SouffleAnalysis %s: the analysis should be activated before building provenance");
+            Messages.fatal("SouffleAnalysis %s: the analysis should be activated before building provenance", name);
             assert false;
         }
         if (proverProgram == null) {
@@ -347,7 +336,7 @@ public final class SouffleAnalysis {
             ProgramDom dom = doms.get(domKinds[i]);
             domIndices[i] = dom.indexOf(attributes[i]);
             if (domIndices[i] < 0) {
-                Messages.fatal("SouffleProver %s: dom %s contains no element %s", getName(), domKinds[i], attributes[i]);
+                Messages.fatal("SouffleAnalysis %s: dom %s contains no element %s", getName(), domKinds[i], attributes[i]);
                 assert false;
             }
         }
@@ -403,16 +392,16 @@ public final class SouffleAnalysis {
         return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttribute(List.of(attributes)).build();
     }
 
-    private class SouffleProver {
+    private class ProvenanceBuilder {
         private final Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap;
-        private final List<Trgt.Tuple> inputs;
-        private final List<Trgt.Tuple> outputs;
+//        private final List<Trgt.Tuple> inputs;
+//        private final List<Trgt.Tuple> outputs;
         private final List<String> ruleInfos;
 
-        public SouffleProver(Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap, List<Trgt.Tuple> inputs, List<Trgt.Tuple> outputs, List<String> ruleInfos) {
+        public ProvenanceBuilder(Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap, List<String> ruleInfos) {
             this.clauseMap = clauseMap;
-            this.inputs = inputs;
-            this.outputs = outputs;
+//            this.inputs = inputs;
+//            this.outputs = outputs;
             this.ruleInfos = ruleInfos;
         }
 
@@ -425,7 +414,7 @@ public final class SouffleAnalysis {
                 if (outputRelNames.contains(relName)) {
                     workList.add(target);
                 } else {
-                    Messages.debug("SouffleProver %s: leaving unseen tuple %s to other analyses", name, TextFormat.shortDebugString(target), relName);
+                    Messages.debug("ProvenanceBuilder %s: leaving unseen tuple %s to other analyses", name, TextFormat.shortDebugString(target), relName);
                     unsolvedTargets.add(target);
                 }
             }
@@ -442,10 +431,10 @@ public final class SouffleAnalysis {
                         }
                     } else {
                         if (inputRelNames.contains(headRelName)) {
-                            Messages.debug("SouffleProver %s: leaving input tuple %s to other analyses", name, TextFormat.shortDebugString(head));
+                            Messages.debug("ProvenanceBuilder %s: leaving input tuple %s to other analyses", name, TextFormat.shortDebugString(head));
                             unsolvedTargets.add(head);
                         } else {
-                            Messages.debug("SouffleProver %s: axiomatic tuple %s in analysis", name, TextFormat.shortDebugString(head));
+                            Messages.debug("ProvenanceBuilder %s: axiomatic tuple %s in analysis", name, TextFormat.shortDebugString(head));
                         }
                     }
                 }

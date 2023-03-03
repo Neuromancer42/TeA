@@ -179,15 +179,53 @@ public:
 
         // put all output tuples into worklist
         std::queue<std::pair<std::string,std::vector<souffle::RamDomain> > > worklist;
-        for (auto& rel: program->getOutputRelations()) {
-            std::string relName = rel->getName();
-            for (auto& tuple: *rel) {
-                std::vector<souffle::RamDomain> tup;
-                for (int i = 0; i < rel->getArity(); i++)
-                    tup.push_back(tuple[i]);
-                worklist.push(std::make_pair(relName, tup));
+        std::string targetName = provDirectory + "/" + "targets.list";
+        std::ifstream targetFile(targetName, std::ios::in | std::ios::binary);
+        if (targetFile.good()) {
+            std::string line;
+            while (std::getline(targetFile, line)) {
+                std::istringstream liness(line);
+                std::string relName;
+                if (liness >> relName) {
+                    std::vector<souffle::RamDomain> tup;
+                    souffle::RamUnsigned a;
+                    while (liness >> a)
+                        tup.push_back(souffle::ramBitCast<souffle::RamDomain>(a));
+                    souffle::Relation* rel = program->getRelation(relName);
+                    if (rel == nullptr) {
+#ifndef NDEBUG
+    logfile << "Skip target tuple of unknown relation" << line << std::endl;
+#endif
+                        continue;
+                    }
+                    assert ((rel->getPrimaryArity() == tup.size()) && "target tuple has wrong arity");
+                    for (auto& tuple: *rel) {
+                        bool match = true;
+                        for (int i = 0; match && (i < rel->getPrimaryArity()); i++) {
+                            match = (tup[i] == tuple[i]);
+                        }
+                        if (match) {
+                            std::vector<souffle::RamDomain> auxTup;
+                            for (int i = 0; i < rel->getArity(); i++)
+                                auxTup.push_back(tuple[i]);
+                            worklist.push(std::make_pair(relName, auxTup));
+                        }
+                    }
+                }
+            }
+        } else {
+            for (auto& rel: program->getOutputRelations()) {
+                std::string relName = rel->getName();
+                for (auto& tuple: *rel) {
+                    std::vector<souffle::RamDomain> tup;
+                    for (int i = 0; i < rel->getArity(); i++)
+                        tup.push_back(tuple[i]);
+                    worklist.push(std::make_pair(relName, tup));
+                }
             }
         }
+
+
 
 #ifndef NDEBUG
     logfile << "Proving "<< worklist.size() << " output tuples." << std::endl;

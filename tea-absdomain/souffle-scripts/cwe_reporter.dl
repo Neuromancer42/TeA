@@ -40,23 +40,18 @@
 .decl CWE119_out_of_bound(p:P, v:V, i:V, content:H, type:T, o1:U, o2:U, bytes:U)
 .output CWE119_out_of_bound
 
-CWE119_out_of_bound(p,v,i,content,t1,o1,o2,bytes) :-
+CWE119_out_of_bound(p,v,i,content,t1,o1,o2,bound) :-
     AccessArray(p,v,i),
     ci_Voffset(v,content,t1,o1), ci_Vval(i,o2),
-    OutOfBound(content,t1,o1,o2,bytes).
+    TypeWidth(t1,c1), ConstU(c1,w1),
+    evalPlusU(o1,o2,o), evalMultU(o,w1,offset),
+    ArrayLength(content,bound), evalLEU(bound,offset).
 
 .decl AccessArray(p:P,v:V,i:V)
-.decl OutOfBound(content:H,t1:T,o1:U,o2:U,bytes:U)
-.decl ArrayLength(content:H,bound:U)
-
 AccessArray(p,v,i) :- Pload(p,u), LoadArr(u,v,i).
 AccessArray(p,v,i) :- Pstore(p,u), StoreArr(v,i,u).
 
-OutOfBound(content,t1,o1,o2,bound) :-
-    TypeWidth(t1,w1), ConstU(w1,wu1),
-    evalPlusU(o1,o2,o), evalMultU(o,wu1,offset),
-    ArrayLength(content,bound), evalLEU(bound,offset).
-
+.decl ArrayLength(content:H,bound:U)
 ArrayLength(content,bound) :-
     FixArrayShape(content,t2,c), ConstU(c,b),
     TypeWidth(t2,w2), ConstU(w2,wu2), evalMultU(b,wu2,bound).
