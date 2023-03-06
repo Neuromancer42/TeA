@@ -14,38 +14,20 @@ import java.util.*;
 
 public final class SouffleAnalysis {
     private final String name;
-    private final Path proofDir;
-    private SWIGSouffleProgram souffleProgram;
-    private SWIGSouffleProgram proverProgram;
+    private final SWIGSouffleProgram souffleProgram;
+    private final SWIGSouffleProgram proverProgram;
 
     private final String analysis; // field for debug; different analysis instance may refer to the same analysis program
-    private final Path analysisPath;
-    private final Path factDir;
-    private final Path outDir;
+
     private final Set<String> domNames;
     private final List<String> inputRelNames;
     private final List<String> outputRelNames;
     private final Map<String, String[]> relSignMap;
 
-    private boolean activated = false;
-
-    SouffleAnalysis(String name, String analysis, Path path, SWIGSouffleProgram program, SWIGSouffleProgram provProgram) {
+    SouffleAnalysis(String name, String analysis, SWIGSouffleProgram program, SWIGSouffleProgram provProgram) {
         this.name = name;
         this.analysis = analysis;
         souffleProgram = program;
-        // TODO: change analysis directory?
-        analysisPath = path;
-        Path tmpFactDir = null;
-        Path tmpOutDir = null;
-        try {
-            tmpFactDir = Files.createDirectories(analysisPath.resolve("fact"));
-            tmpOutDir = Files.createDirectories(analysisPath.resolve("out"));
-        } catch (IOException e) {
-            Messages.error("SouffleAnalysis %s: failed to create I/O directory", name);
-            Messages.fatal(e);
-        }
-        factDir = tmpFactDir;
-        outDir = tmpOutDir;
         inputRelNames = new ArrayList<>();
         inputRelNames.addAll(souffleProgram.getInputRelNames());
         outputRelNames = new ArrayList<>();
@@ -70,16 +52,6 @@ public final class SouffleAnalysis {
             relSignMap.put(relName, relAttrs);
         }
         proverProgram = provProgram;
-        Path tmpProofDir = null;
-        if (provProgram != null) {
-            try {
-                tmpProofDir = Files.createDirectories(analysisPath.resolve("provenance"));
-            } catch (IOException e) {
-                Messages.error("SouffleAnalysis %s: failed to create provenance directory", name);
-                Messages.fatal(e);
-            }
-        }
-        proofDir = tmpProofDir;
     }
 
     public String getName() {
@@ -106,124 +78,7 @@ public final class SouffleAnalysis {
         return outputRelSignMap;
     }
 
-    public Path getAnalysisPath() {
-        return analysisPath;
-    }
-
-    public Path getFactDir() {
-        return factDir;
-    }
-
-    public Path getOutDir() {
-        return outDir;
-    }
-
-    public Path getProofDir() {
-        return proofDir;
-    }
-
-    private final Map<String, ProgramDom> doms = new LinkedHashMap<>();
-    private final Map<String, ProgramRel> producedRels = new LinkedHashMap<>();
-
-    public Collection<ProgramRel> run(Map<String, ProgramDom> domMap, Map<String, ProgramRel> inputRelMap) {
-        for (String domName : domNames) {
-            doms.put(domName, domMap.get(domName));
-        }
-        for (String relName : inputRelNames) {
-            dumpRel(relName, inputRelMap.get(relName));
-        }
-        activate();
-        close();
-        for (String relName : outputRelNames) {
-            producedRels.put(relName, loadRel(relName));
-        }
-        return producedRels.values();
-    }
-
-    public void activate() {
-        if (activated) {
-            Messages.warn("SouffleAnalysis %s: the analysis has been activated before, are you sure to re-run?", name);
-        }
-        if (souffleProgram == null) {
-            Messages.fatal("SouffleAnalysis %s: souffle analysis has been closed", name);
-        }
-        souffleProgram.loadAll(factDir.toString());
-        souffleProgram.run();
-        souffleProgram.printAll(outDir.toString());
-
-        activated = true;
-    }
-
-    public void close() {
-        if (!activated) {
-            Messages.warn("SouffleAnalysis %s: close souffle analysis before running it", name);
-        }
-        if (souffleProgram == null) {
-            Messages.warn("SouffleAnalysis %s: re-close the souffle analysis", name);
-        } else {
-            Messages.debug("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
-            souffleProgram = null;
-        }
-    }
-
-    private void dumpRel(String relName, ProgramRel rel) {
-        assert relName.equals(rel.getName());
-        Path factPath = factDir.resolve(relName+".facts");
-        Messages.debug("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
-        try {
-            rel.load();
-            List<String> lines = new ArrayList<>();
-            Iterable<int[]> tuples = rel.getIntTuples();
-            int domNum = rel.getDoms().length;
-            for (int[] tuple: tuples) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < domNum; ++i) {
-                    int id = tuple[i];
-                    //s += rel.getDoms()[i].toUniqueString(element);
-                    sb.append(id);
-                    if (i < domNum - 1) {
-                        sb.append("\t");
-                    }
-                }
-                lines.add(sb.toString());
-            }
-            Files.write(factPath, lines, StandardCharsets.UTF_8);
-            rel.close();
-        } catch (IOException e) {
-            Messages.error("SouffleAnalysis %s: failed to dump relation %s", name, relName);
-            Messages.fatal(e);
-        }
-    }
-
-    private ProgramRel loadRel(String relName) {
-        if (!activated) {
-            Messages.fatal("SouffleAnalysis %s: souffle program has not been activated before loading <rel %s>", name, relName);
-        }
-
-        String[] domKinds = relSignMap.get(relName);
-        int domNum = domKinds.length;
-        ProgramDom[] relDoms = new ProgramDom[domNum];
-        for (int i = 0; i < domKinds.length; ++i) {
-            relDoms[i] = doms.get(domKinds[i]);
-        }
-
-        ProgramRel rel = new ProgramRel(relName, relDoms);
-
-        rel.init();
-        Path outPath = outDir.resolve(relName+".csv");
-        Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
-        List<int[]> table = loadTableFromFile(outPath);
-        for (int[] row: table) {
-            rel.add(row);
-        }
-
-        rel.save(analysisPath.toString());
-        rel.close();
-
-        return rel;
-    }
-
-    static List<int[]> loadTableFromFile(Path outPath) {
+    private static List<int[]> loadTableFromFile(Path outPath) {
         List<int[]> table = new ArrayList<>();
         try {
             List<String> lines = Files.readAllLines(outPath);
@@ -243,153 +98,296 @@ public final class SouffleAnalysis {
         return table;
     }
 
-    public List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
-        // 0. filter targets and activate prover program
-        List<Trgt.Tuple> outputs = new ArrayList<>();
-        {
-            List<String> lines = new ArrayList<>();
-            for (Trgt.Tuple target : targets) {
-                String relName = target.getRelName();
-                if (outputRelNames.contains(relName)) {
-                    outputs.add(target);
-                    StringBuilder lb = new StringBuilder();
-                    lb.append(relName);
-                    int[] intTuple = encodeIndices(relName, target.getAttributeList().toArray(new String[0]));
-                    assert intTuple != null;
-                    for (int idx : intTuple) {
-                        lb.append("\t").append(idx);
+    public Instance createInstance(String ID, Path workPath) throws IOException {
+        Path factDir = Files.createDirectories(workPath.resolve("fact"));
+        Path outDir = Files.createDirectories(workPath.resolve("out"));
+        Path proofDir;
+        if (proverProgram != null) {
+            proofDir = Files.createDirectories(workPath.resolve("provenance"));
+        } else {
+            proofDir = null;
+        }
+        return new Instance(ID, factDir, outDir, proofDir);
+    }
+
+    public final class Instance {
+        private final String ID;
+        private final Path factDir;
+        private final Path outDir;
+        private final Path proofDir;
+
+        private boolean activated = false;
+
+        Instance(String ID, Path factDir, Path outDir, Path proofDir) {
+            this.ID = ID;
+            this.factDir = factDir;
+            this.outDir = outDir;
+            this.proofDir = proofDir;
+        }
+
+        public String getID() {
+            return ID;
+        }
+
+        public Path getFactDir() {
+            return factDir;
+        }
+
+        public Path getOutDir() {
+            return outDir;
+        }
+
+        public Path getProofDir() {
+            return proofDir;
+        }
+
+        private final Map<String, ProgramDom> doms = new LinkedHashMap<>();
+        private final Map<String, ProgramRel> producedRels = new LinkedHashMap<>();
+
+        public Collection<ProgramRel> run(Map<String, ProgramDom> domMap, Map<String, ProgramRel> inputRelMap) {
+            for (String domName : domNames) {
+                doms.put(domName, domMap.get(domName));
+            }
+            for (String relName : inputRelNames) {
+                dumpRel(relName, inputRelMap.get(relName));
+            }
+            activate();
+//            close();
+            for (String relName : outputRelNames) {
+                producedRels.put(relName, loadRel(relName));
+            }
+            return producedRels.values();
+        }
+
+        public void activate() {
+            if (activated) {
+                Messages.warn("SouffleAnalysis %s: the analysis has been activated before, are you sure to re-run?", name);
+            }
+//            if (souffleProgram == null) {
+//                Messages.fatal("SouffleAnalysis %s: souffle analysis has been closed", name);
+//            }
+            souffleProgram.loadAll(factDir.toString());
+            souffleProgram.run();
+            souffleProgram.printAll(outDir.toString());
+
+            activated = true;
+        }
+
+//        public void close() {
+//            if (!activated) {
+//                Messages.warn("SouffleAnalysis %s: close souffle analysis before running it", name);
+//            }
+//            if (souffleProgram == null) {
+//                Messages.warn("SouffleAnalysis %s: re-close the souffle analysis", name);
+//            } else {
+//                Messages.debug("SouffleAnalyusis %s: freeing souffle program %s", name, souffleProgram);
+//            }
+//        }
+
+        private void dumpRel(String relName, ProgramRel rel) {
+            assert relName.equals(rel.getName());
+            Path factPath = factDir.resolve(relName+".facts");
+            Messages.debug("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
+            try {
+                rel.load();
+                List<String> lines = new ArrayList<>();
+                Iterable<int[]> tuples = rel.getIntTuples();
+                int domNum = rel.getDoms().length;
+                for (int[] tuple: tuples) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < domNum; ++i) {
+                        int id = tuple[i];
+                        //s += rel.getDoms()[i].toUniqueString(element);
+                        sb.append(id);
+                        if (i < domNum - 1) {
+                            sb.append("\t");
+                        }
                     }
-                    lines.add(lb.toString());
+                    lines.add(sb.toString());
+                }
+                Files.write(factPath, lines, StandardCharsets.UTF_8);
+                rel.close();
+            } catch (IOException e) {
+                Messages.error("SouffleAnalysis %s: failed to dump relation %s", name, relName);
+                Messages.fatal(e);
+            }
+        }
+
+        private ProgramRel loadRel(String relName) {
+            if (!activated) {
+                Messages.fatal("SouffleAnalysis %s: souffle program has not been activated before loading <rel %s>", name, relName);
+            }
+
+            String[] domKinds = relSignMap.get(relName);
+            int domNum = domKinds.length;
+            ProgramDom[] relDoms = new ProgramDom[domNum];
+            for (int i = 0; i < domKinds.length; ++i) {
+                relDoms[i] = doms.get(domKinds[i]);
+            }
+
+            ProgramRel rel = new ProgramRel(relName, relDoms);
+
+            rel.init();
+            Path outPath = outDir.resolve(relName+".csv");
+            Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
+            List<int[]> table = loadTableFromFile(outPath);
+            for (int[] row: table) {
+                rel.add(row);
+            }
+
+            rel.save(outDir.toString());
+            rel.close();
+
+            return rel;
+        }
+
+        public List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
+            // 0. filter targets and activate prover program
+            List<Trgt.Tuple> outputs = new ArrayList<>();
+            {
+                List<String> lines = new ArrayList<>();
+                for (Trgt.Tuple target : targets) {
+                    String relName = target.getRelName();
+                    if (outputRelNames.contains(relName)) {
+                        outputs.add(target);
+                        StringBuilder lb = new StringBuilder();
+                        lb.append(relName);
+                        int[] intTuple = encodeIndices(relName, target.getAttributeList().toArray(new String[0]));
+                        assert intTuple != null;
+                        for (int idx : intTuple) {
+                            lb.append("\t").append(idx);
+                        }
+                        lines.add(lb.toString());
+                    }
+                }
+                try {
+                    Files.write(proofDir.resolve("targets.list"), lines, StandardCharsets.UTF_8);
+                } catch (IOException ioException) {
+                    Messages.error("SouffleAnalysis %s: failed to dump target tuples: %s", name, ioException.getMessage());
                 }
             }
+            Messages.log("SouffleAnalysis %s: activate provenance program to prove %d targets", name, outputs.size());
+            activateProver(proofDir);
+
+            // 3. fetch ruleInfos
+            List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
+
+            // 4. fetch constraintItems
+            Path consFilePath = proofDir.resolve("cons_all.txt");
+            List<String> consLines = null;
             try {
-                Files.write(proofDir.resolve("targets.list"), lines, StandardCharsets.UTF_8);
-            } catch (IOException ioException) {
-                Messages.error("SouffleAnalysis %s: failed to dump target tuples: %s", name, ioException.getMessage());
+                consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
+                Messages.fatal(e);
             }
-        }
-        Messages.log("SouffleAnalysis %s: activate provenance program to prove %d targets", name, outputs.size());
-        activateProver(proofDir);
+            assert consLines != null;
+            Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
+            for (String line : consLines) {
+                Trgt.Constraint constraint = decodeConstraint(line);
+                clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
+            }
 
-        // 3. fetch ruleInfos
-        List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
+            ProvenanceBuilder provBuilder = new ProvenanceBuilder(clauseMap, ruleInfos);
+            Messages.log("SouffleAnalysis %s: %s provenance finished", name, ID);
 
-        // 4. fetch constraintItems
-        Path consFilePath = proofDir.resolve("cons_all.txt");
-        List<String> consLines = null;
-        try {
-            consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
-            Messages.fatal(e);
-        }
-        assert consLines != null;
-        Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
-        for (String line : consLines) {
-            Trgt.Constraint constraint = decodeConstraint(line);
-            clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
+            return provBuilder.prove(targets);
         }
 
-        ProvenanceBuilder provBuilder = new ProvenanceBuilder(clauseMap, ruleInfos);
-        Messages.log("SouffleAnalysis %s: provenance finished, freeing prover program", name);
-        proverProgram = null;
-
-        return provBuilder.prove(targets);
-    }
-
-    public void activateProver(Path proofPath) {
-        if (!activated) {
-            Messages.fatal("SouffleAnalysis %s: the analysis should be activated before building provenance", name);
-            assert false;
-        }
-        if (proverProgram == null) {
-            Messages.fatal("SouffleAnalysis %s: provenance program has not been built for this analysis", name);
-            assert false;
-        }
-        proverProgram.loadAll(factDir.toString());
-        proverProgram.run();
-        proverProgram.printProvenance(proofPath.toString());
-    }
-
-    public String[] decodeIndices(String relName, int[] indices) {
-        assert activated;
-        String[] domKinds = relSignMap.get(relName);
-        if (domKinds == null) return null;
-        String[] attributes = new String[domKinds.length];
-        for (int i = 0; i < attributes.length; ++i) {
-            ProgramDom dom = doms.get(domKinds[i]);
-            if (indices[i] >= dom.size()) {
-                Messages.fatal("SouffleAnalysis %s: index %d out of bound of dom %s", name, indices[i], domKinds[i]);
+        public void activateProver(Path proofPath) {
+            if (!activated) {
+                Messages.fatal("SouffleAnalysis %s: the analysis for %s should be activated before building provenance", name, ID);
                 assert false;
             }
-            attributes[i] = dom.get(indices[i]);
-        }
-        return attributes;
-    }
-
-    private int[] encodeIndices(String relName, String[] attributes) {
-        assert activated;
-        String[] domKinds = relSignMap.get(relName);
-        if (domKinds == null) return null;
-        int[] domIndices = new int[domKinds.length];
-        for (int i = 0; i < domKinds.length; ++i) {
-            ProgramDom dom = doms.get(domKinds[i]);
-            domIndices[i] = dom.indexOf(attributes[i]);
-            if (domIndices[i] < 0) {
-                Messages.fatal("SouffleAnalysis %s: dom %s contains no element %s", getName(), domKinds[i], attributes[i]);
+            if (proverProgram == null) {
+                Messages.fatal("SouffleAnalysis %s: provenance program has not been built for this analysis", name);
                 assert false;
             }
+            proverProgram.loadAll(factDir.toString());
+            proverProgram.run();
+            proverProgram.printProvenance(proofPath.toString());
         }
-        return domIndices;
-    }
 
-    private Trgt.Constraint decodeConstraint(String line) {
-        Trgt.Constraint.Builder constrBuilder = Trgt.Constraint.newBuilder();
-        String[] atoms = line.split("\t");
-        String headAtom = atoms[0];
-        boolean headSign = true;
-        if (headAtom.charAt(0) == '!' && !headAtom.substring(0, headAtom.indexOf('(')).equals("!=")) {
-            headAtom = headAtom.substring(1);
-            headSign = false;
-        }
-        Trgt.Tuple headTuple = decodeTuple(headAtom);
-        constrBuilder.setHeadTuple(headTuple);
-
-        for (int i = 1; i < atoms.length - 1; ++i) {
-            String bodyAtom = atoms[i];
-            boolean bodySign = true;
-            if (bodyAtom.charAt(0) == '!' && !bodyAtom.substring(0, bodyAtom.indexOf('(')).equals("!=")) {
-                bodyAtom = bodyAtom.substring(1);
-                bodySign = false;
+        public String[] decodeIndices(String relName, int[] indices) {
+            assert activated;
+            String[] domKinds = relSignMap.get(relName);
+            if (domKinds == null) return null;
+            String[] attributes = new String[domKinds.length];
+            for (int i = 0; i < attributes.length; ++i) {
+                ProgramDom dom = doms.get(domKinds[i]);
+                if (indices[i] >= dom.size()) {
+                    Messages.fatal("SouffleAnalysis %s: index %d out of bound of dom %s", name, indices[i], domKinds[i]);
+                    assert false;
+                }
+                attributes[i] = dom.get(indices[i]);
             }
-            constrBuilder.addBodyTuple(decodeTuple(bodyAtom));
+            return attributes;
         }
 
-        String ruleInfo = atoms[atoms.length - 1];
-        if (ruleInfo.charAt(0) != '#') {
-            Messages.fatal("SouffleAnalysis %s: wrong rule info recorded - %s", name, ruleInfo);
+        private int[] encodeIndices(String relName, String[] attributes) {
+            assert activated;
+            String[] domKinds = relSignMap.get(relName);
+            if (domKinds == null) return null;
+            int[] domIndices = new int[domKinds.length];
+            for (int i = 0; i < domKinds.length; ++i) {
+                ProgramDom dom = doms.get(domKinds[i]);
+                domIndices[i] = dom.indexOf(attributes[i]);
+                if (domIndices[i] < 0) {
+                    Messages.fatal("SouffleAnalysis %s: dom %s does not contain element %s", getName(), domKinds[i], attributes[i]);
+                    assert false;
+                }
+            }
+            return domIndices;
         }
-        ruleInfo = ruleInfo.substring(1);
-        constrBuilder.setRuleInfo(ruleInfo);
 
-        return constrBuilder.build();
-    }
+        private Trgt.Constraint decodeConstraint(String line) {
+            Trgt.Constraint.Builder constrBuilder = Trgt.Constraint.newBuilder();
+            String[] atoms = line.split("\t");
+            String headAtom = atoms[0];
+            boolean headSign = true;
+            if (headAtom.charAt(0) == '!' && !headAtom.substring(0, headAtom.indexOf('(')).equals("!=")) {
+                headAtom = headAtom.substring(1);
+                headSign = false;
+            }
+            Trgt.Tuple headTuple = decodeTuple(headAtom);
+            constrBuilder.setHeadTuple(headTuple);
 
-    private Trgt.Tuple decodeTuple(String s) {
-        String[] splits1 = s.split("\\(");
-        String relName = splits1[0];
-        String indexString = splits1[1].replace(")", "");
-        String[] splits2 = indexString.split(",");
-        int[] domIndices = new int[splits2.length];
-        for (int i = 0; i < splits2.length; i++) {
-            domIndices[i] = Integer.parseInt(splits2[i]);
+            for (int i = 1; i < atoms.length - 1; ++i) {
+                String bodyAtom = atoms[i];
+                boolean bodySign = true;
+                if (bodyAtom.charAt(0) == '!' && !bodyAtom.substring(0, bodyAtom.indexOf('(')).equals("!=")) {
+                    bodyAtom = bodyAtom.substring(1);
+                    bodySign = false;
+                }
+                constrBuilder.addBodyTuple(decodeTuple(bodyAtom));
+            }
+
+            String ruleInfo = atoms[atoms.length - 1];
+            if (ruleInfo.charAt(0) != '#') {
+                Messages.fatal("SouffleAnalysis %s: wrong rule info recorded - %s", name, ruleInfo);
+            }
+            ruleInfo = ruleInfo.substring(1);
+            constrBuilder.setRuleInfo(ruleInfo);
+
+            return constrBuilder.build();
         }
-        String[] attributes = decodeIndices(relName, domIndices);
-        if (attributes == null) {
-            Messages.fatal("SouffleAnalysis %s: tuple %s cannot be parsed", s);
-            assert false;
+
+        private Trgt.Tuple decodeTuple(String s) {
+            String[] splits1 = s.split("\\(");
+            String relName = splits1[0];
+            String indexString = splits1[1].replace(")", "");
+            String[] splits2 = indexString.split(",");
+            int[] domIndices = new int[splits2.length];
+            for (int i = 0; i < splits2.length; i++) {
+                domIndices[i] = Integer.parseInt(splits2[i]);
+            }
+            String[] attributes = decodeIndices(relName, domIndices);
+            if (attributes == null) {
+                Messages.fatal("SouffleAnalysis %s: tuple %s cannot be parsed", s);
+                assert false;
+            }
+            return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttribute(List.of(attributes)).build();
         }
-        return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttribute(List.of(attributes)).build();
     }
 
     private class ProvenanceBuilder {

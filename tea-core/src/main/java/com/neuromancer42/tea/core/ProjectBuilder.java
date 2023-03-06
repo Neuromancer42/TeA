@@ -215,7 +215,7 @@ public class ProjectBuilder {
         return true;
     }
 
-    public Project buildProject(Map<String, String> option, List<String> schedule) {
+    public Project buildProject(String projId, Map<String, String> option, List<String> schedule) {
         Map<String, String[]> relSign = new HashMap<>();
         Map<String, Analysis.AnalysisInfo> analysisInfo = new HashMap<>();
         Map<String, ProviderGrpc.ProviderBlockingStub> analysisProvider = new HashMap<>();
@@ -236,12 +236,11 @@ public class ProjectBuilder {
             analysisInfo.put(analysis, info);
             analysisProvider.put(analysis, provider);
         }
-        String projName = option.getOrDefault(Constants.OPT_PROJ, "p" + Objects.hash(schedule.toArray(new Object[0])));
         Path path = null;
         try {
-            path = Files.createDirectories(workPath.resolve(projName));
+            path = Files.createDirectories(workPath.resolve(projId));
         } catch (IOException e) {
-            Messages.error("ProjectBuilder: failed to create working directory for project %s : %s", projName, e.getMessage());
+            Messages.error("ProjectBuilder: failed to create working directory for project %s : %s", projId, e.getMessage());
         }
         Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels = new LinkedHashMap<>();
         for (var entry : relObserverMap.entrySet()) {
@@ -252,6 +251,6 @@ public class ProjectBuilder {
                 observableRels.computeIfAbsent(observer, p -> new LinkedHashSet<>()).add(relInfo.getName());
             }
         }
-        return new Project(option, path, schedule, relSign, analysisInfo, analysisProvider, provable, observableRels);
+        return new Project(projId, option, path, schedule, relSign, analysisInfo, analysisProvider, provable, observableRels);
     }
 }

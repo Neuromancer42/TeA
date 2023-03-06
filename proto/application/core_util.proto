@@ -18,12 +18,13 @@ message Test {
 }
 
 message ApplicationRequest {
-    map<string, string> option = 1;
-    Compilation source = 2;
-    repeated string analysis = 3;
-    repeated string alarm_rel = 4;
-    optional bool need_rank = 5;
-    repeated Test test_suite = 6;
+    string project_id = 1;
+    map<string, string> option = 2;
+    Compilation source = 3;
+    repeated string analysis = 4;
+    repeated string alarm_rel = 5;
+    optional bool need_rank = 6;
+    repeated Test test_suite = 7;
 }
 
 message ApplicationResponse {

@@ -19,7 +19,7 @@ public class SouffleSingleRunTest {
 
     private static SouffleAnalysis analysis;
     private static String dlogName = "simple.dl";
-    private static Path workDirPath = Paths.get("test-out").resolve("test-jsouffle");
+    private static Path workDirPath = Paths.get("test-out");
     private static Path buildPath = Paths.get("test-out").resolve("build");
 
 
@@ -36,20 +36,24 @@ public class SouffleSingleRunTest {
 
         System.err.println("Opening " + dlogName);
         analysis = SouffleRuntime.g().createSouffleAnalysisFromFile("simple", "simple1", dlogPath.toFile());
+    }
+
+    private static void dumpInput(SouffleAnalysis.Instance instance) throws IOException {
         List<String> inputLines = new ArrayList<>();
         inputLines.add("1\t2");
         inputLines.add("2\t3");
         inputLines.add("3\t4");
-        Files.write(analysis.getFactDir().resolve("PP.facts"), inputLines, StandardCharsets.UTF_8);
+        Files.write(instance.getFactDir().resolve("PP.facts"), inputLines, StandardCharsets.UTF_8);
     }
 
     @Test
     @Order(1)
     @DisplayName("SouffleSolver processes dlog file correctly")
     public void singleRunTest() throws IOException {
-        analysis.activate();
-        analysis.close();
-        List<String> outputLines = Files.readAllLines(analysis.getOutDir().resolve("PPP.csv"));
+        SouffleAnalysis.Instance instance = analysis.createInstance("test1-single-run", SouffleRuntime.g().getCachePath().resolve("test1-single-run"));
+        dumpInput(instance);
+        instance.activate();
+        List<String> outputLines = Files.readAllLines(instance.getOutDir().resolve("PPP.csv"));
         Assertions.assertEquals(outputLines.size(), 2);
         Assertions.assertTrue(outputLines.contains("1\t3"));
         Assertions.assertTrue(outputLines.contains("2\t4"));
@@ -59,10 +63,13 @@ public class SouffleSingleRunTest {
     @Order(2)
     @DisplayName("SouffleSolver generates provenance correctly")
     public void provenanceTest() throws IOException {
-        System.err.println("Proving all outputs");
-        Files.deleteIfExists(analysis.getProofDir().resolve("targets.list"));
-        analysis.activateProver(analysis.getProofDir());
-        List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
+        System.out.println("Proving all outputs");
+        SouffleAnalysis.Instance instance = analysis.createInstance("test2-prove-all", SouffleRuntime.g().getCachePath().resolve("test2-prove-all"));
+        dumpInput(instance);
+        Files.deleteIfExists(instance.getProofDir().resolve("targets.list"));
+        instance.activate();
+        instance.activateProver(instance.getProofDir());
+        List<String> proofLines = Files.readAllLines(instance.getProofDir().resolve("cons_all.txt"));
         Assertions.assertEquals(proofLines.size(), 3);
         for (String line : proofLines) {
             System.out.println(line);
@@ -73,10 +80,13 @@ public class SouffleSingleRunTest {
     @Order(3)
     @DisplayName("SouffleSolver generates provenance on demand")
     public void provenanceOnTargetTest() throws IOException {
-        System.err.println("Proving target PPP(1,3) only");
-        Files.write(analysis.getProofDir().resolve("targets.list"), List.of("PPP\t1\t3"), StandardCharsets.UTF_8);
-        analysis.activateProver(analysis.getProofDir());
-        List<String> proofLines = Files.readAllLines(analysis.getProofDir().resolve("cons_all.txt"));
+        System.out.println("Proving target PPP(1,3) only");
+        SouffleAnalysis.Instance instance = analysis.createInstance("test2-prove-all", SouffleRuntime.g().getCachePath().resolve("test2-prove-all"));
+        dumpInput(instance);
+        instance.activate();
+        Files.write(instance.getProofDir().resolve("targets.list"), List.of("PPP\t1\t3"), StandardCharsets.UTF_8);
+        instance.activateProver(instance.getProofDir());
+        List<String> proofLines = Files.readAllLines(instance.getProofDir().resolve("cons_all.txt"));
         Assertions.assertEquals(proofLines.size(), 1);
         for (String line : proofLines) {
             System.out.println(line);

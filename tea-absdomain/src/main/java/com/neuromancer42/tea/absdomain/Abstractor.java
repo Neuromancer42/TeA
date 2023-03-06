@@ -96,7 +96,8 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
         Analysis.RunResults results;
 
         Analysis.Configs config = request.getOption();
-        String workDir = config.getPropertyOrDefault(Constants.OPT_WORK_DIR, default_workdir + File.separator + request.getAnalysisName());
+        String workDir = config.getPropertyOrDefault(Constants.OPT_WORK_DIR,
+                default_workdir + File.separator + request.getProjectId() + File.separator + request.getAnalysisName());
         Path workPath = Paths.get(workDir);
         switch (request.getAnalysisName()) {
             case CMemoryModel.name :
@@ -157,6 +158,16 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
                     .build();
         }
         responseObserver.onNext(results);
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * @param request
+     * @param responseObserver
+     */
+    @Override
+    public void shutdown(Analysis.ShutdownRequest request, StreamObserver<Analysis.ShutdownResponse> responseObserver) {
+        responseObserver.onNext(Analysis.ShutdownResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
 }

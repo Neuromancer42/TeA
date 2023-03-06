@@ -34,10 +34,11 @@ message AnalysisInfo {
 }
 
 message RunRequest {
-    string analysis_name = 1;
-    Configs option = 2;
-    repeated DomTrgt dom_input = 3;
-    repeated RelTrgt rel_input = 4;
+    string project_id = 1;
+    string analysis_name = 2;
+    Configs option = 3;
+    repeated DomTrgt dom_input = 4;
+    repeated RelTrgt rel_input = 5;
 }
 
 message RunResults {
@@ -48,8 +49,9 @@ message RunResults {
 
 
 message InstrumentRequest {
-    Configs option = 1;
-    repeated Tuple instr_tuple = 2;
+    string project_id = 1;
+    Configs option = 2;
+    repeated Tuple instr_tuple = 3;
 }
 
 message InstrumentResponse {
@@ -57,8 +59,9 @@ message InstrumentResponse {
 }
 
 message TestRequest {
-    Configs option = 1;
-    repeated string arg = 2;
+    string project_id = 1;
+    Configs option = 2;
+    repeated string arg = 3;
 }
 
 message TestResponse {
@@ -67,8 +70,9 @@ message TestResponse {
 }
 
 message ProveRequest {
-    Configs option = 1;
-    repeated Tuple target_tuple = 2;
+    string project_id = 1;
+    Configs option = 2;
+    repeated Tuple target_tuple = 3;
 }
 
 message ProveResponse {
@@ -77,6 +81,7 @@ message ProveResponse {
 }
 
 message ShutdownRequest {
+    string project_id = 1;
 }
 
 message ShutdownResponse {

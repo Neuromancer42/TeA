@@ -13,7 +13,6 @@ public class Constants {
     public static final String OPT_SRC_CMD = "tea.source.cmd";
 
     public static final String OPT_SQZ = "squeeze";
-    public static final String OPT_PROJ = "name";
     public static final String OPT_HOST = "host";
     public static final String OPT_PORT = "port";
     public static final String OPT_WORK_DIR = "workdir";

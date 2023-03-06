@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Project {
+    private final String ID;
     private final Map<String, String> producedDoms = new HashMap<>();
     private final Map<String, String> producedRels = new HashMap<>();
 
@@ -41,7 +42,8 @@ public class Project {
     private final Map<String, String> relProducer = new HashMap<>();
     private final Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels;
 
-    public Project(Map<String, String> option,
+    public Project(String projId,
+                   Map<String, String> option,
                    Path workDir,
                    List<String> schedule,
                    Map<String, String[]> relSign,
@@ -49,6 +51,7 @@ public class Project {
                    Map<String, ProviderGrpc.ProviderBlockingStub> analysisProvider,
                    Set<String> provableRels,
                    Map<ProviderGrpc.ProviderBlockingStub, Set<String>> observableRels) {
+        this.ID = projId;
         this.option = option;
         this.workDir = workDir;
         this.schedule = schedule;
@@ -73,6 +76,7 @@ public class Project {
         // 1. build input message
         Analysis.AnalysisInfo info = analysisInfo.get(analysis);
         Analysis.RunRequest.Builder inputBuilder = Analysis.RunRequest.newBuilder();
+        inputBuilder.setProjectId(ID);
         inputBuilder.setOption(Analysis.Configs.newBuilder().putAllProperty(option));
         inputBuilder.setAnalysisName(analysis);
         List<String> lost_doms = new ArrayList<>();
@@ -198,7 +202,7 @@ public class Project {
     public Trgt.Provenance proveRels(Collection<String> relNames) {
         Messages.log("Project: provenance started");
 
-        ProvenanceBuilder provBuilder = new ProvenanceBuilder("provenance", option);
+        ProvenanceBuilder provBuilder = new ProvenanceBuilder(ID, option);
         Map<String, Set<Trgt.Tuple>> analysisToTuples = new HashMap<>();
 
         for (String relName: relNames) {
@@ -246,6 +250,7 @@ public class Project {
                 Stopwatch inclusiveTimer = Stopwatch.createStarted();
                 ProviderGrpc.ProviderBlockingStub provider = analysisProvider.get(analysis);
                 Analysis.ProveRequest req = Analysis.ProveRequest.newBuilder()
+                        .setProjectId(ID)
                         .setOption(Analysis.Configs.newBuilder().putAllProperty(option))
                         .addAllTargetTuple(targets)
                         .build();
@@ -362,6 +367,7 @@ public class Project {
         for (ProviderGrpc.ProviderBlockingStub observer : observableRels.keySet()) {
             Set<Trgt.Tuple> obsTuples = ProvenanceUtil.filterTuple(provenance, observableRels.get(observer));
             Analysis.InstrumentRequest instrReq = Analysis.InstrumentRequest.newBuilder()
+                    .setProjectId(ID)
                     .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
                     .addAllInstrTuple(obsTuples)
                     .build();
@@ -378,6 +384,7 @@ public class Project {
     public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase, Map<String, String> options) {
         Messages.log("Project: started to running test %s", TextFormat.shortDebugString(testCase));
         Analysis.TestRequest testReq = Analysis.TestRequest.newBuilder()
+                .setProjectId(ID)
                 .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
                 .addAllArg(testCase.getArgList())
                 .build();
@@ -393,5 +400,12 @@ public class Project {
         }
         Messages.log("Project: observed %d tuples to be true", obs.size());
         return obs;
+    }
+
+    public void shutdown() {
+        for (ProviderGrpc.ProviderBlockingStub provider : analysisProvider.values()) {
+            Messages.log("Project: release instances in provider: %s", provider.getChannel().toString());
+            Analysis.ShutdownResponse shutdownResp = provider.shutdown(Analysis.ShutdownRequest.newBuilder().setProjectId(ID).build());
+        }
     }
 }

@@ -13,7 +13,6 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -73,7 +72,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         cdtServer.awaitTermination();
     }
 
-    private CDTCManager cmanager;
+    private final Map<String, CDTCManager> managerMap = new HashMap<>();
 
     /**
      * @param request
@@ -84,7 +83,6 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         Messages.log("CParser: processing getFeature request");
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName("cdt-codemanager");
-        Analysis.AnalysisInfo.Builder analysisBuilder = Analysis.AnalysisInfo.newBuilder();
 
         Analysis.AnalysisInfo cmanagerInfo = AnalysisUtil.parseAnalysisInfo(CDTCManager.class);
         infoBuilder.addAnalysis(cmanagerInfo);
@@ -110,19 +108,31 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void runAnalysis(Analysis.RunRequest request, StreamObserver<Analysis.RunResults> responseObserver) {
-        Messages.log("CParser: processing runAnalysis request");
+        Messages.log("CParser: processing runAnalysis request: \n%s", request.toString());
         assert request.getAnalysisName().equals("cmanager");
         Map<String, String> option = request.getOption().getPropertyMap();
         Analysis.RunResults runResults;
         if (!option.containsKey(Constants.OPT_SRC)) {
+            String failMsg = String.format("no source file specified in options for analysis %s in project %s", request.getAnalysisName(), request.getProjectId());
+            Messages.error("CParser: " + failMsg);
             runResults = Analysis.RunResults.newBuilder()
                     .setMsg(Constants.MSG_FAIL + ": No source file specified")
                     .build();
         } else {
+            String projId = request.getProjectId();
             String sourceFile = option.get(Constants.OPT_SRC);
             String cmd = option.getOrDefault(Constants.OPT_SRC_CMD, "");
-            cmanager = new CDTCManager(workPath, sourceFile, cmd);
-            runResults = AnalysisUtil.runAnalysis(cmanager, request);
+            Path projPath = workPath.resolve(projId);
+            try {
+                Files.createDirectories(projPath);
+                CDTCManager manager = new CDTCManager(projPath, sourceFile, cmd);
+                managerMap.put(projId, manager);
+                runResults = AnalysisUtil.runAnalysis(manager, request);
+            } catch (IOException e) {
+                String failMsg = String.format("failed to create working directory for analysis %s in project %s: %s", request.getAnalysisName(), request.getProjectId(), e.getMessage());
+                Messages.error("CParser: " + failMsg);
+                runResults = Analysis.RunResults.newBuilder().setMsg(Constants.MSG_FAIL + ": " + failMsg).build();
+            }
         }
         responseObserver.onNext(runResults);
         responseObserver.onCompleted();
@@ -146,11 +156,16 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
     public void instrument(Analysis.InstrumentRequest request, StreamObserver<Analysis.InstrumentResponse> responseObserver) {
         Messages.log("CParser: processing instrument request");
         Analysis.InstrumentResponse.Builder respBuilder = Analysis.InstrumentResponse.newBuilder();
-        cmanager.setInstrument();
-        for (Trgt.Tuple tuple : request.getInstrTupleList()) {
-            if (cmanager.getInstrument().instrument(tuple)) {
-                respBuilder.addSuccTuple(tuple);
+        CDTCManager cmanager = managerMap.get(request.getProjectId());
+        if (cmanager != null) {
+            cmanager.setInstrument();
+            for (Trgt.Tuple tuple : request.getInstrTupleList()) {
+                if (cmanager.getInstrument().instrument(tuple)) {
+                    respBuilder.addSuccTuple(tuple);
+                }
             }
+        } else {
+            Messages.error("CParser: project %s not parsed before instrumenting", request.getProjectId());
         }
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
@@ -163,8 +178,13 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
     @Override
     public void test(Analysis.TestRequest request, StreamObserver<Analysis.TestResponse> responseObserver) {
         Analysis.TestResponse.Builder respBuilder = Analysis.TestResponse.newBuilder();
-        Set<Trgt.Tuple> triggered = cmanager.getInstrument().test(request.getArgList());
-        respBuilder.addAllTriggeredTuple(triggered);
+        CDTCManager cmanager = managerMap.get(request.getProjectId());
+        if (cmanager != null) {
+            Set<Trgt.Tuple> triggered = cmanager.getInstrument().test(request.getArgList());
+            respBuilder.addAllTriggeredTuple(triggered);
+        } else {
+            Messages.error("CParser: project %s not parsed before testing", request.getProjectId());
+        }
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
     }
@@ -175,9 +195,14 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
      */
     @Override
     public void shutdown(Analysis.ShutdownRequest request, StreamObserver<Analysis.ShutdownResponse> responseObserver) {
-        Messages.log("*** shutting down cdt server due to core request");
+        CDTCManager cmanager = managerMap.remove(request.getProjectId());
+        if (cmanager == null) {
+            Messages.error("CParser: project %s never parsed before shutdown", request.getProjectId());
+        } else {
+            cmanager = null;
+            Messages.log("CParser: release Manager instance for project %s", request.getProjectId());
+        }
         responseObserver.onNext(Analysis.ShutdownResponse.getDefaultInstance());
         responseObserver.onCompleted();
-        System.exit(0);
     }
 }

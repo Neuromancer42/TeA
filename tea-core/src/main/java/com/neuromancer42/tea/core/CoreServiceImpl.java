@@ -18,7 +18,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
      */
     @Override
     public void runAnalyses(CoreUtil.ApplicationRequest request, StreamObserver<CoreUtil.ApplicationResponse> responseObserver) {
-        Messages.log("Core: processing runAnalyses request");
+        Messages.log("Core: processing runAnalyses request:\n%s", request.toString());
         Stopwatch allTimer = Stopwatch.createStarted();
         {
             CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
@@ -26,6 +26,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             CoreUtil.ApplicationResponse response = respBuilder.build();
             responseObserver.onNext(response);
         }
+        String projId = request.getProjectId();
         Map<String, String> appOption = new LinkedHashMap<>(request.getOptionMap());
         CoreUtil.Compilation compInfo = request.getSource();
         appOption.put(Constants.OPT_SRC, compInfo.getSource());
@@ -37,7 +38,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         String failMsg = null;
         if (schedule != null) {
             Stopwatch buildTimer = Stopwatch.createStarted();
-            proj = ProjectBuilder.g().buildProject(appOption, schedule);
+            proj = ProjectBuilder.g().buildProject(projId, appOption, schedule);
             buildTimer.stop();
             if (proj == null) {
                 failMsg = Constants.MSG_FAIL + ": exception happens when build project";
@@ -69,6 +70,10 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                     .setMsg(failMsg)
                     .build();
             responseObserver.onNext(resp);
+            if (proj != null) {
+                Messages.log("Core: release all instances for project %s", projId);
+                proj.shutdown();
+            }
             responseObserver.onCompleted();
             return;
         }
@@ -160,6 +165,8 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 responseObserver.onNext(response);
             }
         }
+        Messages.log("Core: release all instances for project %s", projId);
+        proj.shutdown();
         responseObserver.onCompleted();
     }
 }

@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ApplicationRequest(_message.Message):
-    __slots__ = ["alarm_rel", "analysis", "need_rank", "option", "source", "test_suite"]
+    __slots__ = ["alarm_rel", "analysis", "need_rank", "option", "project_id", "source", "test_suite"]
     class OptionEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -18,15 +18,17 @@ class ApplicationRequest(_message.Message):
     ANALYSIS_FIELD_NUMBER: _ClassVar[int]
     NEED_RANK_FIELD_NUMBER: _ClassVar[int]
     OPTION_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_ID_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     TEST_SUITE_FIELD_NUMBER: _ClassVar[int]
     alarm_rel: _containers.RepeatedScalarFieldContainer[str]
     analysis: _containers.RepeatedScalarFieldContainer[str]
     need_rank: bool
     option: _containers.ScalarMap[str, str]
+    project_id: str
     source: Compilation
     test_suite: _containers.RepeatedCompositeFieldContainer[Test]
-    def __init__(self, option: _Optional[_Mapping[str, str]] = ..., source: _Optional[_Union[Compilation, _Mapping]] = ..., analysis: _Optional[_Iterable[str]] = ..., alarm_rel: _Optional[_Iterable[str]] = ..., need_rank: bool = ..., test_suite: _Optional[_Iterable[_Union[Test, _Mapping]]] = ...) -> None: ...
+    def __init__(self, project_id: _Optional[str] = ..., option: _Optional[_Mapping[str, str]] = ..., source: _Optional[_Union[Compilation, _Mapping]] = ..., analysis: _Optional[_Iterable[str]] = ..., alarm_rel: _Optional[_Iterable[str]] = ..., need_rank: bool = ..., test_suite: _Optional[_Iterable[_Union[Test, _Mapping]]] = ...) -> None: ...
 
 class ApplicationResponse(_message.Message):
     __slots__ = ["alarm", "msg"]

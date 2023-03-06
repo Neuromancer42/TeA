@@ -8,10 +8,12 @@ pushd "$TEA_HOME" || exit 1
 config_file="../scripts/interval.ini"
 outdir="test-out"
 compile_cmd=""
+proj=`date +"p%b %d, %Y"`
 
-while getopts c:f:a:o: flag
+while getopts p:c:f:a:o: flag
 do
   case "${flag}" in
+    p) proj=${OPTARG};;
     c) config_file=${OPTARG};;
     f) source_file=${OPTARG};;
     a) compile_cmd=${OPTARG};;
@@ -61,7 +63,7 @@ finish_all () {
 }
 
 trap finish_all SIGINT
-python3 ../tea-clients/basic_client.py ${config_file} ${source_file} "${compile_cmd}"
+python3 ../tea-clients/basic_client.py ${proj} ${config_file} ${source_file} "${compile_cmd}"
 
 finish_all
 
