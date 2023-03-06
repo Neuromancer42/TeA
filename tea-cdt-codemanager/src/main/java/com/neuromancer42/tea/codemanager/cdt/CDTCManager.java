@@ -262,7 +262,7 @@ public class CDTCManager extends AbstractAnalysis {
             definedSymbols.putIfAbsent("__GNUC__", "11");
             definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
             // Note: special handling of some types
-            definedSymbols.putIfAbsent("size_t", "unsigned int");
+            definedSymbols.putIfAbsent("size_t", "unsigned long");
             definedSymbols.putIfAbsent("int64_t", "long");
             definedSymbols.putIfAbsent("uint64_t", "unsigned long");
             definedSymbols.putIfAbsent("int32_t", "int");

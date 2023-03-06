@@ -73,6 +73,7 @@ public class DAIMetaNetwork {
             Messages.fatal("DAIMetaNetwork: querying node " + nodeId + " is not a causal node.");
         }
         int fgVarId = offset + nodeId;
+        Messages.debug("DAIMetaNetwork: quering node %d, fgVarId %d", nodeId, fgVarId);
         return swigFactorGraph.queryBernoulliParam(fgVarId);
     }
 
@@ -84,6 +85,7 @@ public class DAIMetaNetwork {
         if (distId >= offset || distId < 0) {
             Messages.fatal("DAIMetaNetwork: querying node " + distId + " is not a distribution node.");
         }
+        Messages.debug("DAIMetaNetwork: quering factor %d", distId);
         DoubleVector factor = swigFactorGraph.queryParamFactor(distId);
         double[] weights = new double[factor.size()];
         for (int i = 0; i < factor.size(); ++i) {

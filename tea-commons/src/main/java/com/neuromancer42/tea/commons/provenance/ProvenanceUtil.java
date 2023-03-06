@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.commons.provenance;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
@@ -100,6 +101,16 @@ public class ProvenanceUtil {
 
     public static String encodeTuple(Trgt.Tuple tuple) {
         return Base64.getEncoder().encodeToString(tuple.toByteArray());
+    }
+
+    public static Trgt.Tuple decodeTuple(String tupleRepr) {
+        byte[] bytes = Base64.getDecoder().decode(tupleRepr);
+        try {
+            return Trgt.Tuple.parseFrom(bytes);
+        } catch (InvalidProtocolBufferException e) {
+            Messages.error("ProvenanceUtil: Not a encodeed tuple %s : %s", tupleRepr, e.getMessage());
+            return null;
+        }
     }
 
     public static String encodeConstraint(Trgt.Constraint constr) {
@@ -216,16 +227,28 @@ public class ProvenanceUtil {
                 origHybrid.size(), stochMapping.size(), origParamNum);
 
         Deque<String> eliminatables = new ArrayDeque<>();
+        Set<String> inputEliminated = new HashSet<>();
         // Step 1 : eliminate from inputs
         for (String singleton : singletons) {
             if (!reserved.contains(singleton)) {
-                eliminatables.push(singleton);
+                eliminatables.offer(singleton);
             }
         }
         Messages.debug("ProvenanceUtil: find %d eliminatable input nodes", eliminatables.size());
-        while (!eliminatables.isEmpty()) {
-            String elimTuple = eliminatables.pop();
-            singletons.remove(elimTuple);
+        while (eliminatables.peek() != null) {
+            String elimTuple = eliminatables.poll();
+            if (elimTuple == null) break;
+            boolean newElim = inputEliminated.add(elimTuple);
+            if (!newElim) {
+                Messages.error("ProvenanceUtil: input tuple %s has been eliminated before", decodeTuple(elimTuple));
+                continue;
+            }
+            if (inputEliminated.size() <= 10 || inputEliminated.size() % 100 == 0) {
+                Messages.debug("ProvenanceUtil: %d input tuples has been compressed", inputEliminated.size());
+            }
+            boolean isSingleton = singletons.remove(elimTuple);
+            if (!isSingleton)
+                Messages.error("ProvenanceUtil: eliminating non-input tuple %s ?", decodeTuple(elimTuple));
             Categorical01 pTuple = stochMapping.remove(elimTuple);
             Set<String> sinkConstrs = bodyToConstrs.remove(elimTuple);
             if (sinkConstrs == null || sinkConstrs.isEmpty()) {
@@ -237,8 +260,9 @@ public class ProvenanceUtil {
                 {
                     Categorical01 pConstr = stochMapping.get(sinkConstr);
                     Categorical01 pNew = Categorical01.multiplyDist(pTuple, pConstr);
-                    if (pNew != null)
+                    if (pNew != null) {
                         stochMapping.put(sinkConstr, pNew);
+                    }
                 }
                 String head = constrToHead.get(sinkConstr);
                 headToBodiesNum.computeIfPresent(head, (t, num) -> num - 1);
@@ -256,20 +280,35 @@ public class ProvenanceUtil {
                         stochMapping.put(head, pNew);
                     singletons.add(head);
                     if (!reserved.contains(head))
-                        eliminatables.push(head);
+                        eliminatables.offer(head);
                 }
             }
+            if (eliminatables.size() <= 10 || eliminatables.size() % 100 == 0)
+                Messages.debug("ProvenanceUtil: %d input tuples remaining to be compressed", eliminatables.size());
         }
+        Messages.debug("ProvenanceUtil: compressed %d input tuples", inputEliminated.size());
 
         // Step 2: eliminate middle nodes
+        eliminatables = new ArrayDeque<>();
         for (String head : headToConstrs.keySet()) {
             if (!reserved.contains(head) && headToConstrs.get(head).size() == 1 && bodyToConstrs.getOrDefault(head, Set.of()).size() == 1) {
-                eliminatables.push(head);
+                eliminatables.offer(head);
             }
         }
+        Set<String> middleEliminated = new HashSet<>();
         Messages.debug("ProvenanceUtil: find %d eliminatable middle nodes", eliminatables.size());
-        while (!eliminatables.isEmpty()) {
-            String elimTuple = eliminatables.pop();
+        while (eliminatables.peek() != null) {
+            String elimTuple = eliminatables.poll();
+            if (elimTuple == null) break;
+
+            boolean newElim = middleEliminated.add(elimTuple);
+            if (!newElim) {
+                Messages.error("ProvenanceUtil: middle tuple %s has been eliminated before", decodeTuple(elimTuple));
+                continue;
+            }
+            if (middleEliminated.size() <= 10 || middleEliminated.size() % 100 == 0) {
+                Messages.debug("ProvenanceUtil: %d middle tuples has been compressed", middleEliminated.size());
+            }
             String srcConstr = headToConstrs.remove(elimTuple).toArray(new String[0])[0];
             constrToHead.remove(srcConstr);
             Set<String> srcBodies = constrToBodies.remove(srcConstr);
@@ -289,7 +328,10 @@ public class ProvenanceUtil {
             Categorical01 pNew = Categorical01.multiplyDist(pSrc, pSink);
             if (pNew != null)
                 stochMapping.put(sinkConstr, pNew);
+            if (eliminatables.size() <= 10 || eliminatables.size() % 100 == 0)
+                Messages.debug("ProvenanceUtil: %d middle tuples remaining to be compressed", eliminatables.size());
         }
+        Messages.debug("ProvenanceUtil: compressed %d middle tuples in total", middleEliminated.size());
 
         Set<String> hybrid = new LinkedHashSet<>();
         Map<String, List<String>> newConstrToBodies = new LinkedHashMap<>();

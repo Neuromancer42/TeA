@@ -18,7 +18,8 @@ import java.util.Date;
 import java.util.List;
 
 public class DAIRuntime {
-    private static final int clauseLimit = Integer.getInteger("chord.dai.clause.limit", 15);
+    // 31 - 1 (output) - 5 (paramNum_bits) = 25
+    private static final int clauseLimit = Integer.getInteger("chord.dai.clause.limit", 20);
     private static DAIRuntime runtime = null;
 
     public static DAIRuntime g() {
