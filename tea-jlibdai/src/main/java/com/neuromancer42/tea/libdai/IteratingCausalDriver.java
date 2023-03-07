@@ -24,8 +24,14 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     @Override
     public void appendObservation(Map<String, Boolean> observations) {
         // 1. dumping factor graph
+        if (!updated) {
+            Messages.log("IteratingDriver: dumping updated factor graph of previous observations");
+            if (metaNetwork != null)
+                metaNetwork.release();
+            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "." + updateCnt + ".post", causalGraph, 0);
+            updated = true;
+        }
         ++updateCnt;
-        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "." + updateCnt + ".prior", causalGraph, 0);
         // TODO: dump parameter weights only
         // 2. dumping observations
         for (var obsEntry : observations.entrySet()) {
@@ -44,6 +50,8 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     public Double queryPossibilityById(int nodeId) {
         // 1. dumping updated factor graph
         if (!updated) {
+            if (metaNetwork != null)
+                metaNetwork.release();
             metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"."+updateCnt+".post", causalGraph, 0);
             updated = true;
         }

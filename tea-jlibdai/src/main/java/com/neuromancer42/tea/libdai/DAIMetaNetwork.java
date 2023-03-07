@@ -51,7 +51,9 @@ public class DAIMetaNetwork {
 
     public void observeNode(int nodeId, int time, boolean value) {
         if (activated) {
-            Messages.fatal("DAIMetaNetwork: inference has been activated, no observation.");
+            Messages.log("DAIMetaNetwork: inference has been activated, reset algorithm.");
+            swigFactorGraph.resetBP();
+            activated = false;
         }
         if (nodeId >= causalGraph.nodeSize() || nodeId < 0) {
             Messages.fatal("DAIMetaNetwork: observing node " + nodeId + " is not a causal node.");
@@ -94,4 +96,7 @@ public class DAIMetaNetwork {
         return weights;
     }
 
+    public void release() {
+        swigFactorGraph.delete();
+    }
 }

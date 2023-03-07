@@ -49,6 +49,8 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
 
     private void invokeUpdater() {
         // 1. dump full N-factor-graph for each time of inference
+        if (metaNetwork != null)
+            metaNetwork.release();
         metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size());
         // 2. dump observation
         for (int timeId = 1; timeId <= obsHistory.size(); timeId++) {

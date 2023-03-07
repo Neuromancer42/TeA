@@ -125,6 +125,8 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
             differentiated.dump(workDir);
         }
         // create meta network
+        if (metaNetwork != null)
+            metaNetwork.release();
         metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "_" + obsRuns, differentiated, 0);
         // apply observations
         for (String node : obsCount.keySet()) {
