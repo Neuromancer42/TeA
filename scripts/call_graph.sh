@@ -8,10 +8,12 @@ pushd "$TEA_HOME" || exit 1
 config_file="../scripts/call_graph.ini"
 outdir="test-out"
 compile_cmd=""
+proj=`date +"p%b %d, %Y"`
 
-while getopts c:f:a:o: flag
+while getopts p:c:f:a:o: flag
 do
   case "${flag}" in
+    p) proj=${OPTARG};;
     c) config_file=${OPTARG};;
     f) source_file=${OPTARG};;
     a) compile_cmd=${OPTARG};;
@@ -39,6 +41,7 @@ if [[ ! -d ${outdir} ]]; then
   mkdir ${outdir};
 fi
 
+nohup_pids=()
 for java_package in tea-cdt-codemanager tea-jsouffle tea-absdomain
 do
   nohup ../${java_package}/build/install/${java_package}/bin/${java_package} ${config_file} ${outdir} > ${outdir}/${java_package}.log 2>&1 &
@@ -49,16 +52,19 @@ done
 nohup ../tea-core/build/install/tea-core/bin/tea-core ${config_file} ${outdir} > ${outdir}/tea-core.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-core, pid: ${nohup_pids[0]}"
+finish_all () {
+  for pid in "${nohup_pids[@]}"
+  do
+    echo "killing pid: $pid"
+    kill -9 $pid
+  done
+  popd || exit 1
+  exit 0
+}
 
-python3 ../tea-clients/basic_client.py ${config_file} ${source_file} "${compile_cmd}"
+trap finish_all SIGINT
+python3 ../tea-clients/basic_client.py ${proj} ${config_file} ${source_file} "${compile_cmd}"
 
-for pid in "${nohup_pids[@]}"
-do
-  echo "killing pid: $pid"
-  kill -9 $pid
-done
-popd || exit 1
-
-
+finish_all
 
 
