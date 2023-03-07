@@ -17,15 +17,8 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
-    public DynaboostCausalDriver(String name, CausalGraph causalGraph) {
-        super(name, causalGraph);
-        Path workDir1 = null;
-        try {
-            workDir1 = Files.createDirectories(DAIRuntime.g().getWorkDir().resolve(name));
-        } catch (IOException e) {
-            Messages.error("DynaboostInferer: failed to create working directory");
-            Messages.fatal(e);
-        }
+    public DynaboostCausalDriver(String name, Path path, CausalGraph causalGraph) {
+        super(name, path, causalGraph);
         // TODO: reset all dist nodes to fixed probability
         super.causalGraph.resetStochNodes();
         var prodIter = super.causalGraph.getProdIter();
@@ -34,7 +27,6 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
             String prodNode = causalGraph.getNode(prod.getKey());
             super.causalGraph.setStochNode(prodNode, new Categorical01(ruleProb));
         }
-        workDir = workDir1;
         updated = false;
         obsRuns = 0;
     }

@@ -14,16 +14,8 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
-    public OneShotCausalDriver(String name, CausalGraph causalGraph) {
-        super(name, causalGraph);
-        Path workDir1 = null;
-        try {
-            workDir1 = Files.createDirectories(DAIRuntime.g().getWorkDir().resolve(name));
-        } catch (IOException e) {
-            Messages.error("OneShotInferer: failed to create working directory");
-            Messages.fatal(e);
-        }
-        workDir = workDir1;
+    public OneShotCausalDriver(String name, Path path, CausalGraph causalGraph) {
+        super(name, path, causalGraph);
         updated = false;
     }
 

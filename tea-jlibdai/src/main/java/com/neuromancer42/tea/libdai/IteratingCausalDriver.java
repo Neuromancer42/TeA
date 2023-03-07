@@ -15,23 +15,10 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     private boolean updated;
     private int updateCnt;
 
-    public IteratingCausalDriver(String name, CausalGraph causalGraph) {
-        super(name, causalGraph);
-        // set up libDAI runtime
-        Path workDir1 = null;
-        try {
-            workDir1 = Files.createDirectories(DAIRuntime.g().getWorkDir().resolve(name));
-        } catch (IOException e) {
-            Messages.error("IteratingInferer: failed to create working directory");
-            Messages.fatal(e);
-        }
-        workDir = workDir1;
+    public IteratingCausalDriver(String name, Path path, CausalGraph causalGraph) {
+        super(name, path, causalGraph);
         updated = false;
         updateCnt = 0;
-    }
-
-    public IteratingCausalDriver(CausalGraph causalGraph) {
-        this(causalGraph.getName(), causalGraph);
     }
 
     @Override

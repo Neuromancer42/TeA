@@ -11,8 +11,9 @@ public abstract class AbstractCausalDriver {
     protected Path workDir;
     protected final String name;
 
-    protected AbstractCausalDriver(String name, CausalGraph causalGraph) {
+    protected AbstractCausalDriver(String name, Path path, CausalGraph causalGraph) {
         this.name = name;
+        this.workDir = path;
         this.causalGraph = new CausalGraph(causalGraph);
     }
 

@@ -21,12 +21,13 @@ public class FactorGraphTest {
     private static Categorical01 confidence;
 
     private static final String workdir = "test-out";
+    private static final Path workPath = Paths.get(workdir);
 
 
     @BeforeAll
     public static void setup() throws IOException {
-        Files.createDirectories(Paths.get(workdir));
-        DAIRuntime.init(Paths.get(workdir, "cache"));
+        Files.createDirectories(workPath);
+        DAIRuntime.init(Paths.get(workdir, "build"));
         List<String> nodes = new ArrayList<>();
         nodes.add("Coin1");  nodes.add("Coin2");
         nodes.add("Or"); nodes.add("And");
@@ -85,7 +86,7 @@ public class FactorGraphTest {
         causalGraph.resetStochNodes();
         causalGraph.setStochNode("Coin1", new Categorical01(unknownCoin));
         causalGraph.setStochNode("Coin2", new Categorical01(unknownCoin));
-        IteratingCausalDriver inferer = new IteratingCausalDriver("coin2", causalGraph);
+        IteratingCausalDriver inferer = new IteratingCausalDriver("coin2", workPath, causalGraph);
         int distId1 = causalGraph.getNodesDistId(causalGraph.getNodeId("Coin1"));
         int distId2 = causalGraph.getNodesDistId(causalGraph.getNodeId("Coin1"));
         Messages.log("Prior: \t" +

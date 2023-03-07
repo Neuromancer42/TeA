@@ -5,29 +5,40 @@ import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.inference.ICausalDriverFactory;
 import com.neuromancer42.tea.commons.configs.Messages;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public class DAIDriverFactory implements ICausalDriverFactory {
-    private static DAIDriverFactory factory = null;
     private static final String name = "libdai";
     private static final String[] algorithms = {"iterating", "oneshot"};
 
-    public static DAIDriverFactory  g() {
-        if (factory == null) {
-            factory = new DAIDriverFactory();
-        }
-        return factory;
+    private final Path workPath;
+
+    public DAIDriverFactory(Path path) {
+        workPath = path;
     }
 
     @Override
-    public AbstractCausalDriver createCausalDriver(String type, String name, CausalGraph causalGraph) {
-        if (type.equals("dynaboost") || type.equals("baseline")){
-            return new DynaboostCausalDriver(name, causalGraph);
-        } else if (type.equals("iterating")){
-            return new IteratingCausalDriver(name, causalGraph);
-        } else if (type.equals("oneshot")) {
-            return new OneShotCausalDriver(name, causalGraph);
-        } else {
-            Messages.error("unknown driver type, use iterating driver by default");
-            return new IteratingCausalDriver(name, causalGraph);
+    public AbstractCausalDriver createCausalDriver(String type, String driverName, CausalGraph causalGraph) {
+        Path driverPath;
+        try {
+            driverPath = Files.createDirectories(workPath.resolve(driverName));
+        } catch (IOException e) {
+            Messages.error("DAIDriverFactory: failed to create working dir for %s driver %s: %s", type, driverName, e.getMessage());
+            return null;
+        }
+        switch (type) {
+            case "dynaboost":
+            case "baseline":
+                return new DynaboostCausalDriver(driverName, driverPath, causalGraph);
+            case "iterating":
+                return new IteratingCausalDriver(driverName, driverPath, causalGraph);
+            case "oneshot":
+                return new OneShotCausalDriver(driverName, driverPath, causalGraph);
+            default:
+                Messages.error("DAIDriverFactory: unknown driver type, use iterating driver by default");
+                return new IteratingCausalDriver(driverName, driverPath, causalGraph);
         }
     }
 

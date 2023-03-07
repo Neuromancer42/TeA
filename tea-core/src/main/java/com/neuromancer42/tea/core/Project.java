@@ -282,7 +282,7 @@ public class Project {
                 constr -> ruleDist.apply(constr.getRuleInfo()),
                 input -> inputRelDist.apply(input.getRelName())
         );
-        driver = DAIDriverFactory.g().createCausalDriver("iterating", cg.getName(), cg);
+        driver = new DAIDriverFactory(workDir).createCausalDriver("iterating", "iterating", cg);
     }
 
     private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, Set<Trgt.Tuple> reservedTuples) {
@@ -291,7 +291,7 @@ public class Project {
                 input -> inputRelDist.apply(input.getRelName()),
                 reservedTuples
         );
-        driver = DAIDriverFactory.g().createCausalDriver("iterating", cg.getName(), cg);
+        driver = new DAIDriverFactory(workDir).createCausalDriver("iterating", "iterating", cg);
     }
 
     public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance,
@@ -403,7 +403,7 @@ public class Project {
     }
 
     public void shutdown() {
-        for (ProviderGrpc.ProviderBlockingStub provider : analysisProvider.values()) {
+        for (ProviderGrpc.ProviderBlockingStub provider : new LinkedHashSet<>(analysisProvider.values())) {
             Messages.log("Project: release instances in provider: %s", provider.getChannel().toString());
             Analysis.ShutdownResponse shutdownResp = provider.shutdown(Analysis.ShutdownRequest.newBuilder().setProjectId(ID).build());
         }

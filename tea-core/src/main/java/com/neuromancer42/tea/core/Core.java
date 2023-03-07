@@ -45,7 +45,7 @@ public class Core {
         Stopwatch allTimer = Stopwatch.createStarted();
 
         // TODO: make inference engine running separately
-        DAIRuntime.init(Paths.get(root_workdir));
+        DAIRuntime.init(workPath);
         Messages.log("Core: initialized LibDAI at %s", allTimer);
 
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
