@@ -28,15 +28,14 @@ public class ProvenanceUtil {
                 rules.add(cons.getRuleInfo());
                 int ruleId = rules.indexOf(cons.getRuleInfo());
                 StringBuilder sb = new StringBuilder();
-                sb.append("R").append(ruleId).append("-").append(clsId).append(": ");
+                sb.append("R").append(ruleId).append("-").append(clsId).append("\t");
                 Trgt.Tuple head = cons.getHeadTuple();
 ////            Boolean headSign = cons.getHeadSign();
 //            if (!headSign)
 //                sb.append("NOT ");
                 sb.append(prettifyTuple(head));
-                sb.append("=");
                 for (int j = 0; j < cons.getBodyTupleCount(); j++) {
-                    if (j > 0) sb.append(",");
+                    sb.append("\t");
                     Trgt.Tuple body = cons.getBodyTuple(j);
 //                Boolean sign = cons.getBodySign(j);
 //                if (!sign) {
@@ -75,7 +74,7 @@ public class ProvenanceUtil {
             if (i > 0) {
                 sb.append(",");
             }
-            sb.append(tuple.getAttribute(i));
+            sb.append(tuple.getAttribute(i).replace("\t", "\\t"));
         }
         sb.append(")");
         return sb.toString();

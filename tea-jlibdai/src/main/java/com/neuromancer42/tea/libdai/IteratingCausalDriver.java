@@ -25,7 +25,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     public void appendObservation(Map<String, Boolean> observations) {
         // 1. dumping factor graph
         ++updateCnt;
-        DAIMetaNetwork metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"."+updateCnt+".prior", causalGraph, 0);
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "." + updateCnt + ".prior", causalGraph, 0);
         // TODO: dump parameter weights only
         // 2. dumping observations
         for (var obsEntry : observations.entrySet()) {
