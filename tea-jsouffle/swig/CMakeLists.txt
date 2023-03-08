@@ -12,7 +12,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 find_program(SOUFFLE_EXE souffle REQUIRED)
-find_path(SOUFFLE_INCLUDE_DIR souffle/SouffleInterface.h REQUIRED)
+get_filename_component(SOUFFLE_BIN ${SOUFFLE_EXE} DIRECTORY)
+find_path(SOUFFLE_INCLUDE_DIR souffle/SouffleInterface.h HINTS ${SOUFFLE_BIN}/../include REQUIRED)
 message(STATUS "Souffle found: ${SOUFFLE_EXE} (include_path: ${SOUFFLE_INCLUDE_DIR})")
 
 add_compile_definitions(RAM_DOMAIN_SIZE=64) #USE_SQLITE?

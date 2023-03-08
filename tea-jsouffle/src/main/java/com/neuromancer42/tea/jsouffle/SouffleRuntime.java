@@ -141,6 +141,8 @@ public final class SouffleRuntime {
             String libraryFileName;
             if (SystemUtils.IS_OS_MAC_OSX) {
                 libraryFileName = "lib"+"souffle"+".dylib";
+            } else if (SystemUtils.IS_OS_LINUX) {
+                libraryFileName = "lib"+"souffle"+".so";
             } else {
                 throw new RuntimeException("Not supported yet!");
             }
@@ -245,6 +247,9 @@ public final class SouffleRuntime {
             if (SystemUtils.IS_OS_MAC_OSX) {
                 analysisLibName = "lib"+analysis+".dylib";
                 provLibName = "lib"+provenance+".dylib";
+            } else if (SystemUtils.IS_OS_LINUX) {
+                analysisLibName = "lib"+analysis+".so";
+                provLibName = "lib"+provenance+".so";
             } else {
                 throw new RuntimeException("Not supported yet!");
             }

@@ -51,6 +51,8 @@ public class DAIRuntime {
             String libraryFileName = null;
             if (SystemUtils.IS_OS_MAC_OSX) {
                 libraryFileName = "libdaifg.jnilib";
+            } else if (SystemUtils.IS_OS_LINUX) {
+                libraryFileName = "libdaifg.so";
             } else {
                 throw new RuntimeException("Not supported yet!");
             }
