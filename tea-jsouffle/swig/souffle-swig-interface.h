@@ -377,6 +377,12 @@ public:
         file.close();
     }
 
+    void purge() {
+        for (auto& rel : program->getAllRelations()) {
+            rel->purge();
+        }
+    }
+
 private:
     std::vector<std::string> constraintList = {
         "=", "!=", "<", "<=", ">=", ">", "match", "contains", "not_match", "not_contains"

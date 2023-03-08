@@ -169,7 +169,7 @@ public final class SouffleAnalysis {
             souffleProgram.loadAll(factDir.toString());
             souffleProgram.run();
             souffleProgram.printAll(outDir.toString());
-
+            souffleProgram.purge();
             activated = true;
         }
 
@@ -306,6 +306,7 @@ public final class SouffleAnalysis {
             proverProgram.loadAll(factDir.toString());
             proverProgram.run();
             proverProgram.printProvenance(proofPath.toString());
+            souffleProgram.purge();
         }
 
         public String[] decodeIndices(String relName, int[] indices) {
