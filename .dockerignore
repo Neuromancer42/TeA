@@ -1,0 +1,46 @@
+*.class
+
+# vim
+*.swp
+*.swo
+
+# IntelliJ IDEA files
+**/.idea/
+*.iml
+
+# Gradle files
+.gradle
+**/build/
+!tea-*/src
+!gradle/gradle-wrapper.jar
+!gradle/gradle-wrapper.properties
+
+# bnd workspace cache
+**/cnf/cache/
+
+# build output
+**/blobfiles/
+**/target/
+**/sootOutput/
+**/test-out/
+**/out/
+**/cmake-build-debug/
+**/cmake-build/
+
+# generated C++ files
+**/*.o
+**/*.so
+**/*.dylib
+
+# testcases
+benchmarks/
+tests/
+
+# vscode
+.vscode/
+
+# pycache
+**/__pycache__/
+
+# avoid unnecessary rebuild
+Dockerfile
