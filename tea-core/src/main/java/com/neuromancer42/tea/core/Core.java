@@ -7,6 +7,7 @@ import com.neuromancer42.tea.core.analysis.Analysis;
 import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.libdai.DAIRuntime;
 import io.grpc.*;
+import org.apache.commons.cli.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
@@ -19,28 +20,29 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Core {
-    public static void main(String[] args) throws InterruptedException, IOException {
-        String configFile = null;
-        if (args.length > 0) {
-            configFile = args[0];
-        } else {
-            Messages.error("Core: No configuration file set (pass the pass by argument)");
-            System.exit(-1);
+    private static final String OPT_PROVIDERS = "providers";
+    public static void main(String[] args) throws InterruptedException, IOException, ParseException {
+        Options options = new Options();
+        options.addOption("h", Constants.OPT_HELP, false, "show this message");
+        options.addOption("p", Constants.OPT_PORT, true, "listening to port");
+        options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
+        options.addOption(Option.builder("Q")
+                .longOpt(OPT_PROVIDERS)
+                .hasArgs()
+                .valueSeparator('=')
+                .desc("analyses providers with address")
+                .build());
+        CommandLine cmd = new DefaultParser().parse(options, args);
+        if (cmd.hasOption(Constants.OPT_HELP)) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("tea-core", options);
+            return;
         }
-        INIConfiguration config = new INIConfiguration();
-        try (FileReader reader = new FileReader(configFile)) {
-            config.read(reader);
-        } catch (ConfigurationException | IOException e) {
-            Messages.error("Core: Failed to read config in %s", configFile);
-            e.printStackTrace(System.err);
-            System.exit(-1);
-        }
-        Messages.log("Core: Run with configuration from %s", configFile);
-        String root_workdir = Constants.DEFAULT_ROOT_DIR;
-        if (args.length > 1)
-            root_workdir = args[1];
+
+        String root_workdir = cmd.getOptionValue(Constants.OPT_WORK_DIR, Constants.DEFAULT_ROOT_DIR);
         Path workPath = Paths.get(root_workdir, Constants.NAME_CORE);
         ProjectBuilder.init(workPath.toString());
+        System.err.println("*** core server works in directory " + workPath.toAbsolutePath());
 
         Stopwatch allTimer = Stopwatch.createStarted();
 
@@ -49,17 +51,15 @@ public class Core {
         Messages.log("Core: initialized LibDAI at %s", allTimer);
 
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();
-        for (String providerName : config.getSections()) {
-            if (!providerName.equals(Constants.NAME_CORE) && !providerName.equals(Constants.NAME_PROJ)) {
-                String host = config.getSection(providerName).getString(Constants.OPT_HOST);
-                int port = Integer.parseInt(config.getSection(providerName).getString(Constants.OPT_PORT));
-                Messages.log("Core: configured provider %s [%s:%d] at %s", providerName, host, port, allTimer);
-                Channel channel = Grpc.newChannelBuilderForAddress(host, port, InsecureChannelCredentials.create())
-                        .maxInboundMessageSize(Integer.MAX_VALUE)
-                        .build();
-                ProviderGrpc.ProviderBlockingStub stub = ProviderGrpc.newBlockingStub(channel);
-                providerMap.put(providerName, stub);
-            }
+        for (var entry : cmd.getOptionProperties(OPT_PROVIDERS).entrySet()) {
+            String providerName = (String) entry.getKey();
+            String addr = (String) entry.getValue();
+            Messages.log("Core: configured provider %s [%s] at %s", providerName, addr, allTimer);
+            Channel channel = Grpc.newChannelBuilder(addr, InsecureChannelCredentials.create())
+                    .maxInboundMessageSize(Integer.MAX_VALUE)
+                    .build();
+            ProviderGrpc.ProviderBlockingStub stub = ProviderGrpc.newBlockingStub(channel);
+            providerMap.put(providerName, stub);
         }
 
         Analysis.Configs.Builder projConfigBuilder = Analysis.Configs.newBuilder();
@@ -73,10 +73,10 @@ public class Core {
         }
         allTimer.stop();
         Messages.log("Core: all providers registered in %s", allTimer);
-        int core_port = Integer.parseInt(config.getSection(Constants.NAME_CORE).getString(Constants.OPT_PORT));
+        int core_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
         Server coreServer = Grpc.newServerBuilderForPort(core_port, InsecureServerCredentials.create())
                 .addService(new CoreServiceImpl()).build();
-        System.err.print("*** core server started on port " + core_port);
+        System.err.println("*** core server started on port " + core_port);
         coreServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.err.println("*** shutting down core server due to JVM shutdown");

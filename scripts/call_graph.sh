@@ -42,16 +42,30 @@ if [[ ! -d ${outdir} ]]; then
 fi
 
 nohup_pids=()
-for java_package in tea-cdt-codemanager tea-jsouffle tea-absdomain
-do
-  nohup ../${java_package}/build/install/${java_package}/bin/${java_package} ${config_file} ${outdir} > ${outdir}/${java_package}.log 2>&1 &
-  nohup_pids=($! "${nohup_pids[@]}")
-  echo "start ${java_package}, pid: ${nohup_pids[0]}"
-done
 
-nohup ../tea-core/build/install/tea-core/bin/tea-core ${config_file} ${outdir} > ${outdir}/tea-core.log 2>&1 &
+nohup ../tea-absdomain/build/install/tea-absdomain/bin/tea-absdomain -p 10004 ${outdir} > ${outdir}/tea-absdomain.log 2>&1 &
+nohup_pids=($! "${nohup_pids[@]}")
+echo "start tea-absdomain, pid: ${nohup_pids[0]}"
+
+nohup ../tea-cdt-codemanager/build/install/tea-cdt-codemanager/bin/tea-cdt-codemanager -p 10003 -d ${outdir} > ${outdir}/tea-cdt-codemanager.log 2>&1 &
+nohup_pids=($! "${nohup_pids[@]}")
+echo "start tea-cdt-codemanager, pid: ${nohup_pids[0]}"
+
+nohup ../tea-jsouffle/build/install/tea-jsouffle/bin/tea-jsouffle -p 10002 -d ${outdir} -b souffle_itv \
+  -A prept=../tea-absdomain/src/main/dist/souffle-scripts/pre_pt.dl \
+  -A cipa=../tea-absdomain/src/main/dist/souffle-scripts/cipa_cg.dl \
+  > ${outdir}/tea-jsouffle.log 2>&1 &
+nohup_pids=($! "${nohup_pids[@]}")
+echo "start tea-jsouffle, pid: ${nohup_pids[0]}"
+
+nohup ../tea-core/build/install/tea-core/bin/tea-core -p 10001 -d ${outdir} \
+  -Q souffle=localhost:10002 \
+  -Q cdt=localhost:10003 \
+  -Q absdomain=localhost:10004 \
+  > ${outdir}/tea-core.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-core, pid: ${nohup_pids[0]}"
+
 finish_all () {
   for pid in "${nohup_pids[@]}"
   do

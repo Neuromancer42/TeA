@@ -13,6 +13,7 @@ import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
+import org.apache.commons.cli.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
@@ -28,42 +29,35 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
     private final static String NAME_ABS = "absdomain";
     private static String default_workdir;
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = null;
-        if (args.length > 0) {
-            configFile = args[0];
-        } else {
-            Messages.error("Abstractor: No configuration file set (pass the path by argument)");
-            System.exit(-1);
+    public static void main(String[] args) throws IOException, InterruptedException, ParseException {
+        Options options = new Options();
+        options.addOption("h", Constants.OPT_HELP, false, "show this message");
+        options.addOption("p", Constants.OPT_PORT, true, "listening to port");
+        options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
+        CommandLine cmd = new DefaultParser().parse(options, args);
+        if (cmd.hasOption(Constants.OPT_HELP)) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("tea-absdomain", options);
+            return;
         }
-        INIConfiguration config = new INIConfiguration();
-        try (FileReader reader = new FileReader(configFile)) {
-            config.read(reader);
-        } catch (ConfigurationException | IOException e) {
-            Messages.error("Abstractor: Failed to read config in %s", configFile);
-            e.printStackTrace(System.err);
-            System.exit(-1);
-        }
-        Messages.log("Abstractor: Run with configuration from %s", configFile);
 
-        default_workdir = Constants.DEFAULT_ROOT_DIR + File.separator + NAME_ABS;
-        if (args.length > 1)
-            default_workdir = args[1] + File.separator + NAME_ABS;
+        default_workdir = cmd.getOptionValue(Constants.OPT_WORK_DIR, Constants.DEFAULT_ROOT_DIR) + File.separator + NAME_ABS;
+        System.err.println("*** abstractor server works in directory " + Paths.get(default_workdir).toAbsolutePath());
 
-        int mem_port = Integer.parseInt(config.getSection(NAME_ABS).getString(Constants.OPT_PORT));
+        int mem_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server memServer = Grpc.newServerBuilderForPort(mem_port, InsecureServerCredentials.create())
                 .addService(new Abstractor()).build();
-        System.err.print("*** memory server started on port " + mem_port);
+        System.err.println("*** abstractor server started on port " + mem_port);
         memServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.err.println("*** shutting down memory server due to JVM shutdown");
+            System.err.println("*** shutting down abstractor server due to JVM shutdown");
             try {
                 memServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace(System.err);
             }
-            System.err.println("*** memory server shut down!");
+            System.err.println("*** abstractor server shut down!");
         }));
         memServer.awaitTermination();
     }

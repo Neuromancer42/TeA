@@ -30,17 +30,17 @@ def run_analysis(proj_name, filename, compile_cmd, analyses, alarm_rels, need_ra
 import sys
 import configparser
 
-if len(sys.argv) != 5:
-    print("Usage: ./basic_client.py <project_id> <config_file> <source_file> <compile_command>")
+if len(sys.argv) != 6:
+    print("Usage: ./basic_client.py <core_addr> <project_id> <config_file> <source_file> <compile_command>")
     sys.exit(-1)
 
-compile_command = sys.argv[4].strip('\"')
-filename = sys.argv[3].strip('\"')
-config_file = sys.argv[2]
-proj_name = sys.argv[1]
+compile_command = sys.argv[5].strip('\"')
+filename = sys.argv[4].strip('\"')
+config_file = sys.argv[3]
+proj_name = sys.argv[2]
+addr=sys.argv[1]
 config = configparser.ConfigParser()
 config.read(config_file)
-addr = "localhost:" + config["core"]["port"].strip('\"')
 analyses = config["project"]["analyses"].strip('\"').split(",")
 alarms = config["project"]["alarms"].strip('\"').split(",")
 

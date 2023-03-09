@@ -14,6 +14,7 @@ import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
+import org.apache.commons.cli.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.lang3.SystemUtils;
@@ -29,57 +30,53 @@ import java.util.concurrent.TimeUnit;
 
 public final class SouffleRuntime {
 
-    static private final String BUILD_DIR_NAME = "build";
 //    static private final String CACHE_DIR_NAME = "cache";
     private static final String NAME_SOUFFLE = "souffle";
-    private static final String PREFIX_SOUFFLE = "analysis-";
+    private static final String OPT_ANALYSES = "analyses";
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = null;
-        if (args.length > 0) {
-            configFile = args[0];
-        } else {
-            Messages.error("SouffleRuntime: No configuration file set (pass the path by argument)");
-            System.exit(-1);
+    public static void main(String[] args) throws IOException, InterruptedException, ParseException {
+        Options options = new Options();
+        options.addOption("h", Constants.OPT_HELP, false, "show this message");
+        options.addOption("p", Constants.OPT_PORT, true, "listening to port");
+        options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
+        options.addOption("b", Constants.OPT_BUILD_DIR, true, "directory for (reusable) building souffle and datalogs");
+        options.addOption(Option.builder("A")
+                .longOpt(OPT_ANALYSES)
+                .hasArgs()
+                .valueSeparator('=')
+                .desc("datalog analyses with path")
+                .build());
+        CommandLine cmd = new DefaultParser().parse(options, args);
+        if (cmd.hasOption(Constants.OPT_HELP)) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("tea-jsouffle", options);
+            return;
         }
-        INIConfiguration config = new INIConfiguration();
-        try (FileReader reader = new FileReader(configFile)) {
-            config.read(reader);
-        } catch (ConfigurationException | IOException e) {
-            Messages.error("SouffleRuntime: Failed to read config in %s", configFile);
-            e.printStackTrace(System.err);
-            System.exit(-1);
-        }
-        Messages.log("SouffleRuntime: Run with configuration from %s", configFile);
 
         Map<String, SouffleAnalysis> analysisMap = new LinkedHashMap<>();
-        String workDir = Constants.DEFAULT_ROOT_DIR;
-        if (args.length > 1)
-            workDir = args[1];
+        String workDir = cmd.getOptionValue(Constants.OPT_WORK_DIR, Constants.DEFAULT_ROOT_DIR);
         Path rootWorkPath = Paths.get(workDir, NAME_SOUFFLE);
 
-        String buildDir = config.getSection(NAME_SOUFFLE).getString(Constants.OPT_BUILD_DIR, "");
-        Path buildPath = rootWorkPath.resolve(BUILD_DIR_NAME);
-        if (buildDir != null && !buildDir.isBlank())
-            buildPath = Paths.get(buildDir);
-        
+        String buildDir = cmd.getOptionValue(Constants.OPT_BUILD_DIR, rootWorkPath.resolve("build").toString());
+        Path buildPath = Paths.get(buildDir);
+        System.err.println("*** jsouffle server works in " + rootWorkPath.toAbsolutePath() + " with libraries in directory " + rootWorkPath.toAbsolutePath());
         SouffleRuntime.init(buildPath, rootWorkPath);
-        for (Iterator<String> it = config.getSection(NAME_SOUFFLE).getKeys(); it.hasNext(); ) {
-            String key = it.next();
-            if (!key.startsWith(PREFIX_SOUFFLE))
-                continue;
-            String analysisName = key.substring(PREFIX_SOUFFLE.length());
-            String dlog = config.getSection(NAME_SOUFFLE).getString(key);
+
+        for (var entry : cmd.getOptionProperties(OPT_ANALYSES).entrySet()) {
+            String analysisName = (String) entry.getKey();
+            String dlog = (String) entry.getValue();
             File dlogFile = new File(dlog);
             SouffleAnalysis analysis = runtime.createSouffleAnalysisFromFile(analysisName, analysisName, dlogFile);
-            Messages.log("SouffleRuntime: created souffle analysis %s from dlog %s", analysisName, dlogFile.getAbsolutePath());
-            analysisMap.put(analysisName, analysis);
+            if (analysis != null) {
+                Messages.log("SouffleRuntime: created souffle analysis %s from dlog %s", analysisName, dlogFile.getAbsolutePath());
+                analysisMap.put(analysisName, analysis);
+            }
         }
-        int souffle_port = Integer.parseInt(config.getSection(NAME_SOUFFLE).getString(Constants.OPT_PORT));
+        int souffle_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server jSouffleServer = Grpc.newServerBuilderForPort(souffle_port, InsecureServerCredentials.create())
                 .addService(new SouffleProvider(analysisMap)).build();
-        System.err.print("*** jsouffle server started on port " + souffle_port);
+        System.err.println("*** jsouffle server started on port " + souffle_port);
         jSouffleServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.err.println("*** shutting down jsouffle server due to JVM shutdown");

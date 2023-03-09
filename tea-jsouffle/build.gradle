@@ -17,6 +17,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.5'
 
     implementation 'org.apache.commons:commons-configuration2:2.8.0'
+    implementation 'commons-cli:commons-cli:1.5.0'
 
     implementation 'io.grpc:grpc-protobuf:1.51.0'
     implementation 'io.grpc:grpc-stub:1.51.0'

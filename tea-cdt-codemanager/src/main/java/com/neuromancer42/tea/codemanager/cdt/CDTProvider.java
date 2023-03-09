@@ -10,6 +10,7 @@ import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
+import org.apache.commons.cli.*;
 import org.apache.commons.configuration2.INIConfiguration;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 
@@ -29,36 +30,28 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         CDTCManager.setDummySysroot(workPath);
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        String configFile = null;
-        if (args.length > 0) {
-            configFile = args[0];
-        } else {
-            Messages.error("CParser: No configuration file set (pass the pass by argument)");
-            System.exit(-1);
+    public static void main(String[] args) throws IOException, InterruptedException, ParseException {
+        Options options = new Options();
+        options.addOption("h", Constants.OPT_HELP, false, "show this message");
+        options.addOption("p", Constants.OPT_PORT, true, "listening to port");
+        options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
+        CommandLine cmd = new DefaultParser().parse(options, args);
+        if (cmd.hasOption(Constants.OPT_HELP)) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("tea-cdt-codemanager", options);
+            return;
         }
-        INIConfiguration config = new INIConfiguration();
-        try (FileReader reader = new FileReader(configFile)) {
-            config.read(reader);
-        } catch (ConfigurationException | IOException e) {
-            Messages.error("CParser: Failed to read config in %s", configFile);
-            e.printStackTrace(System.err);
-            System.exit(-1);
-        }
-        Messages.log("CParser: Run with configuration from %s", configFile);
 
-
-        String workDir = Constants.DEFAULT_ROOT_DIR;
-        if (args.length > 1)
-            workDir = args[1];
+        String workDir = cmd.getOptionValue(Constants.OPT_WORK_DIR, Constants.DEFAULT_ROOT_DIR);
         Path workPath = Paths.get(workDir, NAME_CDT);
         CDTProvider.init(workPath);
+        System.err.println("*** cdt server works in directory " + workPath.toAbsolutePath());
 
-        int cdt_port = Integer.parseInt(config.getSection(NAME_CDT).getString(Constants.OPT_PORT));
+        int cdt_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server cdtServer = Grpc.newServerBuilderForPort(cdt_port, InsecureServerCredentials.create())
                 .addService(new CDTProvider(workPath)).build();
-        System.err.print("*** cdt server started on port " + cdt_port);
+        System.err.println("*** cdt server started on port " + cdt_port);
         cdtServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.err.println("*** shutting down cdt server due to JVM shutdown");
