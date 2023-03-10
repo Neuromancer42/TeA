@@ -19,10 +19,10 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.tuple.integer.*;
 import com.neuromancer42.tea.commons.util.tuple.object.*;
 
-import net.sf.javabdd.BDD;
-import net.sf.javabdd.BDDDomain;
-import net.sf.javabdd.BDDException;
-import net.sf.javabdd.BDDFactory;
+import com.github.javabdd.BDD;
+import com.github.javabdd.BDDDomain;
+import com.github.javabdd.BDDException;
+import com.github.javabdd.BDDFactory;
 
 /**
  * Generic implementation of a BDD-based relation.
@@ -189,7 +189,7 @@ public class Rel {
         // Hence, we need to use JFactory here instead, which allows
         // multiple instances of itself be active simultaneously.
         factory = BDDFactory.init("java", bddnodes, bddcache);
-        factory.setVerbose(Constants.BDD_VERBOSE);
+        factory.reorderVerbose(Constants.BDD_VERBOSE);
         factory.setIncreaseFactor(2);
         factory.setMinFreeNodes(bddminfree);
         domBdds = new BDDDomain[numDoms];
@@ -211,7 +211,7 @@ public class Rel {
         for (int i = 0; i < numDoms; i++) {
             BDDDomain domBdd = domBdds[i]; 
             domIdxs[i] = domBdd.getIndex();
-            iterBdd = iterBdd.andWith(domBdd.set());
+            iterBdd = iterBdd.andWith(domBdd.set().toBDD());
         }
     }
     /**
@@ -342,7 +342,7 @@ public class Rel {
         BDD iterBdd = factory.one();
         for (int i = 0; i < keptDoms.length; i++) {
             if (keptDoms[i]) {
-                iterBdd.andWith(domBdds[i].set());
+                iterBdd.andWith(domBdds[i].set().toBDD());
             }
         }
         return iterBdd;
@@ -374,7 +374,7 @@ public class Rel {
          * @return The number of tuples in this view.
          */
         public int size() {
-            return (int) b.satCount(makeIterBdd(keptDoms));
+            return (int) b.satCount(makeIterBdd(keptDoms).toVarSet());
         }
         /**
          * Determines whether this view contains the specified 1-tuple.
@@ -679,7 +679,7 @@ public class Rel {
     public int size() {
         if (bdd == null)
             throw new RuntimeException("");
-        return (int) bdd.satCount(iterBdd);
+        return (int) bdd.satCount(iterBdd.toVarSet());
     }
     /**
      * Iterator that returns all satisfying assignments as byte arrays.

@@ -166,10 +166,12 @@ public final class SouffleAnalysis {
 //            if (souffleProgram == null) {
 //                Messages.fatal("SouffleAnalysis %s: souffle analysis has been closed", name);
 //            }
-            souffleProgram.loadAll(factDir.toString());
-            souffleProgram.run();
-            souffleProgram.printAll(outDir.toString());
-            souffleProgram.purge();
+            synchronized (souffleProgram) {
+                souffleProgram.loadAll(factDir.toString());
+                souffleProgram.run();
+                souffleProgram.printAll(outDir.toString());
+                souffleProgram.purge();
+            }
             activated = true;
         }
 
@@ -303,10 +305,12 @@ public final class SouffleAnalysis {
                 Messages.fatal("SouffleAnalysis %s: provenance program has not been built for this analysis", name);
                 assert false;
             }
-            proverProgram.loadAll(factDir.toString());
-            proverProgram.run();
-            proverProgram.printProvenance(proofPath.toString());
-            souffleProgram.purge();
+            synchronized (proverProgram) {
+                proverProgram.loadAll(factDir.toString());
+                proverProgram.run();
+                proverProgram.printProvenance(proofPath.toString());
+                proverProgram.purge();
+            }
         }
 
         public String[] decodeIndices(String relName, int[] indices) {

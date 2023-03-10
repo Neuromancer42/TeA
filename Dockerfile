@@ -1,10 +1,6 @@
 FROM ubuntu:20.04 as base
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV JAVA_HOME=/opt/java/openjdk
-COPY --from=eclipse-temurin:17 $JAVA_HOME $JAVA_HOME
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
-
 RUN apt-get clean && apt-get update && \
 	apt-get -y install \
 	bash-completion \
@@ -35,6 +31,10 @@ RUN apt-get clean && apt-get update && \
 	libgmp-dev \
     unzip \
     && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/opt/java/openjdk
+COPY --from=ibm-semeru-runtimes:open-17-jdk-focal $JAVA_HOME $JAVA_HOME
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 FROM base AS souffle-builder
 RUN wget https://github.com/souffle-lang/souffle/archive/refs/tags/2.3.tar.gz -O souffle-2.3.tar.gz

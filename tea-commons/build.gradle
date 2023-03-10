@@ -23,9 +23,7 @@ dependencies {
     implementation 'io.grpc:grpc-stub:1.51.0'
 
     implementation "com.google.guava:guava:31.1-jre"
-    implementation files('third-party-libs/bddbddb.jar')
-    implementation files('third-party-libs/javabdd-1.0b2.jar')
-    implementation files('third-party-libs/jwutil.jar')
+    implementation 'com.github.com-github-javabdd:com.github.javabdd:4.0.0'
 }
 
 protobuf {
