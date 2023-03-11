@@ -64,6 +64,7 @@ nohup ../tea-core/build/install/tea-core/bin/tea-core -p 10001 -d ${outdir} \
   -Q souffle=localhost:10002 \
   -Q cdt=localhost:10003 \
   -Q absdomain=localhost:10004 \
+  -t ../scripts/interval.dists \
   > ${outdir}/tea-core.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-core, pid: ${nohup_pids[0]}"

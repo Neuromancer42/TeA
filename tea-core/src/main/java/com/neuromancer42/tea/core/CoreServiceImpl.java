@@ -110,8 +110,8 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             }
             Stopwatch priorTimer = Stopwatch.createStarted();
             List<Map.Entry<Trgt.Tuple, Double>> priorRanking = proj.priorRanking(prov,
-                    rule -> new Categorical01(0.5, 1.0),
-                    rel -> new Categorical01(0.5, 1.0),
+                    this::getRuleParam,
+                    this::getRelParam,
                     alarms,
                     obsTuples,
                     appOption
@@ -168,5 +168,25 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         Messages.log("Core: release all instances for project %s", projId);
         proj.shutdown();
         responseObserver.onCompleted();
+    }
+
+    private final Map<String, Categorical01> probMap;
+    private final Categorical01 defaultProb;
+
+    public CoreServiceImpl(Map<String, Categorical01> probMap, Categorical01 defaultProb) {
+        this.probMap = probMap;
+        this.defaultProb = defaultProb;
+    }
+
+    public Categorical01 getRuleParam(String ruleInfo) {
+        // Note: jsouffle-recorded rule info always consists of "<headRelName>.@info.<ruleIdx>"
+        String headRelName = ruleInfo.substring(0, ruleInfo.indexOf(".@info"));
+        return getRelParam(headRelName);
+    }
+
+    public Categorical01 getRelParam(String relName) {
+        Categorical01 prob = probMap.getOrDefault(relName, defaultProb);
+        // Note: return a new instance to avoid sharing
+        return new Categorical01(prob);
     }
 }

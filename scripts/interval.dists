@@ -1,0 +1,20 @@
+default	0.9	1.0
+ci_pt	0.5	1.0
+ci_hpt	0.5	1.0
+ci_fpt	0.5	1.0
+ci_Vval	0.25	0.5	1.0
+ci_PHval	0.25	0.5	1.0
+ci_postPHval	0.25	0.5	1.0
+ci_Voffset	0.25	0.5	1.0
+ci_PHoffset	0.25	0.5	1.0
+ci_postPHoffset	0.25	0.5	1.0
+CWE119_ouf_of_bound	0.25	0.5	1.0
+evalUnaryU	0.125	0.25	0.5	1.0
+evalBinopU	0.125	0.25	0.5	1.0
+evalPlusU	0.125	0.25	0.5	1.0
+evalMultU	0.125	0.25	0.5	1.0
+evalLEU	0.125	0.25	0.5	1.0
+MaySat	0.125	0.25	0.5	1.0
+MayUnsat	0.125	0.25	0.5	1.0
+PPtrue	0.125	0.25	0.5	1.0
+PPfalse	0.125	0.25	0.5	1.0
