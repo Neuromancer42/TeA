@@ -4,12 +4,11 @@ import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.configs.Messages;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
 public class IteratingCausalDriver extends AbstractCausalDriver {
+    public static final String type = "iterating";
 
     private DAIMetaNetwork metaNetwork;
     private boolean updated;
@@ -24,13 +23,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     @Override
     public void appendObservation(Map<String, Boolean> observations) {
         // 1. dumping factor graph
-        if (!updated) {
-            Messages.log("IteratingDriver: dumping updated factor graph of previous observations");
-            if (metaNetwork != null)
-                metaNetwork.release();
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "." + updateCnt + ".post", causalGraph, 0);
-            updated = true;
-        }
+        dumpNetwork();
         ++updateCnt;
         // TODO: dump parameter weights only
         // 2. dumping observations
@@ -39,30 +32,31 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
             metaNetwork.observeNode(nodeId, 0, obsEntry.getValue());
         }
         // 3. inference and update parameters
-        for (int distId = 0; distId < causalGraph.distSize(); ++distId) {
-            double[] weights = metaNetwork.queryParamPosterior(distId);
-            causalGraph.getAllDistNodes().get(distId).updateProbs(weights);
-        }
+        updateAllFactors();
         updated = false;
     }
 
     @Override
     public Double queryPossibilityById(int nodeId) {
         // 1. dumping updated factor graph
-        if (!updated) {
-            if (metaNetwork != null)
-                metaNetwork.release();
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"."+updateCnt+".post", causalGraph, 0);
-            updated = true;
-        }
+        dumpNetwork();
         // 2. predicting specific node
         return metaNetwork.predictNode(nodeId);
     }
 
     @Override
     public double[] queryFactorById(int paramId) {
-        // fetching from updated causal graph
-        return causalGraph.getAllDistNodes().get(paramId).getProbabilitis();
+        dumpNetwork();
+        return metaNetwork.queryParamPosterior(paramId);
     }
 
+    private void dumpNetwork() {
+        if (!updated) {
+            Messages.log("IteratingDriver: dumping updated factor graph of previous observations");
+            if (metaNetwork != null)
+                metaNetwork.release();
+            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"."+String.format("%03d", updateCnt)+".post", causalGraph, 0);
+            updated = true;
+        }
+    }
 }

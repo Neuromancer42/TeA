@@ -6,6 +6,7 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.provenance.ProvenanceUtil;
 import com.neuromancer42.tea.core.analysis.Trgt;
+import com.neuromancer42.tea.libdai.IteratingCausalDriver;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang3.StringUtils;
 
@@ -143,7 +144,15 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             }
 
             Stopwatch postTimer = Stopwatch.createStarted();
-            List<Map.Entry<Trgt.Tuple, Double>> postRanking = proj.postRanking(alarms, trace);
+            // Note: For debug settings
+            List<Map.Entry<Trgt.Tuple, Double>> postRanking = priorRanking;
+            if (appOption.getOrDefault(Constants.OPT_DRIVER, Constants.DEFAULT_DRIVER).equals(IteratingCausalDriver.type)) {
+                for (Map<Trgt.Tuple, Boolean> obs : trace) {
+                    postRanking = proj.postRanking(alarms, List.of(obs));
+                }
+            } else {
+                postRanking = proj.postRanking(alarms, trace);
+            }
             postTimer.stop();
             {
                 CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();

@@ -19,8 +19,10 @@ public class Constants {
     public static final String OPT_PORT = "port";
     public static final String OPT_WORK_DIR = "workdir";
     public static final String OPT_BUILD_DIR = "builddir";
+    public static final String OPT_DRIVER = "inferer";
     public static final String DEFAULT_ROOT_DIR = "test-out";
     public static final String DEFAULT_PORT = "10001";
+    public static final String DEFAULT_DRIVER = "iterating";
 
     public static final String NAME_CORE = "core";
     public static final String NAME_PROJ = "project";

@@ -17,7 +17,7 @@ public abstract class AbstractCausalDriver {
         this.causalGraph = new CausalGraph(causalGraph);
     }
 
-    public void run(List<Map<String, Boolean>> traces) {
+    public void appendObservations(List<Map<String, Boolean>> traces) {
         // For debug only
 //        Map<String, Boolean> obsTrace = new HashMap<>();
 //        for (String tupleId : allTupleIds) {

@@ -1,7 +1,6 @@
 package com.neuromancer42.tea.core;
 
 import com.google.common.base.Stopwatch;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.bddbddb.ProgramDom;
 import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
@@ -277,21 +276,21 @@ public class Project {
     private int rank_time = 0;
     private AbstractCausalDriver driver = null;
 
-    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist) {
+    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, String driverType) {
         CausalGraph cg = ProvenanceUtil.buildCausalGraph(provenance,
                 constr -> ruleDist.apply(constr.getRuleInfo()),
                 input -> inputRelDist.apply(input.getRelName())
         );
-        driver = new DAIDriverFactory(workDir).createCausalDriver("iterating", "iterating", cg);
+        driver = new DAIDriverFactory(workDir).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
     }
 
-    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, Set<Trgt.Tuple> reservedTuples) {
+    private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, Set<Trgt.Tuple> reservedTuples, String driverType) {
         CausalGraph cg = ProvenanceUtil.buildSqueezedCausalGraph(provenance,
                 constr -> ruleDist.apply(constr.getRuleInfo()),
                 input -> inputRelDist.apply(input.getRelName()),
                 reservedTuples
         );
-        driver = new DAIDriverFactory(workDir).createCausalDriver("iterating", "iterating", cg);
+        driver = new DAIDriverFactory(workDir).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
     }
 
     public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance,
@@ -301,20 +300,21 @@ public class Project {
                                                             Set<Trgt.Tuple> observations,
                                                             Map<String, String> options) {
         boolean squeeze = options.getOrDefault(Constants.OPT_SQZ, "false").equals("true");
+        String driverType = options.getOrDefault(Constants.OPT_DRIVER, Constants.DEFAULT_DRIVER);
         if (squeeze) {
             Set<Trgt.Tuple> reservedTuples = new HashSet<>(observations);
             reservedTuples.addAll(alarms);
-            prepareRanking(provenance, ruleDist, inputRelDist, reservedTuples);
+            prepareRanking(provenance, ruleDist, inputRelDist, reservedTuples, driverType);
         } else {
-            prepareRanking(provenance, ruleDist, inputRelDist);
+            prepareRanking(provenance, ruleDist, inputRelDist, driverType);
         }
         return postRanking(alarms, null);
     }
 
     public List<Map.Entry<Trgt.Tuple, Double>> postRanking(List<Trgt.Tuple> alarms, List<Map<Trgt.Tuple, Boolean>> trace) {
-        List<String> outputReprs = new ArrayList<>();
+        Map<String, Trgt.Tuple> outputDict = new LinkedHashMap<>();
         for (Trgt.Tuple alarm : alarms) {
-            outputReprs.add(ProvenanceUtil.encodeTuple(alarm));
+            outputDict.put(ProvenanceUtil.encodeTuple(alarm), alarm);
         }
         if (driver == null) {
             Messages.fatal("Project: causal driver not built yet before querying");
@@ -329,18 +329,14 @@ public class Project {
                 }
                 encTrace.add(encObs);
             }
-            driver.run(encTrace);
+            driver.appendObservations(encTrace);
             rank_time += trace.size();
         }
-        Map<String, Double> dist = driver.queryPossibilities(outputReprs);
+        Map<String, Double> dist = driver.queryPossibilities(outputDict.keySet());
         Map<Trgt.Tuple, Double> unorderedAlarms = new LinkedHashMap<>();
         for (String outputRepr : dist.keySet()) {
-            try {
-                Trgt.Tuple output = Trgt.Tuple.parseFrom(Base64.getDecoder().decode(outputRepr));
-                unorderedAlarms.put(output, dist.get(outputRepr));
-            } catch (InvalidProtocolBufferException e) {
-                Messages.error("Project: failed to parse querying tuples from causal driver, skip: %s", e.getMessage());
-            }
+            Trgt.Tuple output = outputDict.get(outputRepr);
+            unorderedAlarms.put(output, dist.get(outputRepr));
         }
         List<Map.Entry<Trgt.Tuple, Double>> sortedAlarmProb = unorderedAlarms.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))

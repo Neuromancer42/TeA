@@ -5,12 +5,11 @@ import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.configs.Messages;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
 public class DynaboostCausalDriver extends AbstractCausalDriver {
+    public static final String type = "dynaboost";
     private final Map<String, Integer> obsCount = new LinkedHashMap<>();
     private final double ruleProb = Double.parseDouble(System.getProperty("dynaboost.ruleprob", "0.999"));
     private int obsRuns;

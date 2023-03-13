@@ -4,12 +4,11 @@ import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.configs.Messages;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
 public class OneShotCausalDriver extends AbstractCausalDriver {
+    public static final String type = "oneshot";
     private final List<Map<String, Boolean>> obsHistory = new ArrayList<>();
     private boolean updated;
     private DAIMetaNetwork metaNetwork;

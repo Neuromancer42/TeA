@@ -29,12 +29,12 @@ public class DAIDriverFactory implements ICausalDriverFactory {
             return null;
         }
         switch (type) {
-            case "dynaboost":
+            case DynaboostCausalDriver.type:
             case "baseline":
                 return new DynaboostCausalDriver(driverName, driverPath, causalGraph);
-            case "iterating":
+            case IteratingCausalDriver.type:
                 return new IteratingCausalDriver(driverName, driverPath, causalGraph);
-            case "oneshot":
+            case OneShotCausalDriver.type:
                 return new OneShotCausalDriver(driverName, driverPath, causalGraph);
             default:
                 Messages.error("DAIDriverFactory: unknown driver type, use iterating driver by default");
