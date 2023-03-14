@@ -344,11 +344,12 @@ public class Project {
 
         List<String> logLines = new ArrayList<>();
         for (var entry : sortedAlarmProb) {
-            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()));
+            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()) + "\t" + ProvenanceUtil.encodeTuple(entry.getKey()));
         }
-        Path logPath = workDir.resolve(String.format("rank_%02d.list", rank_time));
+        Path logPath = workDir.resolve(String.format("rank_%03d.list", rank_time));
         try {
             Files.write(logPath, logLines, StandardCharsets.UTF_8);
+            Messages.debug("Project: dumping posterior ranking to file %s", logPath.toAbsolutePath());
         } catch (IOException e) {
             Messages.error("Project: failed to dump ranking results, skip: %s", e.getMessage());
         }

@@ -144,15 +144,8 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             }
 
             Stopwatch postTimer = Stopwatch.createStarted();
-            // Note: For debug settings
-            List<Map.Entry<Trgt.Tuple, Double>> postRanking = priorRanking;
-            if (appOption.getOrDefault(Constants.OPT_DRIVER, Constants.DEFAULT_DRIVER).equals(IteratingCausalDriver.type)) {
-                for (Map<Trgt.Tuple, Boolean> obs : trace) {
-                    postRanking = proj.postRanking(alarms, List.of(obs));
-                }
-            } else {
-                postRanking = proj.postRanking(alarms, trace);
-            }
+            List<Map.Entry<Trgt.Tuple, Double>> postRanking;
+            postRanking = proj.postRanking(alarms, trace);
             postTimer.stop();
             {
                 CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();

@@ -11,6 +11,9 @@ public abstract class AbstractCausalDriver {
     protected Path workDir;
     protected final String name;
 
+    // For debug only
+    protected final Map<Integer, String> debugQueries = new LinkedHashMap<>();
+
     protected AbstractCausalDriver(String name, Path path, CausalGraph causalGraph) {
         this.name = name;
         this.workDir = path;
@@ -37,6 +40,7 @@ public abstract class AbstractCausalDriver {
 
     protected Double queryPossibility(String node) {
         Integer nodeId = causalGraph.getNodeId(node);
+        debugQueries.putIfAbsent(nodeId, node);
         return queryPossibilityById(nodeId);
     }
 
