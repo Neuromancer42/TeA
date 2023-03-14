@@ -70,7 +70,7 @@ public class Project {
         if (!schedule.contains(analysis)) {
             return String.format(Constants.MSG_FAIL + ": NOT-SCHEDULED analysis '%s'", analysis);
         }
-        Messages.log("Project: started running analysis %s", analysis);
+        Messages.log("Project %s: started running analysis %s", ID, analysis);
         Stopwatch inclusiveTimer = Stopwatch.createStarted();
         // 1. build input message
         Analysis.AnalysisInfo info = analysisInfo.get(analysis);
@@ -131,7 +131,7 @@ public class Project {
             assert producedRels.containsKey(relName);
         }
         inclusiveTimer.stop();
-        Messages.log("Project: finished running analysis %s in %s", analysis, inclusiveTimer);
+        Messages.log("Project %s: finished running analysis %s in %s", ID, analysis, inclusiveTimer);
         return Constants.MSG_SUCC + ": " + analysis + " completed in " + inclusiveTimer;
     }
 
@@ -178,7 +178,7 @@ public class Project {
                 ProgramDom dom = new ProgramDom(domKind);
                 String domLoc = producedDoms.get(domKind);
                 if (domLoc == null) {
-                    Messages.error("Project: dom '%s' is not produced", domKind);
+                    Messages.error("Project %s: dom '%s' is not produced", ID, domKind);
                     return null;
                 }
                 dom.load(domLoc);
@@ -189,17 +189,17 @@ public class Project {
         ProgramRel rel = new ProgramRel(relName, doms);
         String relLoc = producedRels.get(relName);
         if (relLoc == null) {
-            Messages.error("Project: rel '%s' is not produced", relName);
+            Messages.error("Project %s: rel '%s' is not produced", ID, relName);
             return null;
         }
         rel.attach(relLoc);
         rel.load();
-        Messages.debug("Project: rel %s loaded from %s, size: %d", relName, relLoc, rel.size());
+        Messages.debug("Project %s: rel %s loaded from %s, size: %d", ID, relName, relLoc, rel.size());
         return rel;
     }
 
     public Trgt.Provenance proveRels(Collection<String> relNames) {
-        Messages.log("Project: provenance started");
+        Messages.log("Project %s: provenance started", ID);
 
         ProvenanceBuilder provBuilder = new ProvenanceBuilder(ID, option);
         Map<String, Set<Trgt.Tuple>> analysisToTuples = new HashMap<>();
@@ -207,10 +207,10 @@ public class Project {
         for (String relName: relNames) {
             String analysis = relProducer.get(relName);
             if (analysis == null) {
-                Messages.error("Project: rel '%s' is not produced", relName);
+                Messages.error("Project %s: rel '%s' is not produced", ID, relName);
                 continue;
             }
-            Messages.debug("Project: rel '%s' is produced by analysis %s", relName, analysis);
+            Messages.debug("Project %s: rel '%s' is produced by analysis %s", ID, relName, analysis);
             ProgramRel rel = loadRel(relName);
             assert rel != null;
             for (Object[] tuple : rel.getValTuples()) {
@@ -220,7 +220,7 @@ public class Project {
                     tupleBuilder.addAttribute((String) attr);
                 analysisToTuples.computeIfAbsent(analysis, k -> new LinkedHashSet<>()).add(tupleBuilder.build());
             }
-            Messages.debug("Project: attribute %d alarm tuples to analysis %s", rel.size(), analysis);
+            Messages.debug("Project %s: attribute %d alarm tuples to analysis %s", ID, rel.size(), analysis);
         }
         for (Set<Trgt.Tuple> outputTuples : analysisToTuples.values()) {
             provBuilder.addOutputTuples(outputTuples);
@@ -230,22 +230,22 @@ public class Project {
         // Note: construct full provenance, cumulating from back to forth
         for (int i = schedule.size() - 1; i >= 0; --i) {
             String analysis = schedule.get(i);
-            Messages.log("Project: introspecting analysis %s", analysis);
+            Messages.log("Project %s: introspecting analysis %s", ID, analysis);
             Set<Trgt.Tuple> targets = new LinkedHashSet<>();
 
             for (Trgt.Tuple tuple : analysisToTuples.getOrDefault(analysis, new HashSet<>())) {
                 if (provableRels.contains(tuple.getRelName())) {
-//                    Messages.debug("Project: tuple '%s' is provable by %s", TextFormat.shortDebugString(tuple), analysis);
+//                    Messages.debug("Project %s: tuple '%s' is provable by %s", ID, TextFormat.shortDebugString(tuple), analysis);
                     targets.add(tuple);
                 } else {
-//                    Messages.debug("Project: tuple '%s' is not provable by %s", TextFormat.shortDebugString(tuple), analysis);
+//                    Messages.debug("Project %s: tuple '%s' is not provable by %s", ID, TextFormat.shortDebugString(tuple), analysis);
                     inputTuples.add(tuple);
                 }
             }
-            Messages.log("Project: %d tuples provable by analysis %s", targets.size(), analysis);
+            Messages.log("Project %s: %d tuples provable by analysis %s", ID, targets.size(), analysis);
             if (!targets.isEmpty()) {
 
-                Messages.log("Project: started running prover %s", analysis);
+                Messages.log("Project %s: started running prover %s", ID,  analysis);
                 Stopwatch inclusiveTimer = Stopwatch.createStarted();
                 ProviderGrpc.ProviderBlockingStub provider = analysisProvider.get(analysis);
                 Analysis.ProveRequest req = Analysis.ProveRequest.newBuilder()
@@ -264,12 +264,12 @@ public class Project {
                     }
                 }
                 inclusiveTimer.stop();
-                Messages.log("Project: finished running prover %s in %s", analysis, inclusiveTimer);
+                Messages.log("Project %s: finished running prover %s in %s", ID, analysis, inclusiveTimer);
             }
         }
         provBuilder.addInputTuples(inputTuples);
         provBuilder.computeProvenance();
-        Messages.log("Project: provenance completed");
+        Messages.log("Project %s: provenance completed", ID);
         return provBuilder.getProvenance();
     }
 
@@ -317,7 +317,7 @@ public class Project {
             outputDict.put(ProvenanceUtil.encodeTuple(alarm), alarm);
         }
         if (driver == null) {
-            Messages.fatal("Project: causal driver not built yet before querying");
+            Messages.fatal("Project %s: causal driver not built yet before querying", ID);
             assert false;
         }
         if (trace != null) {
@@ -349,9 +349,9 @@ public class Project {
         Path logPath = workDir.resolve(String.format("rank_%03d.list", rank_time));
         try {
             Files.write(logPath, logLines, StandardCharsets.UTF_8);
-            Messages.debug("Project: dumping posterior ranking to file %s", logPath.toAbsolutePath());
+            Messages.debug("Project %s: dumping posterior ranking to file %s", ID, logPath.toAbsolutePath());
         } catch (IOException e) {
-            Messages.error("Project: failed to dump ranking results, skip: %s", e.getMessage());
+            Messages.error("Project %s: failed to dump ranking results, skip: %s", ID, e.getMessage());
         }
 
         return sortedAlarmProb;
@@ -374,12 +374,12 @@ public class Project {
                 observers.add(observer);
             }
         }
-        Messages.log("Project: instrumented %d observable tuples", observableTuples.size());
+        Messages.log("Project %s: instrumented %d observable tuples", ID, observableTuples.size());
         return observableTuples;
     }
 
     public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase, Map<String, String> options) {
-        Messages.log("Project: started to running test %s", TextFormat.shortDebugString(testCase));
+        Messages.log("Project %s: started to running test %s", ID, TextFormat.shortDebugString(testCase));
         Analysis.TestRequest testReq = Analysis.TestRequest.newBuilder()
                 .setProjectId(ID)
                 .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
@@ -395,13 +395,13 @@ public class Project {
                 obs.put(tuple, false);
             }
         }
-        Messages.log("Project: observed %d tuples to be true", obs.size());
+        Messages.log("Project %s: observed %d tuples to be true", ID, obs.size());
         return obs;
     }
 
     public void shutdown() {
         for (ProviderGrpc.ProviderBlockingStub provider : new LinkedHashSet<>(analysisProvider.values())) {
-            Messages.log("Project: release instances in provider: %s", provider.getChannel().toString());
+            Messages.log("Project %s: release instances in provider: %s", ID, provider.getChannel().toString());
             Analysis.ShutdownResponse shutdownResp = provider.shutdown(Analysis.ShutdownRequest.newBuilder().setProjectId(ID).build());
         }
     }
