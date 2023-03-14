@@ -1,0 +1,8 @@
+-q ../../../../../examples/bc-inputs/comp.txt
+../../../../../examples/bc-inputs/add.txt
+../../../../../examples/bc-inputs/subtraction.txt
+../../../../../examples/bc-inputs/multiply.txt
+../../../../../examples/bc-inputs/divide.txt
+../../../../../examples/bc-inputs/array.txt
+../../../../../examples/bc-inputs/vars.txt
+../../../../../examples/bc-inputs/void.txt

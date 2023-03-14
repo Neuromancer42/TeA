@@ -1,0 +1,12 @@
+define void(x) {
+	return x
+}
+
+void(0)
+void(1)
+void(2.9823)
+void(-3.5982)
+
+void = .198389
+void + 10
+quit

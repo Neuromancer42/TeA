@@ -22,7 +22,6 @@
 blobfiles/
 target/
 sootOutput/
-examples/
 test-out/
 out/
 
