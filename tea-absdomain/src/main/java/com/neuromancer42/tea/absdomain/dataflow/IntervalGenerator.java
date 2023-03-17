@@ -125,8 +125,10 @@ public class IntervalGenerator extends AbstractAnalysis {
                 int primVal = Integer.parseInt(c);
                 literalMap.put(c, primVal);
                 Messages.debug("IntervalGenerator: find new constant integer %d", primVal);
-                intConstants.add(primVal);
-                intConstants.add(-primVal);
+                if (primVal >=  Interval.min_bound && primVal <= Interval.max_bound) {
+                    intConstants.add(primVal);
+                    intConstants.add(-primVal);
+                }
             } catch (NumberFormatException e) {
                 Messages.error("IntervalGenerator: not a constant integer %s", c);
             }
