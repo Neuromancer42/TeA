@@ -2131,7 +2131,7 @@ public class CFGBuilder {
         private util() {}
 
         public String methToRepr(IFunction meth) {
-            return meth.getName();
+            return meth.getName().replaceAll("\n", "\\n");
         }
 
         private Map<Integer, String> debugStrMap = new HashMap<>();
@@ -2179,7 +2179,10 @@ public class CFGBuilder {
                     }
                 }
             }
-            if (debugStr != null) debugStrMap.put(i, debugStr);
+            if (debugStr != null) {
+                debugStr = debugStr.replaceAll("\n", "\\n");
+                debugStrMap.put(i, debugStr);
+            }
             return debugStr;
         }
 
@@ -2225,7 +2228,7 @@ public class CFGBuilder {
                 return typeNameMap.get(type);
             }
             if (type instanceof IBasicType) {
-                String typeStr = type.toString();
+                String typeStr = type.toString().replaceAll("\n", "\\n");
                 typeNameMap.put(type, typeStr);
                 IBasicType basicType = (IBasicType) type;
                 Integer width = switch (basicType.getKind()) {
@@ -2313,7 +2316,7 @@ public class CFGBuilder {
         }
 
         public String varToRepr(IVariable var) {
-            return var.getName();
+            return var.getName().replaceAll("\n", "\\n");
         }
 
         public String varToRepr(String id) {

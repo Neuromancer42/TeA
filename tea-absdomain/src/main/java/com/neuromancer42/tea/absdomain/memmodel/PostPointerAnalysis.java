@@ -35,6 +35,9 @@ public class PostPointerAnalysis extends AbstractAnalysis {
     @ConsumeDom(description = "abstract heaps")
     public ProgramDom domH;
 
+    @ConsumeRel(doms = {"M"}, description = "marked external functions")
+    public ProgramRel relExtMeth;
+
     @ConsumeRel(doms = {"M", "P"})
     public ProgramRel relMP;
 
@@ -68,12 +71,13 @@ public class PostPointerAnalysis extends AbstractAnalysis {
         domP = inputDoms.get("P");
         domH = inputDoms.get("H");
 
+        relExtMeth = inputRels.get("ExtMeth");
         relMP = inputRels.get("MP");
         relCIMH = inputRels.get("ci_MH");
         relPstore = inputRels.get("Pstore");
         relStorePtr = inputRels.get("StorePtr");
         relCIPT = inputRels.get("ci_pt");
-        ProgramRel[] consumedRels = new ProgramRel[]{relMP, relCIMH, relPstore, relStorePtr, relCIPT};
+        ProgramRel[] consumedRels = new ProgramRel[]{relExtMeth, relMP, relCIMH, relPstore, relStorePtr, relCIPT};
         for (var rel : consumedRels)
             rel.load();
 
@@ -105,6 +109,11 @@ public class PostPointerAnalysis extends AbstractAnalysis {
 
     @Override
     protected void relPhase() {
+        Set<String> extMeths = new HashSet<>();
+        for (Object[] tuple : relExtMeth.getValTuples()) {
+            String m = (String) tuple[0];
+            extMeths.add(m);
+        }
         Map<String, String> PinM = new HashMap<>();
         for (Object[] tuple: relMP.getValTuples()) {
             String f = (String) tuple[0];
@@ -153,10 +162,19 @@ public class PostPointerAnalysis extends AbstractAnalysis {
         }
 
         for (String m : domM) {
-            Set<String> hs = mh.getOrDefault(m, Set.of());
-            for (String h : domH) {
-                if (!hs.contains(h)) {
+            if (extMeths.contains(m))  {
+                // Note: this is a temporal trick, treat all heaps in external methods as untouched
+                //       interval.dl used another handling which does the same thing
+                // TODO: mark impure external functions?
+                for (String h : domH) {
                     relNonMH.add(m, h);
+                }
+            } else {
+                Set<String> hs = mh.getOrDefault(m, Set.of());
+                for (String h : domH) {
+                    if (!hs.contains(h)) {
+                        relNonMH.add(m, h);
+                    }
                 }
             }
         }

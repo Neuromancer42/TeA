@@ -172,8 +172,8 @@
 .decl ci_Voffset(v:V,content:H,type:T,offset:U)
 .output ci_Voffset
 
-.decl ExtMeth(m:M)
-.input ExtMeth
+//.decl ExtMeth(m:M)
+//.input ExtMeth
 // change this marker to meth-related
 .decl argInput(m:M, z:Z)
 .input argInput
@@ -205,7 +205,7 @@ ci_PHval(q,h1,c1) :- PPfalse(p,q,v), PredL(v,pred,h1,c2), ci_postPHval(p,h1,c1),
 ci_PHval(q,h2,c2) :- PPtrue(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
 ci_PHval(q,h2,c2) :- PPfalse(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
 ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
-ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
+ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPfalse(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
 
 ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_strong_update(p,h).
 ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_weak_update(p,h).
@@ -224,6 +224,7 @@ ci_PHval(p,h,c) :- MPentry(m,p), ci_MH(m,h), Uempty(c), primH(h).
 ci_PHval(q,h,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHval(p,h,c), ci_MH(m,h).
 ci_postPHval(p,h,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHval(q,h,c), ci_PHval(p,h,_).
 ci_postPHval(p,h,c) :- Pinvk(p,i), ci_PHval(p,h,c), ci_IM(i,m), ci_non_MH(m,h).
+//ci_postPHval(p,h,c) :- Pinvk(p,i), ci_PHval(p,h,c), ci_IM(i,m), ExtMeth(m). // treat all external methods as pure, i.e. no heaps are touched
 
 inputV(p,u) :- Pinvk(p,i), ci_IM(i,m), IinvkArg(i,z,u), argInput(m,z).
 inputV(p,v) :- Pinvk(p,i), ci_IM(i,m), IinvkRet(i,v), retInput(m).
@@ -274,3 +275,4 @@ ci_Voffset(v,content,t,c) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_Voffse
 ci_PHoffset(q,h,content,t,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHoffset(p,h,content,t,c), ci_MH(m,h).
 ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHoffset(q,h,content,t,c), ci_PHoffset(p,h,_,_,_).
 ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_PHoffset(p,h,content,t,c), ci_IM(i,m), ci_non_MH(m,h).
+//ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_PHoffset(p,h,content,t,c), ci_IM(i,m), ExtMeth(m). // treat all external methods as pure, i.e. no heaps are touched

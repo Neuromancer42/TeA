@@ -7,7 +7,7 @@ import org.apache.commons.math3.distribution.EnumeratedRealDistribution;
 import java.util.*;
 
 public class Categorical01 {
-    private static final double epsilon = 1.0/32;
+    private static final double epsilon = 1.0/1024;
     private static final double stride = 1.0/16;
     protected final double[] supports;
     private EnumeratedRealDistribution dist;
@@ -94,11 +94,11 @@ public class Categorical01 {
         for (double p : prev.supports) {
             for (double q : prev.supports) {
                 double pq = 1 - (1- p) * (1- q);
-                if (pq < 1 && pq > 1 - epsilon)
-                    pq = 1 - epsilon;
-                else if (pq >= 1 - stride)
-                    pq = 1 - stride;
-                else
+//                if (pq < 1 && pq >= 1 - epsilon)
+//                    pq = 1 - epsilon;
+//                else if (pq >= 1 - stride)
+//                    pq = 1 - stride;
+//                else
                     pq = Math.round(pq / stride) * stride;
                 if (pq > 1 || pq < 0)
                     Messages.error("Categorical01: computed support %f = 1-(1-%f)*(1-%f) out of range", pq, p, q);
@@ -114,12 +114,15 @@ public class Categorical01 {
         for (var entry : probMap.entrySet()) {
             newSupports[i] = entry.getKey();
             double newProb = entry.getValue();
+            // Note: scale down imbalance of prior distributions
+//            if (newProb <= stride)
+//                newProb = stride;
+//            else if (newProb >= 1 - stride)
+//                newProb = 1 - stride;
+//            else
+//                newProb = Math.round(newProb / stride) * stride;
             if (newProb < epsilon)
                 newProb = epsilon;
-            else if (newProb >  1 - epsilon)
-                newProb = 1 - epsilon;
-            else
-                newProb = Math.round(newProb / stride) * stride;
             newProbs[i] = newProb;
             i++;
         }
@@ -135,11 +138,11 @@ public class Categorical01 {
         for (double p : prev.supports) {
             for (double q : prev.supports) {
                 double pq = p * q;
-                if (pq > 0 && pq < epsilon)
-                    pq = epsilon;
-                else if (pq <= stride)
-                    pq = stride;
-                else
+//                if (pq > 0 && pq <= epsilon)
+//                    pq = epsilon;
+//                else if (pq <= stride)
+//                    pq = stride;
+//                else
                     pq = Math.round(pq / stride) * stride;
                 if (pq > 1 || pq < 0)
                     Messages.error("Categorical01: computed support %f = %f*%f out of range", pq, p, q);
@@ -155,12 +158,15 @@ public class Categorical01 {
         for (var entry : probMap.entrySet()) {
             newSupports[i] = entry.getKey();
             double newProb = entry.getValue();
+            // Note: scale down imbalance of prior distributions
+//            if (newProb <= stride)
+//                newProb = stride;
+//            else if (newProb >= 1 - stride)
+//                newProb = 1 - stride;
+//            else
+//                newProb = Math.round(newProb / stride) * stride;
             if (newProb < epsilon)
                 newProb = epsilon;
-            else if (newProb >  1 - epsilon)
-                newProb = 1 - epsilon;
-            else
-                newProb = Math.round(newProb / stride) * stride;
             newProbs[i] = newProb;
             i++;
         }

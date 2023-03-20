@@ -183,12 +183,16 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
     public Categorical01 getRuleParam(String ruleInfo) {
         // Note: jsouffle-recorded rule info always consists of "<headRelName>.@info.<ruleIdx>"
         String headRelName = ruleInfo.substring(0, ruleInfo.indexOf(".@info"));
-        return getRelParam(headRelName);
+        Categorical01 dist = getRelParam(headRelName);
+//        Messages.debug("rule %s with prior dist %s", ruleInfo, dist);
+        return dist;
     }
 
     public Categorical01 getRelParam(String relName) {
         Categorical01 prob = probMap.getOrDefault(relName, defaultProb);
         // Note: return a new instance to avoid sharing
-        return new Categorical01(prob);
+        Categorical01 dist = new Categorical01(prob);
+//        Messages.debug("rel %s with prior dist %s", relName, dist);
+        return dist;
     }
 }

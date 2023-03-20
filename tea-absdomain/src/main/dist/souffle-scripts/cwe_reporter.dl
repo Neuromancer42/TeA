@@ -12,10 +12,10 @@
 .input Pload
 .decl Pstore(p:P,v:V)
 .input Pstore
-.decl LoadArr(u:V,v:V,i:V)
-.input LoadArr
-.decl StoreArr(u:V,i:V,v:V)
-.input StoreArr
+.decl LoadPtr(u:V,v:V)
+.input LoadPtr
+.decl StorePtr(u:V,v:V)
+.input StorePtr
 
 .decl ci_Vval(v:V,val:U)
 .input ci_Vval
@@ -37,19 +37,19 @@
 .decl evalLEU(o1:U,o2:U)
 .input evalLEU
 
-.decl CWE119_out_of_bound(p:P, v:V, i:V, content:H, type:T, o1:U, o2:U, bytes:U)
+.decl CWE119_out_of_bound(p:P, v:V, content:H, type:T, o:U, bytes:U)
 .output CWE119_out_of_bound
 
-CWE119_out_of_bound(p,v,i,content,t1,o1,o2,bound) :-
-    AccessArray(p,v,i),
-    ci_Voffset(v,content,t1,o1), ci_Vval(i,o2),
-    TypeWidth(t1,c1), ConstU(c1,w1),
-    evalPlusU(o1,o2,o), evalMultU(o,w1,offset),
+CWE119_out_of_bound(p,v,content,t,o,bound) :-
+    AccessArrayOffset(p,v,content,t,o),
+    TypeWidth(t,c), ConstU(c,w), evalMultU(o,w,offset),
     ArrayLength(content,bound), evalLEU(bound,offset).
 
-.decl AccessArray(p:P,v:V,i:V)
-AccessArray(p,v,i) :- Pload(p,u), LoadArr(u,v,i).
-AccessArray(p,v,i) :- Pstore(p,u), StoreArr(v,i,u).
+.decl AccessArrayOffset(p:P,v:V,content:H,t:T,o:U)
+AccessArrayOffset(p,v,content,t,o) :-
+    Pstore(p,u), StorePtr(v,u), ci_Voffset(v,content,t,o).
+AccessArrayOffset(p,v,content,t,o) :-
+    Pload(p,u), LoadPtr(u,v), ci_Voffset(v,content,t,o).
 
 .decl ArrayLength(content:H,bound:U)
 ArrayLength(content,bound) :-

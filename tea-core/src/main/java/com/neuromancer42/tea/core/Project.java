@@ -390,12 +390,14 @@ public class Project {
             Analysis.TestResponse testResp = observer.test(testReq);
             for (Trgt.Tuple tuple : testResp.getTriggeredTupleList()) {
                 obs.put(tuple, true);
+                Messages.log("Project %s: observed true  tuple %s", ID, TextFormat.shortDebugString(tuple));
             }
             for (Trgt.Tuple tuple : testResp.getNegatedTupleList()) {
                 obs.put(tuple, false);
+                Messages.log("Project %s: observed false tuple %s", ID, TextFormat.shortDebugString(tuple));
             }
         }
-        Messages.log("Project %s: observed %d tuples to be true", ID, obs.size());
+        Messages.log("Project %s: observed %d tuples", ID, obs.size());
         return obs;
     }
 

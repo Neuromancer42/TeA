@@ -87,9 +87,9 @@ public class CDTCManager extends AbstractAnalysis {
 
     @ProduceRel(doms = {"P", "V", "E"}, description = "Peval(point,dest,eval):compute eval and store into dest")
     public ProgramRel relPeval;
-    @ProduceRel(doms = {"P", "V"}, description = "Pload(point,r):update reg r")
+    @ProduceRel(doms = {"P", "V"}, description = "Pload(point,r):load something into reg r")
     public ProgramRel relPload;
-    @ProduceRel(doms = {"P", "V"}, description = "Pstore(point,r):store value to where r points to")
+    @ProduceRel(doms = {"P", "V"}, description = "Pstore(point,r):store value of reg r to somewhere")
     public ProgramRel relPstore;
     @ProduceRel(doms = {"P", "V"}, description = "Palloc(point,r):alloc a address and assign to r")
     public ProgramRel relPalloc;
@@ -606,6 +606,7 @@ public class CDTCManager extends AbstractAnalysis {
                 String pRepr = builder.util.cfgnodeToRepr(p);
                 if (p.hasReturn()) {
                     relMPexit.add(builder.util.methToRepr(meth), pRepr);
+                    relPnoop.add(pRepr);
                     if (p.getReturn().hasFormalRet()) {
                         String retRegRepr = p.getReturn().getFormalRet();
                         relMmethRet.add(builder.util.methToRepr(meth), retRegRepr);
@@ -1221,12 +1222,15 @@ public class CDTCManager extends AbstractAnalysis {
                 Messages.fatal("CInstrument: build cfg first before instrumenting");
                 assert false;
             }
-            return switch (tuple.getRelName()) {
+            boolean res = switch (tuple.getRelName()) {
                 case "ci_IM" -> instrumentCIIM(tuple.getAttribute(0), tuple.getAttribute(1));
                 case "ci_reachableM" -> instrumentReachableM(tuple.getAttribute(0));
                 case "ci_PHval" -> instrumentPHval(tuple.getAttribute(0), tuple.getAttribute(1), tuple.getAttribute(2));
                 default -> false;
             };
+            if (res)
+                Messages.debug("CInstrument: instrumented tuple: %s", TextFormat.shortDebugString(tuple));
+            return res;
         }
 
         private final Map<Long, String> invkInstrMap = new HashMap<>();

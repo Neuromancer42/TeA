@@ -41,6 +41,8 @@ public class ParseTest {
     private static Path vlaPath;
     private static final String sizeofName = "sizeof.c";
     private static Path sizeofPath;
+    private static final String misc0Name = "misc0.c";
+    private static Path misc0Path;
 
     private static final Path rootDir = Paths.get("test-out").resolve("test-parse");
 
@@ -119,6 +121,13 @@ public class ParseTest {
         assert sizeofIn != null;
         Files.copy(sizeofIn, sizeofPath, StandardCopyOption.REPLACE_EXISTING);
         sizeofIn.close();
+
+        InputStream misc0In = CDTCManager.class.getClassLoader().getResourceAsStream(misc0Name);
+        System.err.println("Writing " + misc0Name);
+        misc0Path = srcDir.resolve(misc0Name);
+        assert misc0In != null;
+        Files.copy(misc0In, misc0Path, StandardCopyOption.REPLACE_EXISTING);
+        misc0In.close();
     }
 
     @Test
@@ -375,5 +384,14 @@ public class ParseTest {
                 rel.close();
             }
         }
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("CDT handles misc0 correctly")
+    public void parseMisc0() throws IOException {
+        Path workDir = Files.createDirectories(rootDir.resolve("test-misc0"));
+        CDTCManager cmanager = new CDTCManager(workDir, misc0Path.toString(), "clang");
+        cmanager.run();
     }
 }

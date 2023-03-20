@@ -33,7 +33,9 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
         // 2. dumping observations
         for (var obsEntry : observations.entrySet()) {
             Integer nodeId = causalGraph.getNodeId(obsEntry.getKey());
-            metaNetwork.observeNode(nodeId, 0, obsEntry.getValue());
+            // Note: Observations may return nodes not in the derivation due to mix of instruments
+            if (nodeId != null)
+                metaNetwork.observeNode(nodeId, 0, obsEntry.getValue());
         }
         // 2.(1) (debug) dumping intermediate results for previous queries
         Map<Integer, Double> debugQueryProbs = new HashMap<>();
