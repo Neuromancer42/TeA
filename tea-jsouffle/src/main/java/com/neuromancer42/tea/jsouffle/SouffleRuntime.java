@@ -75,6 +75,7 @@ public final class SouffleRuntime {
         int souffle_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server jSouffleServer = Grpc.newServerBuilderForPort(souffle_port, InsecureServerCredentials.create())
+                .maxInboundMessageSize(Integer.MAX_VALUE)
                 .addService(new SouffleProvider(analysisMap)).build();
         System.err.println("*** jsouffle server started on port " + souffle_port);
         jSouffleServer.start();

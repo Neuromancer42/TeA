@@ -50,6 +50,7 @@ public class CDTProvider extends ProviderGrpc.ProviderImplBase {
         int cdt_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server cdtServer = Grpc.newServerBuilderForPort(cdt_port, InsecureServerCredentials.create())
+                .maxInboundMessageSize(Integer.MAX_VALUE)
                 .addService(new CDTProvider(workPath)).build();
         System.err.println("*** cdt server started on port " + cdt_port);
         cdtServer.start();

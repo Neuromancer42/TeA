@@ -47,6 +47,7 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
         int mem_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
 
         Server memServer = Grpc.newServerBuilderForPort(mem_port, InsecureServerCredentials.create())
+                .maxInboundMessageSize(Integer.MAX_VALUE)
                 .addService(new Abstractor()).build();
         System.err.println("*** abstractor server started on port " + mem_port);
         memServer.start();
