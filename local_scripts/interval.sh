@@ -5,7 +5,7 @@ usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compile_cmd] [-o o
 echo "Run in TEA_HOME: $TEA_HOME"
 pushd "$TEA_HOME" || exit 1
 
-config_file="../scripts/interval.ini"
+config_file="../example_configs/interval.ini"
 outdir="test-out"
 compile_cmd=""
 proj=`date +"p%b %d, %Y"`
@@ -64,7 +64,7 @@ nohup ../tea-core/build/install/tea-core/bin/tea-core -p 10001 -d ${outdir} \
   -Q souffle=localhost:10002 \
   -Q cdt=localhost:10003 \
   -Q absdomain=localhost:10004 \
-  -t ../scripts/interval.dists \
+  -t ../example_configs/interval.dists \
   > ${outdir}/tea-core.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-core, pid: ${nohup_pids[0]}"

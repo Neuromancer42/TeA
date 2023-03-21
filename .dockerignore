@@ -32,10 +32,6 @@
 **/*.so
 **/*.dylib
 
-# testcases
-benchmarks/
-tests/
-
 # vscode
 .vscode/
 
@@ -44,3 +40,11 @@ tests/
 
 # avoid unnecessary rebuild
 Dockerfile
+
+# clients, outside of servers
+local_scripts/
+example_configs/
+tea-clients/
+# testcases
+benchmarks/
+tests/
