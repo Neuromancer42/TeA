@@ -22,8 +22,8 @@ public class IntervalGenerator extends AbstractAnalysis {
     public static final String name = "gen_interval";
 
     private static final String emptyRepr = Interval.EMPTY.toString();
-    private static final String zeroRepr = (new Interval(0)).toString();
-    private static final String oneRepr = (new Interval(1)).toString();
+    private static final String zeroRepr = Interval.ZERO.toString();
+    private static final String oneRepr = Interval.ONE.toString();
     public static final String mininfRepr = Interval.MIN_INF.toString();
     public static final String maxinfRepr = Interval.MAX_INF.toString();
     private final Path workPath;
@@ -44,6 +44,10 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramDom domOP;
     @ConsumeDom(description = "types")
     public ProgramDom domT;
+    @ConsumeRel(doms = {"T", "T", "C"})
+    public ProgramRel relArrContentType;
+    @ConsumeRel(doms = {"T", "C"})
+    public ProgramRel relTypeWidth;
     @ConsumeRel(doms = {"V", "V"})
     public ProgramRel relLoadPtr;
     @ConsumeRel(doms = {"V", "V"})
@@ -111,21 +115,16 @@ public class IntervalGenerator extends AbstractAnalysis {
     private final Map<String, Integer> regToLiteral = new HashMap<>();
     private final Map<String, Pair<String, String>> regToUnary = new HashMap<>();
     private final Map<String, Triple<String, String, String>> regToBinop = new HashMap<>();
+    private final Map<Integer, Interval> literalToInterval = new HashMap<>();
 
     @Override
     protected void domPhase() {
         for (ItvPredicate itvp : ItvPredicate.allPredicates())
             domUP.add(itvp.toString());
-        Set<Integer> intConstants = new LinkedHashSet<>();
         for (String c : domC) {
             try {
                 int primVal = Integer.parseInt(c);
                 literalMap.put(c, primVal);
-                //Messages.debug("IntervalGenerator: find new constant integer %d", primVal);
-                if (primVal >=  Interval.min_bound && primVal <= Interval.max_bound) {
-                    intConstants.add(primVal);
-                    intConstants.add(-primVal);
-                }
             } catch (NumberFormatException e) {
                 Messages.error("IntervalGenerator: not a constant integer %s", c);
             }
@@ -149,7 +148,35 @@ public class IntervalGenerator extends AbstractAnalysis {
             String u2 = (String) tuple[3];
             regToBinop.put(v, new ImmutableTriple<>(op, u1, u2));
         }
-
+        Set<Integer> intConstants = new HashSet<>();
+        // Note: only care about array lengths
+        Map<String, Integer> typeWidthMap = new HashMap<>();
+        for (Object[] tuple : relTypeWidth.getValTuples()) {
+            String type = (String) tuple[0];
+            String widthStr = (String) tuple[1];
+            Integer width = literalMap.get(widthStr);
+            typeWidthMap.put(type, width);
+        }
+        for (Object[] tuple : relArrContentType.getValTuples()) {
+            String contentType = (String) tuple[1];
+            Integer contentWidth = typeWidthMap.get(contentType);
+            if (contentWidth == null)
+                contentWidth = Constants.WIDTH_ADDR;
+            if (contentWidth <= Interval.max_bound) {
+                intConstants.add(contentWidth);
+                intConstants.add(-contentWidth);
+            }
+            String arrLenStr = (String) tuple[2];
+            int arrLen = literalMap.getOrDefault(arrLenStr, 1);
+            if (arrLen <= Interval.max_bound) {
+                intConstants.add(arrLen);
+                intConstants.add(arrLen - 1);
+                if (arrLen * contentWidth <= Interval.max_bound) {
+                    intConstants.add(arrLen * contentWidth);
+                    intConstants.add((arrLen - 1) * contentWidth);
+                }
+            }
+        }
         intConstants.add(0);
         intConstants.add(1);
         intConstants.add(-1);
@@ -260,7 +287,14 @@ public class IntervalGenerator extends AbstractAnalysis {
             for (String c : domC) {
                 if (literalMap.containsKey(c)) {
                     int primVal = literalMap.get(c);
-                    relConstU.add(c, new Interval(primVal).toString());
+                    for (Interval itv : sortedITVs) {
+                        if (itv.contains(primVal)) {
+                            relConstU.add(c, itv.toString());
+                            literalToInterval.put(primVal, itv);
+                            break;
+                        }
+                    }
+
                 } else {
                     for (Interval itv : sortedITVs) {
                         relConstU.add(c, itv.toString());
@@ -295,9 +329,7 @@ public class IntervalGenerator extends AbstractAnalysis {
             // build predicates
             Set<Interval> allItvs = new LinkedHashSet<>();
             allItvs.add(Interval.EMPTY);
-            for (Interval itv: sortedITVs) {
-                allItvs.add(itv);
-            }
+            allItvs.addAll(sortedITVs);
             for (ItvPredicate up : ItvPredicate.allPredicates()) {
                 for (Interval u1 : allItvs) {
                     for (Interval u2 : allItvs) {
@@ -335,13 +367,13 @@ public class IntervalGenerator extends AbstractAnalysis {
                     if (regToLiteral.containsKey(condv)) {
                         Integer l1 = regToLiteral.get(condv);
                         if (l1 != null) {
-                            u1 = new Interval(l1);
-                            u2 = new Interval(0);
+                            u1 = literalToInterval.get(l1);
+                            u2 = Interval.ZERO;
                         }
                         //Messages.debug("IntervalGenerator: cond-var %s is literal %s", condv, u1);
                     } else if (regToHeap.containsKey(condv)) {
                         h1 = regToHeap.get(condv);
-                        u2 = new Interval(0);
+                        u2 = Interval.ZERO;
                         pred = new ItvPredicate(Constants.OP_NE, negated);
                         //Messages.debug("IntervalGenerator: cond-var %s is var %s", condv, h1);
                     } else if (regToBinop.containsKey(condv)) {
@@ -350,11 +382,11 @@ public class IntervalGenerator extends AbstractAnalysis {
                         pred = new ItvPredicate(binop.getLeft(), negated);
                         String v1 = binop.getMiddle();
                         Integer l1 = regToLiteral.get(v1);
-                        if (l1 != null) u1 = new Interval(l1);
+                        if (l1 != null) u1 = literalToInterval.get(l1);
                         h1 = regToHeap.get(v1);
                         String v2 = binop.getRight();
                         Integer l2 = regToLiteral.get(v2);
-                        if (l2 != null) u2 = new Interval(l2);
+                        if (l2 != null) u2 = literalToInterval.get(l2);
                         h2 = regToHeap.get(v2);
                     }
                     assert ((u1 == null || h1 == null) && (u2 == null || h2 == null));

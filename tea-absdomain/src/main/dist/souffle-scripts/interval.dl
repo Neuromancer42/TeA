@@ -161,6 +161,8 @@
 .decl ci_postPHval(p:P, h:H, c:U)
 .decl ci_PHval(p:P, h:H, c:U)
 .output ci_PHval
+.decl ci_gHval(h:H, c:U)
+.output ci_gHval
 .decl ci_Vval(v:V, c:U)
 .output ci_Vval
 //.decl ci_Fval(h:H, f:F, c:U)
@@ -169,6 +171,8 @@
 .decl ci_postPHoffset(p:P, h:H, content:H, type:T, offset:U)
 .decl ci_PHoffset(p:P, h:H, content:H, type:T, offset:U)
 .output ci_PHoffset
+.decl ci_gHoffset(h:H, content:H, type:T, offset:U)
+.output ci_gHoffset
 .decl ci_Voffset(v:V,content:H,type:T,offset:U)
 .output ci_Voffset
 
@@ -182,6 +186,20 @@
 .decl Uinput(c:U)
 .input Uinput
 
+.decl GlobalAllocMem(v:V,h:H)
+.input GlobalAllocMem
+.decl AllocMem(v:V,h:H)
+.input AllocMem
+.decl HeapStructField(h:H,f:F,o:H)
+.input HeapStructField
+
+.decl MP(m:M, p:P)
+.input MP
+.decl LocalMH(m:M, h:H)
+.input LocalMH
+.decl NonLocalMH(m:M, h:H)
+.input NonLocalMH
+
 .decl ci_reachableV(v:V)
 
 ci_reachableV(v) :- ci_reachableM(m), MV(m,v).
@@ -192,6 +210,7 @@ ci_Vval(v,u) :- ci_reachableV(v), Ebinop(v, o, v1, v2), ci_Vval(v1, u1), ci_Vval
 ci_Vval(v,u) :- ci_reachableV(v), Eprimcast(v, _, v0), ci_Vval(v0, u).
 ci_Vval(v,u) :- ci_reachableV(v), Eprimcast(v, _, v0), ci_pt(v0, _), Uunknown(u). // casting from ptr to scalar goes to unknown
 ci_Vval(u,c) :- Pload(p,u), LoadPtr(u,v), ci_pt(v,h), ci_PHval(p,h,c).
+ci_Vval(u,c) :- Pload(p,u), LoadPtr(u,v), ci_pt(v,h), ci_gHval(h,c), MP(m,p), NonLocalMH(m,h).
 ci_Vval(v,c) :- ci_reachableV(v), Esizeof(v,p), ci_pt(p,content), VarArrayShape(content,_,x), ci_Vval(x,c).
 ci_Vval(v,c) :- ci_reachableV(v), Esizeof(v,p), ci_pt(p,content), FixArrayShape(content,_,b), ConstU(b,c).
 
@@ -206,9 +225,14 @@ ci_PHval(q,h2,c2) :- PPtrue(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), 
 ci_PHval(q,h2,c2) :- PPfalse(p,q,v), PredR(v,pred,c1,h2), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
 ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
 ci_PHval(q,h1,c1), ci_PHval(q,h2,c2) :- PPfalse(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
+ci_PHval(q,h1,c1) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_gHval(h2,c2), MP(m,p), NonLocalMH(m,h2), MaySat(pred,c1,c2).
+ci_PHval(q,h1,c1) :- PPfalse(p,q,v), Pred2(v,pred,h1,h2), ci_postPHval(p,h1,c1), ci_gHval(h2,c2), MP(m,p), NonLocalMH(m,h2), MayUnsat(pred,c1,c2).
+ci_PHval(q,h2,c2) :- PPtrue(p,q,v), Pred2(v,pred,h1,h2), ci_gHval(h1,c1), MP(m,p), NonLocalMH(m,h1), ci_postPHval(p,h2,c2), MaySat(pred,c1,c2).
+ci_PHval(q,h2,c2) :- PPfalse(p,q,v), Pred2(v,pred,h1,h2), ci_gHval(h1,c1), MP(m,p), NonLocalMH(m,h1), ci_postPHval(p,h2,c2), MayUnsat(pred,c1,c2).
 
-ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_strong_update(p,h).
-ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), P_weak_update(p,h).
+ci_gHval(h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), MP(m,p), NonLocalMH(m,h).
+ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), MP(m,p), LocalMH(m,h), P_strong_update(p,h).
+ci_postPHval(p,h,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Vval(v,c), MP(m,p), LocalMH(m,h), P_weak_update(p,h).
 ci_postPHval(p,h,c) :- Pstore(p,_), ci_PHval(p,h,c), P_weak_update(p,h).
 ci_postPHval(p,h,c) :- Pstore(p,_), ci_PHval(p,h,c), P_no_update(p,h).
 ci_postPHval(p,h,c) :- Peval(p,_,_), ci_PHval(p,h,c).
@@ -219,11 +243,12 @@ ci_postPHval(p,h,c) :- Pnoop(p), ci_PHval(p,h,c).
 ci_Vval(u,c) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_Vval(v,c).
 ci_Vval(v,c) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_Vval(u,c).
 // suppose all memobj are un-initialized
-ci_PHval(p,h,c) :- MPentry(m,p), ci_MH(m,h), Uempty(c), primH(h).
+ci_PHval(p,h,c) :- MPentry(m,p), ci_MH(m,h), primH(h), LocalMH(m,h), Uempty(c).
+ci_gHval(h,c) :- primH(h), Uempty(c).
 // implicit arguments/returns are passed by pointers
-ci_PHval(q,h,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHval(p,h,c), ci_MH(m,h).
-ci_postPHval(p,h,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHval(q,h,c), ci_PHval(p,h,_).
-ci_postPHval(p,h,c) :- Pinvk(p,i), ci_PHval(p,h,c), ci_IM(i,m), ci_non_MH(m,h).
+ci_gHval(h,c) :- ci_PHval(p,h,c), Pinvk(p,i), ci_IM(i,m), ci_MH(m,h).
+ci_postPHval(p,h,c) :- ci_gHval(h,c), ci_PHval(p,h,_), Pinvk(p,i), ci_IM(i,m), ci_MH(m,h).
+ci_postPHval(p,h,c) :- ci_PHval(p,h,c), Pinvk(p,i), ci_IM(i,m), ci_non_MH(m,h).
 //ci_postPHval(p,h,c) :- Pinvk(p,i), ci_PHval(p,h,c), ci_IM(i,m), ExtMeth(m). // treat all external methods as pure, i.e. no heaps are touched
 
 inputV(p,u) :- Pinvk(p,i), ci_IM(i,m), IinvkArg(i,z,u), argInput(m,z).
@@ -234,7 +259,8 @@ inputH(p,o) :- inputH(p,h), ci_fpt(h,_,o).
 inputH(p,o) :- inputH(p,h), HeapArrayContent(h,o).
 
 ci_Vval(v,c) :- inputV(_,v), Uinput(c).
-ci_postPHval(p,h,c) :- inputH(p,h), primH(h), Uinput(c).
+ci_postPHval(p,h,c) :- inputH(p,h), primH(h), MP(m,p), LocalMH(m,h), Uinput(c).
+ci_gHval(h,c) :- inputH(p,h), primH(h), MP(m,p), NonLocalMH(m,h), Uinput(c).
 
 // computing array content offsets
 // 1: dereferencing an array object gets its first element
@@ -256,12 +282,14 @@ ci_Voffset(v,content,t,u) :- ci_reachableM(m), MV(m, v), Ebinop(v, o, v1, v2), c
 ci_Voffset(v,content,t,u) :- ci_reachableM(m), MV(m, v), Ebinop(v, o, v1, v2), ci_Vval(v1, u1), ci_Voffset(v2, content, t, u2), evalBinopU(o, u1, u2, u), PtrOP(o).
 // 5: store and fetch from heaps (no need to refine field-pt, as it may not points to array contents)
 ci_Voffset(u,content,t,c) :- Pload(p,u), LoadPtr(u,v), ci_pt(v,h), ci_PHoffset(p,h,content,t,c).
+ci_Voffset(u,content,t,c) :- Pload(p,u), LoadPtr(u,v), ci_pt(v,h), ci_gHoffset(h,content,t,c), MP(m,p), NonLocalMH(m,h).
 ci_PHoffset(q,h,content,t,c) :- PPdirect(p,q), ci_postPHoffset(p,h,content,t,c).
 ci_PHoffset(q,h,content,t,c) :- PPtrue(p,q,_), ci_postPHoffset(p,h,content,t,c).
 ci_PHoffset(q,h,content,t,c) :- PPfalse(p,q,_), ci_postPHoffset(p,h,content,t,c).
 
-ci_postPHoffset(p,h,content,t,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Voffset(v,content,t,c), P_strong_update(p,h).
-ci_postPHoffset(p,h,content,t,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Voffset(v,content,t,c), P_weak_update(p,h).
+ci_gHoffset(h,content,t,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Voffset(v,content,t,c), MP(m,p), NonLocalMH(m,h).
+ci_postPHoffset(p,h,content,t,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Voffset(v,content,t,c), MP(m,p), LocalMH(m,h), P_strong_update(p,h).
+ci_postPHoffset(p,h,content,t,c) :- Pstore(p,v), StorePtr(u,v), ci_pt(u,h), ci_Voffset(v,content,t,c), MP(m,p), LocalMH(m,h), P_weak_update(p,h).
 ci_postPHoffset(p,h,content,t,c) :- Pstore(p,_), ci_PHoffset(p,h,content,t,c), P_weak_update(p,h).
 ci_postPHoffset(p,h,content,t,c) :- Pstore(p,_), ci_PHoffset(p,h,content,t,c), P_no_update(p,h).
 ci_postPHoffset(p,h,content,t,c) :- Peval(p,_,_), ci_PHoffset(p,h,content,t,c).
@@ -272,7 +300,7 @@ ci_postPHoffset(p,h,content,t,c) :- Pnoop(p), ci_PHoffset(p,h,content,t,c).
 ci_Voffset(u,content,t,c) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_Voffset(v,content,t,c).
 ci_Voffset(v,content,t,c) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_Voffset(u,content,t,c).
 // implicit arguments/returns are passed by pointers
-ci_PHoffset(q,h,content,t,c) :- Pinvk(p,i), ci_IM(i,m), MPentry(m,q), ci_PHoffset(p,h,content,t,c), ci_MH(m,h).
-ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_IM(i,m), MPexit(m,q), ci_postPHoffset(q,h,content,t,c), ci_PHoffset(p,h,_,_,_).
-ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_PHoffset(p,h,content,t,c), ci_IM(i,m), ci_non_MH(m,h).
+ci_gHoffset(h,content,t,c) :- ci_PHoffset(p,h,content,t,c), Pinvk(p,i), ci_IM(i,m), ci_MH(m,h).
+ci_postPHoffset(p,h,content,t,c) :- ci_gHoffset(h,content,t,c), ci_PHoffset(p,h,_,_,_), Pinvk(p,i), ci_IM(i,m), ci_MH(m,h).
+ci_postPHoffset(p,h,content,t,c) :- ci_PHoffset(p,h,content,t,c), Pinvk(p,i), ci_IM(i,m), ci_non_MH(m,h).
 //ci_postPHoffset(p,h,content,t,c) :- Pinvk(p,i), ci_PHoffset(p,h,content,t,c), ci_IM(i,m), ExtMeth(m). // treat all external methods as pure, i.e. no heaps are touched

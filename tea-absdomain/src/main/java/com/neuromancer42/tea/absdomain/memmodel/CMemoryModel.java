@@ -43,16 +43,24 @@ public class CMemoryModel extends AbstractAnalysis {
     public ProgramDom domV;
     @ConsumeDom(description = "allocation instructions")
     public ProgramDom domA;
+    @ConsumeDom(description = "program points, used for locate allocations")
+    public ProgramDom domP;
     @ConsumeRel(doms = {"V", "A", "T"})
     public ProgramRel relGlobalAlloca;
     @ConsumeRel(doms = {"V", "A", "T"})
     public ProgramRel relAlloca;
+    @ConsumeRel(doms = {"M", "P"})
+    public ProgramRel relMP;
+    @ConsumeRel(doms = {"P", "V"})
+    public ProgramRel relPalloc;
 
     // Note : dynamic objects, "malloc-ed" ones
     @ConsumeDom(description = "invocations")
     public ProgramDom domI;
     @ConsumeDom
     public ProgramDom domZ;
+    @ConsumeRel(doms = {"M", "I"})
+    public ProgramRel relMI;
     @ConsumeRel(name = "StaticCall", doms = {"I", "M"})
     public ProgramRel relStaticCall;
     @ConsumeRel(name = "IinvkRet", doms = {"I", "V"})
@@ -72,6 +80,10 @@ public class CMemoryModel extends AbstractAnalysis {
     public ProgramRel relMallocMem;
     @ProduceRel(doms = {"C", "H"}, description = "abstraction of nullptr or wild pointers")
     public ProgramRel relConstAddr;
+    @ProduceRel(doms = {"M", "H"}, description = "objects allocated in current method")
+    public ProgramRel relLocalMH;
+    @ProduceRel(doms = {"M", "H"}, description = "objects allocated outside current method")
+    public ProgramRel relNonLocalMH;
 
     // 1. array to its contents
     //    Note i: do not distinguish different elements in an array for points-to analysis
@@ -109,6 +121,8 @@ public class CMemoryModel extends AbstractAnalysis {
     private final Map<IMemObj, String> contentVarLenMap = new LinkedHashMap<>();
     private final Map<IMemObj, Map<String, IMemObj>> heapStructFieldMap = new LinkedHashMap<>();
 
+    private final Map<String, Set<String>> localObjMap = new HashMap<>();
+
     private final Set<IMemObj> primitiveObjs = new LinkedHashSet<>();
 
     public CMemoryModel(Path path) {
@@ -127,6 +141,7 @@ public class CMemoryModel extends AbstractAnalysis {
         relArrContentType.load();
 
         domM = inputDoms.get("M");
+        domP = inputDoms.get("P");
         relFuncRef = inputRels.get("funcRef");
         relFuncRef.load();
         domV = inputDoms.get("V");
@@ -135,9 +150,15 @@ public class CMemoryModel extends AbstractAnalysis {
         relGlobalAlloca.load();
         relAlloca = inputRels.get("Alloca");
         relAlloca.load();
+        relMP = inputRels.get("MP");
+        relMP.load();
+        relPalloc = inputRels.get("Palloc");
+        relPalloc.load();
 
         domI = inputDoms.get("I");
         domZ = inputDoms.get("Z");
+        relMI = inputRels.get("MI");
+        relMI.load();
         relStaticCall = inputRels.get("StaticCall");
         relStaticCall.load();
         relIinvkRet = inputRels.get("IinvkRet");
@@ -150,6 +171,8 @@ public class CMemoryModel extends AbstractAnalysis {
         relAllocMem = new ProgramRel("AllocMem", domV, domH);
         relMallocMem = new ProgramRel("MallocMem", domV, domH);
         relConstAddr = new ProgramRel("ConstHeap", domC, domH);
+        relLocalMH = new ProgramRel("LocalMH", domM, domH);
+        relNonLocalMH = new ProgramRel("NonLocalMH", domM, domH);
         relHeapArrayContent = new ProgramRel("HeapArrayContent", domH, domH);
         relFixArrayShape = new ProgramRel("FixArrayShape", domH, domT, domC);
         relVarArrayShape = new ProgramRel("VarArraYShape", domH, domT, domA);
@@ -163,6 +186,8 @@ public class CMemoryModel extends AbstractAnalysis {
         relAllocMem.init();
         relMallocMem.init();
         relConstAddr.init();
+        relLocalMH.init();
+        relNonLocalMH.init();
         relHeapArrayContent.init();
         relFixArrayShape.init();
         relVarArrayShape.init();
@@ -178,7 +203,10 @@ public class CMemoryModel extends AbstractAnalysis {
         relFuncRef.close();
         relGlobalAlloca.close();
         relAlloca.close();
+        relMP.close();
+        relPalloc.close();
 
+        relMI.close();
         relStaticCall.close();
         relIinvkRet.close();
         relIinvkArg.close();
@@ -191,6 +219,10 @@ public class CMemoryModel extends AbstractAnalysis {
         relMallocMem.close();
         relConstAddr.save(getOutDir());
         relConstAddr.close();
+        relLocalMH.save(getOutDir());
+        relLocalMH.close();
+        relNonLocalMH.save(getOutDir());
+        relNonLocalMH.close();
         relHeapArrayContent.save(getOutDir());
         relHeapArrayContent.close();
         relFixArrayShape.save(getOutDir());
@@ -218,6 +250,25 @@ public class CMemoryModel extends AbstractAnalysis {
 
     @Override
     protected void domPhase() {
+        Map<String, String> allocVinM = new HashMap<>();
+        {
+            Map<String, String> PinM = new HashMap<>();
+            for (Object[] tuple : relMP.getValTuples()) {
+                String m = (String) tuple[0];
+                String p = (String) tuple[1];
+                PinM.put(p, m);
+            }
+            for (Object[] tuple : relPalloc.getValTuples()) {
+                String p = (String) tuple[0];
+                String v = (String) tuple[1];
+                String m = PinM.get(p);
+                if (m != null) {
+                    allocVinM.put(v,m);
+                } else {
+                    Messages.error("CMemoryModel: Program point %s not in any method", p);
+                }
+            }
+        }
         for (Object[] tuple : relStructFldType.getValTuples()) {
             String baseType = (String) tuple[0];
             String field = (String) tuple[1];
@@ -243,7 +294,7 @@ public class CMemoryModel extends AbstractAnalysis {
             String v = (String) tuple[0];
             String variable = (String) tuple[1];
             String type = (String) tuple[2];
-            IMemObj vObj = createStackObj(variable, type);
+            IMemObj vObj = createStackObj(variable, type, null);
             Messages.debug("CMemoryModel: alloc global %s <- {%s}", v, vObj.toString());
             refRegObjMap.put(v, vObj);
         }
@@ -251,7 +302,7 @@ public class CMemoryModel extends AbstractAnalysis {
             String v = (String) tuple[0];
             String variable = (String) tuple[1];
             String type = (String) tuple[2];
-            IMemObj vObj = createStackObj(variable, type);
+            IMemObj vObj = createStackObj(variable, type, allocVinM.get(v));
             Messages.debug("CMemoryMode: alloc local %s <- {%s}", v, vObj.toString());
             refRegObjMap.put(v, vObj);
         }
@@ -262,6 +313,14 @@ public class CMemoryModel extends AbstractAnalysis {
             if (mallocLikeFuncs.contains(f)) {
                 String i = (String) tuple[0];
                 mallocInvks.add(i);
+            }
+        }
+        Map<String, String> mallocInM = new HashMap<>();
+        for (Object[] tuple : relMP.getValTuples()) {
+            String i = (String) tuple[1];
+            if (mallocInvks.contains(i)) {
+                String m = (String) tuple[0];
+                mallocInM.put(i, m);
             }
         }
         for (Object[] tuple : relIinvkRet.getValTuples()) {
@@ -285,12 +344,13 @@ public class CMemoryModel extends AbstractAnalysis {
         for (String i : mallocInvks) {
             String baseVar = mallocVarMap.get(i);
             String sizeVar = mallocSizeMap.get(i);
+            String inMeth = mallocInM.get(i);
             if (baseVar == null) {
                 Messages.error("CMemoryModel: malloc invocation {%s} has no ret var", i);
             } else if (sizeVar == null) {
                 Messages.error("CMemoryModel: malloc invocation {%s} has no size var specified", i);
             } else {
-                IMemObj obj = createMallocObj(sizeVar);
+                IMemObj obj = createMallocObj(sizeVar, inMeth);
                 Messages.debug("CMemoryModel: malloc %s <- {%s}", baseVar, obj.toString());
                 refRegObjMap.put(baseVar, obj);
             }
@@ -352,6 +412,16 @@ public class CMemoryModel extends AbstractAnalysis {
                 relHeapStructField.add(baseObj.toString(), field, fieldPtrObj.toString());
             }
         }
+        for (String m : domM) {
+            Set<String> localObjs = localObjMap.getOrDefault(m, Set.of());
+            for (String h : domH) {
+                if (localObjs.contains(h)) {
+                    relLocalMH.add(m, h);
+                } else {
+                    relNonLocalMH.add(m, h);
+                }
+            }
+        }
         for (IMemObj primObj : primitiveObjs) {
             relPrimH.add(primObj.toString());
         }
@@ -364,19 +434,23 @@ public class CMemoryModel extends AbstractAnalysis {
 
     private IMemObj createFuncObj(String m) {
         IMemObj funcObj = new FuncObj(m);
+        localObjMap.computeIfAbsent(m, k -> new HashSet<>()).add(funcObj.toString());
         Messages.debug("CMemoryModel: create mem object for function [%s]", funcObj.toString());
         return funcObj;
     }
 
     private static final IMemObj nullObj = new StackObj("*"+Constants.NULL, Constants.TYPE_VOID);
 
-    private IMemObj createStackObj(String accessPath, String type) {
+    private IMemObj createStackObj(String accessPath, String type, String inMeth) {
         if (accessPath.equals(Constants.NULL)) {
             Messages.debug("CMemoryModel: find null object %s", accessPath);
             return nullObj;
         }
         IMemObj obj = new StackObj(accessPath, type);
         stackObjs.add(obj);
+        if (inMeth != null) {
+            localObjMap.computeIfAbsent(inMeth, k -> new HashSet<>()).add(obj.toString());
+        }
         Messages.debug("CMemoryModel: create stack object {%s}", obj.toString());
         if (arrTypeContentMap.containsKey(type)) {
             String contentType = arrTypeContentMap.get(type);
@@ -385,7 +459,7 @@ public class CMemoryModel extends AbstractAnalysis {
             Map<String, IMemObj> posMap = new LinkedHashMap<>();
             String posStr = "0";
             String contentPath = accessPath + "[" + posStr + "]";
-            IMemObj contentObj = createStackObj(contentPath, contentType);
+            IMemObj contentObj = createStackObj(contentPath, contentType, inMeth);
             posMap.put(posStr, contentObj);
             heapArrayContentMap.put(obj, contentObj);
             contentTypeMap.put(contentObj, contentType);
@@ -395,7 +469,7 @@ public class CMemoryModel extends AbstractAnalysis {
             for (String field : fieldMap.keySet()) {
                 String fieldPath = accessPath + "." + field;
                 String fieldType = fieldMap.get(field);
-                IMemObj fieldObj = createStackObj(fieldPath, fieldType);
+                IMemObj fieldObj = createStackObj(fieldPath, fieldType, inMeth);
                 heapStructFieldMap.computeIfAbsent(obj, o -> new LinkedHashMap<>()).put(field, fieldObj);
             }
         } else if (!type.endsWith("*")) {
@@ -405,11 +479,15 @@ public class CMemoryModel extends AbstractAnalysis {
         return obj;
     }
 
-    private IMemObj createMallocObj(String sizeVarReg) {
+    private IMemObj createMallocObj(String sizeVarReg, String inMeth) {
         IMemObj obj = new StackObj("malloc(" + sizeVarReg + ")", Constants.TYPE_CHAR+"*");
         stackObjs.add(obj);
         IMemObj contentObj = new StackObj("*malloc(" + sizeVarReg + ")", Constants.TYPE_VOID);
         stackObjs.add(contentObj);
+        if (inMeth != null) {
+            localObjMap.putIfAbsent(inMeth, new HashSet<>());
+            localObjMap.get(inMeth).addAll(List.of(obj.toString(), contentObj.toString()));
+        }
         Messages.debug("CMemoryModel: create malloc-ed object {%s}", contentObj.toString());
         heapArrayContentMap.put(obj, contentObj);
         contentTypeMap.put(contentObj, Constants.TYPE_CHAR);

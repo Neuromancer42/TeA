@@ -20,6 +20,23 @@ import java.util.Map;
 public class CMemModelTest {
     private static Path workDirPath = Paths.get("test-out");
 
+    private static void setRel(String dir, Map<String, String> relLocMap, ProgramRel rel, Object[] ... tuples) {
+        rel.init();
+        for (Object[] tuple : tuples) {
+            rel.add(tuple);
+        }
+        rel.save(dir);
+        rel.close();
+        relLocMap.put(rel.getName(), rel.getLocation());
+    }
+
+    private static void setDom(String dir, Map<String, String> domLocMap, ProgramDom dom, String ... elems) {
+        dom.init();
+        for (String elem : elems)
+            dom.add(elem);
+        dom.save(dir);
+        domLocMap.put(dom.getName(), dom.getLocation());
+    }
     @Test
     @DisplayName("CMemModel processes func-ptrs coccretly")
     public void funcPtrTest() throws IOException {
@@ -33,97 +50,65 @@ public class CMemModelTest {
         String fooName = "@foo";
 
         ProgramDom domV = new ProgramDom("V");
-        domV.init();
-        domV.add(fooName);
-        domV.save(dir);
-        domLocMap.put("V", dir);
+        setDom(dir, domLocMap, domV, fooName);
 
         ProgramDom domM = new ProgramDom("M");
-        domM.init();
-        domM.add(foo);
-        domM.save(dir);
-        domLocMap.put("M", dir);
+        setDom(dir, domLocMap, domM, foo);
+
+        ProgramDom domP = new ProgramDom("P");
+        setDom(dir, domLocMap, domP);
 
         ProgramDom domT = new ProgramDom("T");
-        domT.init();
-        domT.save(dir);
-        domLocMap.put("T", dir);
+        setDom(dir, domLocMap, domT);
 
         ProgramDom domF = new ProgramDom("F");
-        domF.init();
-        domF.save(dir);
-        domLocMap.put("F", dir);
+        setDom(dir, domLocMap, domF);
 
         ProgramDom domA = new ProgramDom("A");
-        domA.init();
-        domA.save(dir);
-        domLocMap.put("A", dir);
+        setDom(dir, domLocMap, domA);
 
         ProgramDom domC = new ProgramDom("C");
-        domC.init();
-        domC.add(Constants.NULL);
-        domC.save(dir);
-        domLocMap.put("C", dir);
+        setDom(dir, domLocMap, domC, Constants.NULL);
 
         ProgramDom domI = new ProgramDom("I");
-        domI.init();
-        domI.save(dir);
-        domLocMap.put("I", dir);
+        setDom(dir, domLocMap, domI);
 
         ProgramDom domZ = new ProgramDom("Z");
-        domZ.init();
-        domZ.save(dir);
-        domLocMap.put("Z", dir);
+        setDom(dir, domLocMap, domZ);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
-        relFuncRef.init();
-        relFuncRef.add(foo, fooName);
-        relFuncRef.save(dir);
-        relFuncRef.close();
-        relLocMap.put("funcRef", dir);
+        setRel(dir, relLocMap, relFuncRef, new Object[]{foo, fooName});
 
         ProgramRel relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA, domT);
-        relGlobalAlloca.init();
-        relGlobalAlloca.save(dir);
-        relGlobalAlloca.close();
-        relLocMap.put("GlobalAlloca", dir);
+        setRel(dir, relLocMap, relGlobalAlloca);
 
         ProgramRel relAlloca = new ProgramRel("Alloca", domV, domA, domT);
-        relAlloca.init();
-        relAlloca.save(dir);
-        relAlloca.close();
-        relLocMap.put("Alloca", dir);
+        setRel(dir, relLocMap, relAlloca);
+
+        ProgramRel relMP = new ProgramRel("MP", domM, domP);
+        setRel(dir, relLocMap, relMP);
+
+        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
+        setRel(dir, relLocMap, relPalloc);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
-        relStructFldType.init();
-        relStructFldType.save(dir);
-        relStructFldType.close();
-        relLocMap.put("StructFldType", dir);
+        setRel(dir, relLocMap, relStructFldType);
 
         ProgramRel relArrContentType = new ProgramRel("ArrContentType", domT, domT, domC);
-        relArrContentType.init();
-        relArrContentType.save(dir);
-        relArrContentType.close();
-        relLocMap.put("ArrContentType", dir);
+        setRel(dir, relLocMap, relArrContentType);
+
+        ProgramRel relMI = new ProgramRel("MI", domM, domI);
+        setRel(dir, relLocMap, relMI);
 
         ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
-        relStaticCall.init();
-        relStaticCall.save(dir);
-        relStaticCall.close();
-        relLocMap.put("StaticCall", dir);
+        setRel(dir, relLocMap, relStaticCall);
 
         ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
-        relIinvkRet.init();
-        relIinvkRet.save(dir);
-        relIinvkRet.close();
-        relLocMap.put("IinvkRet", dir);
+        setRel(dir, relLocMap, relIinvkRet);
 
         ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
-        relIinvkArg.init();
-        relIinvkArg.save(dir);
-        relIinvkArg.close();
-        relLocMap.put("IinvkArg", dir);
+        setRel(dir, relLocMap, relIinvkArg);
 
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);
@@ -151,101 +136,65 @@ public class CMemModelTest {
         String fType = "int";
 
         ProgramDom domV = new ProgramDom("V");
-        domV.init();
-        domV.add(aPtr);
-        domV.save(dir);
-        domLocMap.put("V", dir);
+        setDom(dir, domLocMap, domV, aPtr);
 
         ProgramDom domM = new ProgramDom("M");
-        domM.init();
-        domM.save(dir);
-        domLocMap.put("M", dir);
+        setDom(dir, domLocMap, domM);
+
+        ProgramDom domP = new ProgramDom("P");
+        setDom(dir, domLocMap, domP);
 
         ProgramDom domT = new ProgramDom("T");
-        domT.init();
-        domT.add(baseType);
-        domT.add(fType);
-        domT.save(dir);
-        domLocMap.put("T", dir);
+        setDom(dir, domLocMap, domT, baseType, fType);
 
         ProgramDom domF = new ProgramDom("F");
-        domF.init();
-        domF.add(field);
-        domF.save(dir);
-        domLocMap.put("F", dir);
+        setDom(dir, domLocMap, domF, field);
 
         ProgramDom domA = new ProgramDom("A");
-        domA.init();
-        domA.add(a);
-        domA.save(dir);
-        domLocMap.put("A", dir);
+        setDom(dir, domLocMap, domA, a);
 
         ProgramDom domC = new ProgramDom("C");
-        domC.init();
-        domC.add(Constants.NULL);
-        domC.save(dir);
-        domLocMap.put("C", dir);
+        setDom(dir, domLocMap, domC, Constants.NULL);
 
         ProgramDom domI = new ProgramDom("I");
-        domI.init();
-        domI.save(dir);
-        domLocMap.put("I", dir);
+        setDom(dir, domLocMap, domI);
 
         ProgramDom domZ = new ProgramDom("Z");
-        domZ.init();
-        domZ.save(dir);
-        domLocMap.put("Z", dir);
+        setDom(dir, domLocMap, domZ);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
-        relFuncRef.init();
-        relFuncRef.save(dir);
-        relFuncRef.close();
-        relLocMap.put("funcRef", dir);
+        setRel(dir, relLocMap, relFuncRef);
 
         ProgramRel relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA, domT);
-        relGlobalAlloca.init();
-        relGlobalAlloca.save(dir);
-        relGlobalAlloca.close();
-        relLocMap.put("GlobalAlloca", dir);
+        setRel(dir, relLocMap, relGlobalAlloca);
 
         ProgramRel relAlloca = new ProgramRel("Alloca", domV, domA, domT);
-        relAlloca.init();;
-        relAlloca.add(aPtr, a, baseType);
-        relAlloca.save(dir);
-        relAlloca.close();
-        relLocMap.put("Alloca", dir);
+        setRel(dir, relLocMap, relAlloca, new Object[]{aPtr, a, baseType});
+
+        ProgramRel relMP = new ProgramRel("MP", domM, domP);
+        setRel(dir, relLocMap, relMP);
+
+        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
+        setRel(dir, relLocMap, relPalloc);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
-        relStructFldType.init();
-        relStructFldType.add(baseType, field, fType);
-        relStructFldType.save(dir);
-        relStructFldType.close();
-        relLocMap.put("StructFldType", dir);
+        setRel(dir, relLocMap, relStructFldType, new Object[]{baseType, field, fType});
 
         ProgramRel relArrContentType = new ProgramRel("ArrContentType", domT, domT, domC);
-        relArrContentType.init();
-        relArrContentType.save(dir);
-        relArrContentType.close();
-        relLocMap.put("ArrContentType", dir);
+        setRel(dir, relLocMap, relArrContentType);
+
+        ProgramRel relMI = new ProgramRel("MI", domM, domI);
+        setRel(dir, relLocMap, relMI);
 
         ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
-        relStaticCall.init();
-        relStaticCall.save(dir);
-        relStaticCall.close();
-        relLocMap.put("StaticCall", dir);
+        setRel(dir, relLocMap, relStaticCall);
 
         ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
-        relIinvkRet.init();
-        relIinvkRet.save(dir);
-        relIinvkRet.close();
-        relLocMap.put("IinvkRet", dir);
+        setRel(dir, relLocMap, relIinvkRet);
 
         ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
-        relIinvkArg.init();
-        relIinvkArg.save(dir);
-        relIinvkArg.close();
-        relLocMap.put("IinvkArg", dir);
+        setRel(dir, relLocMap, relIinvkArg);
 
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);
@@ -273,101 +222,65 @@ public class CMemModelTest {
         String arrSize = "10";
 
         ProgramDom domV = new ProgramDom("V");
-        domV.init();
-        domV.add(xPtr);
-        domV.save(dir);
-        domLocMap.put("V", dir);
+        setDom(dir, domLocMap, domV, xPtr);
 
         ProgramDom domM = new ProgramDom("M");
-        domM.init();
-        domM.save(dir);
-        domLocMap.put("M", dir);
+        setDom(dir, domLocMap, domM, "M", dir);
+
+        ProgramDom domP = new ProgramDom("P");
+        setDom(dir, domLocMap, domP);
 
         ProgramDom domT = new ProgramDom("T");
-        domT.init();
-        domT.add(arrType);
-        domT.add(cType);
-        domT.save(dir);
-        domLocMap.put("T", dir);
+        setDom(dir, domLocMap, domT, arrType, cType);
 
         ProgramDom domF = new ProgramDom("F");
-        domF.init();
-        domF.save(dir);
-        domLocMap.put("F", dir);
+        setDom(dir, domLocMap, domF);
 
         ProgramDom domA = new ProgramDom("A");
-        domA.init();
-        domA.add(x);
-        domA.save(dir);
-        domLocMap.put("A", dir);
+        setDom(dir, domLocMap, domA, x);
 
         ProgramDom domC = new ProgramDom("C");
-        domC.init();
-        domC.add(arrSize);
-        domC.add(Constants.NULL);
-        domC.save(dir);
-        domLocMap.put("C", dir);
+        setDom(dir, domLocMap, domC, arrSize, Constants.NULL);
 
         ProgramDom domI = new ProgramDom("I");
-        domI.init();
-        domI.save(dir);
-        domLocMap.put("I", dir);
+        setDom(dir, domLocMap, domI);
 
         ProgramDom domZ = new ProgramDom("Z");
-        domZ.init();
-        domZ.save(dir);
-        domLocMap.put("Z", dir);
+        setDom(dir, domLocMap, domZ);
 
         Map<String, String> relLocMap = new LinkedHashMap<>();
         ProgramRel relFuncRef = new ProgramRel("funcRef", domM, domV);
-        relFuncRef.init();
-        relFuncRef.save(dir);
-        relFuncRef.close();
-        relLocMap.put("funcRef", dir);
+        setRel(dir, relLocMap, relFuncRef);
 
         ProgramRel relGlobalAlloca = new ProgramRel("GlobalAlloca", domV, domA, domT);
-        relGlobalAlloca.init();
-        relGlobalAlloca.save(dir);
-        relGlobalAlloca.close();
-        relLocMap.put("GlobalAlloca", dir);
+        setRel(dir, relLocMap, relGlobalAlloca);
 
         ProgramRel relAlloca = new ProgramRel("Alloca", domV, domA, domT);
-        relAlloca.init();;
-        relAlloca.add(xPtr, x, arrType);
-        relAlloca.save(dir);
-        relAlloca.close();
-        relLocMap.put("Alloca", dir);
+        setRel(dir, relLocMap, relAlloca, new Object[]{xPtr, x, arrType});
+
+        ProgramRel relMP = new ProgramRel("MP", domM, domP);
+        setRel(dir, relLocMap, relMP);
+
+        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
+        setRel(dir, relLocMap, relPalloc);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
-        relStructFldType.init();
-        relStructFldType.save(dir);
-        relStructFldType.close();
-        relLocMap.put("StructFldType", dir);
+        setRel(dir, relLocMap, relStructFldType);
 
         ProgramRel relArrContentType = new ProgramRel("ArrContentType", domT, domT, domC);
-        relArrContentType.init();
-        relArrContentType.add(arrType, cType, arrSize);
-        relArrContentType.save(dir);
-        relArrContentType.close();
-        relLocMap.put("ArrContentType", dir);
+        setRel(dir, relLocMap, relArrContentType, new Object[]{arrType, cType, arrSize});
+
+        ProgramRel relMI = new ProgramRel("MI", domM, domI);
+        setRel(dir, relLocMap, relMI);
 
         ProgramRel relStaticCall = new ProgramRel("StaticCall", domI, domM);
-        relStaticCall.init();
-        relStaticCall.save(dir);
-        relStaticCall.close();
-        relLocMap.put("StaticCall", dir);
+        setRel(dir, relLocMap, relStaticCall);
 
         ProgramRel relIinvkRet = new ProgramRel("IinvkRet", domI, domV);
-        relIinvkRet.init();
-        relIinvkRet.save(dir);
-        relIinvkRet.close();
-        relLocMap.put("IinvkRet", dir);
+        setRel(dir, relLocMap, relIinvkRet);
 
         ProgramRel relIinvkArg = new ProgramRel("IinvkArg", domI, domZ, domV);
-        relIinvkArg.init();
-        relIinvkArg.save(dir);
-        relIinvkArg.close();
-        relLocMap.put("IinvkArg", dir);
+        setRel(dir, relLocMap, relIinvkArg);
 
         CMemoryModel cmem = new CMemoryModel(path);
         Pair<Map<String, String>, Map<String, String>> output = AnalysisUtil.runAnalysis(cmem, domLocMap, relLocMap);

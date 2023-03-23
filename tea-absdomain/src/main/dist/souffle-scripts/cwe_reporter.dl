@@ -36,14 +36,17 @@
 .input evalMultU
 .decl evalLEU(o1:U,o2:U)
 .input evalLEU
+.decl HeapArrayContent(array:H,content:H)
+.input HeapArrayContent
 
-.decl CWE119_out_of_bound(p:P, v:V, content:H, type:T, o:U, bytes:U)
+.decl CWE119_out_of_bound(p:P, v:V, array:H)
 .output CWE119_out_of_bound
 
-CWE119_out_of_bound(p,v,content,t,o,bound) :-
+CWE119_out_of_bound(p,v,array) :-
     AccessArrayOffset(p,v,content,t,o),
     TypeWidth(t,c), ConstU(c,w), evalMultU(o,w,offset),
-    ArrayLength(content,bound), evalLEU(bound,offset).
+    ArrayLength(content,bound), evalLEU(bound,offset),
+    HeapArrayContent(array,content).
 
 .decl AccessArrayOffset(p:P,v:V,content:H,t:T,o:U)
 AccessArrayOffset(p,v,content,t,o) :-

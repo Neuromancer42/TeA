@@ -10,6 +10,8 @@ public class Interval {
     public static final Interval MIN_INF = new Interval(min_inf);
     public static final Interval MAX_INF = new Interval(max_inf);
     public static final Interval EMPTY = new Interval(max_bound, min_bound);
+    public static final Interval ZERO = new Interval(0);
+    public static final Interval ONE = new Interval(1);
 
     public final int lower;
     public final int upper;
