@@ -8,7 +8,7 @@ import "analysis/trgt.proto";
 service Provider {
     rpc GetFeature (Configs) returns (ProviderInfo) {}
     rpc RunAnalysis (RunRequest) returns (RunResults) {}
-    rpc Prove (ProveRequest) returns (ProveResponse) {}
+    rpc Prove (ProveRequest) returns (stream ProveResponse) {}
     rpc Instrument (InstrumentRequest) returns (InstrumentResponse) {}
     rpc Test (TestRequest) returns (TestResponse) {}
     rpc Shutdown (ShutdownRequest) returns (ShutdownResponse) {}

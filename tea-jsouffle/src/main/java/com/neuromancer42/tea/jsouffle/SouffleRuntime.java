@@ -487,7 +487,6 @@ public final class SouffleRuntime {
         public void prove(Analysis.ProveRequest request, StreamObserver<Analysis.ProveResponse> responseObserver) {
             Messages.log("SouffleRuntime: processing prove request");
             String projId = request.getProjectId();
-            Analysis.ProveResponse.Builder respBuilder = Analysis.ProveResponse.newBuilder();
             Set<Trgt.Tuple> targets = new LinkedHashSet<>(request.getTargetTupleList());
 
             Map<String, List<Trgt.Tuple>> queries = new LinkedHashMap<>();
@@ -508,14 +507,21 @@ public final class SouffleRuntime {
                 SouffleAnalysis.Instance analysisInstance = entry.getKey();
                 List<Trgt.Tuple> localTargets = entry.getValue();
                 List<Trgt.Constraint> localConstraints = analysisInstance.prove(localTargets);
-                respBuilder.addAllConstraint(localConstraints);
+                int chunkSize = 1000;
+                for (int l  = 0; l < localConstraints.size(); l += chunkSize) {
+                    int r = Math.min(l + chunkSize, localConstraints.size());
+                    Analysis.ProveResponse.Builder respBuilder = Analysis.ProveResponse.newBuilder();
+                    respBuilder.addAllConstraint(localConstraints.subList(l, r));
+                    responseObserver.onNext(respBuilder.build());
+                }
                 newTargets.addAll(localTargets);
             }
             targets = newTargets;
 
+            Analysis.ProveResponse.Builder respBuilder = Analysis.ProveResponse.newBuilder();
             respBuilder.addAllUnsolvedTuple(targets);
-            Analysis.ProveResponse proveResp = respBuilder.build();
-            responseObserver.onNext(proveResp);
+            responseObserver.onNext(respBuilder.build());
+
             responseObserver.onCompleted();
         }
 

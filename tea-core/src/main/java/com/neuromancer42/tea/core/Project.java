@@ -253,14 +253,16 @@ public class Project {
                         .setOption(Analysis.Configs.newBuilder().putAllProperty(option))
                         .addAllTargetTuple(targets)
                         .build();
-                Analysis.ProveResponse resp = provider.prove(req);
-                provBuilder.addConstraints(resp.getConstraintList());
-                for (Trgt.Tuple unsolved : resp.getUnsolvedTupleList()) {
-                    String prevAnalysis = relProducer.get(unsolved.getRelName());
-                    if (prevAnalysis == null) {
-                        inputTuples.add(unsolved);
-                    } else {
-                        analysisToTuples.computeIfAbsent(prevAnalysis, k -> new LinkedHashSet<>()).add(unsolved);
+                for (Iterator<Analysis.ProveResponse> it = provider.prove(req); it.hasNext(); ) {
+                    Analysis.ProveResponse resp = it.next();
+                    provBuilder.addConstraints(resp.getConstraintList());
+                    for (Trgt.Tuple unsolved : resp.getUnsolvedTupleList()) {
+                        String prevAnalysis = relProducer.get(unsolved.getRelName());
+                        if (prevAnalysis == null) {
+                            inputTuples.add(unsolved);
+                        } else {
+                            analysisToTuples.computeIfAbsent(prevAnalysis, k -> new LinkedHashSet<>()).add(unsolved);
+                        }
                     }
                 }
                 inclusiveTimer.stop();
