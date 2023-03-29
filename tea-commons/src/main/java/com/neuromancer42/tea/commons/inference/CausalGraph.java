@@ -18,16 +18,16 @@ import java.util.function.Function;
 public class CausalGraph {
     public static CausalGraph createCausalGraph(
             String name,
-            Collection<String> nodes,
-            Collection<String> singletons,
-            Map<String, List<String>> sums,
-            Map<String, List<String>> prods
+            Collection<Object> nodes,
+            Collection<Object> singletons,
+            Map<Object, List<Object>> sums,
+            Map<Object, List<Object>> prods
     ) {
-        IndexMap<String> nodeList = new IndexMap<>();
+        IndexMap<Object> nodeList = new IndexMap<>();
         nodeList.addAll(nodes);
 
         Set<Integer> singletonSet = new HashSet<>();
-        for (String singleton: singletons) {
+        for (Object singleton: singletons) {
             int nodeId = nodeList.indexOf(singleton);
             if (!nodeList.contains(singleton)) {
                 Messages.fatal("CausalGraph: unmet singleton " + singleton);
@@ -36,14 +36,14 @@ public class CausalGraph {
         }
 
         Map<Integer, List<Integer>> sumMap = new LinkedHashMap<>();
-        for (String head : sums.keySet()) {
+        for (Object head : sums.keySet()) {
             int headId = nodeList.indexOf(head);
             if (!nodeList.contains(head)) {
                 Messages.fatal("CausalGraph: unmet head " + head);
             }
             // use Set to eliminate duplicate items
             Set<Integer> bodyIds = new LinkedHashSet<>();
-            for (String sub : sums.get(head)) {
+            for (Object sub : sums.get(head)) {
                 int subId = nodeList.indexOf(sub);
                 if (!nodeList.contains(sub)) {
                     Messages.fatal("CausalGraph: unmet sub " + sub + "in head " + head);
@@ -57,14 +57,14 @@ public class CausalGraph {
         }
 
         Map<Integer, List<Integer>> prodMap = new LinkedHashMap<>();
-        for (String head : prods.keySet()) {
+        for (Object head : prods.keySet()) {
             int headId = nodeList.indexOf(head);
             if (!nodeList.contains(head)) {
                 Messages.fatal("CausalGraph: unmet head " + head);
             }
             // use Set to eliminate duplicate items
             Set<Integer> bodyIds = new LinkedHashSet<>();
-            for (String sub : prods.get(head)) {
+            for (Object sub : prods.get(head)) {
                 int subId = nodeList.indexOf(sub);
                 if (!nodeList.contains(sub)) {
                     Messages.fatal("CausalGraph: unmet sub " + sub + " in head " + head);
@@ -77,7 +77,7 @@ public class CausalGraph {
             prodMap.put(headId, new ArrayList<>(bodyIds));
         }
 
-        for (String node : nodes) {
+        for (Object node : nodes) {
             int occurrance = 0;
             if (singletons.contains(node)) occurrance += 1;
             if (sums.containsKey(node)) occurrance += 1;
@@ -94,11 +94,11 @@ public class CausalGraph {
 
     public static CausalGraph createCausalGraph(
             String name,
-            Collection<String> nodes,
-            Collection<String> singletons,
-            Map<String, List<String>> sums,
-            Map<String, List<String>> prods,
-            Map<String, Categorical01> distMap
+            Collection<Object> nodes,
+            Collection<Object> singletons,
+            Map<Object, List<Object>> sums,
+            Map<Object, List<Object>> prods,
+            Map<Object, Categorical01> distMap
     ) {
         CausalGraph causalGraph = createCausalGraph(name, nodes, singletons, sums, prods);
         causalGraph.setStochNodes(distMap);
@@ -106,7 +106,7 @@ public class CausalGraph {
     }
 
     // Nodes should better be Set<>, but for stability, we use ordered structure
-    private final IndexMap<String> nodes;
+    private final IndexMap<Object> nodes;
     // each node either correspond to a sum or a product, or is a singleton
     private final Set<Integer> singletons;
     private final Map<Integer, List<Integer>> sums;
@@ -127,7 +127,7 @@ public class CausalGraph {
 
     private CausalGraph(
             String name,
-            IndexMap<String> nodes,
+            IndexMap<Object> nodes,
             Set<Integer> singletons,
             Map<Integer, List<Integer>> sums,
             Map<Integer, List<Integer>> prods
@@ -161,7 +161,7 @@ public class CausalGraph {
         this.stochMap.putAll(cg.stochMap);
     }
 
-    public void setStochNode(String node, Categorical01 dist) {
+    public void setStochNode(Object node, Categorical01 dist) {
         if (!nodes.contains(node)) {
             Messages.error("CausalGraph: skip unmet stochastic node " + node);
             return;
@@ -172,9 +172,9 @@ public class CausalGraph {
         this.stochMap.put(nodeId, distId);
     }
 
-    public void setStochNodes(Map<String, Categorical01> distMap) {
-        for (Map.Entry<String, Categorical01> stochNodeEntry : distMap.entrySet()) {
-            String node = stochNodeEntry.getKey();
+    public void setStochNodes(Map<Object, Categorical01> distMap) {
+        for (Map.Entry<Object, Categorical01> stochNodeEntry : distMap.entrySet()) {
+            Object node = stochNodeEntry.getKey();
             Categorical01 dist = stochNodeEntry.getValue();
             setStochNode(node, dist);
         }
@@ -256,7 +256,7 @@ public class CausalGraph {
         }
     }
 
-    private void dumpDotSubgraph(List<String> lines, Function<String, String> nodeRepr, Integer trace) {
+    private void dumpDotSubgraph(List<String> lines, Function<Object, String> nodeRepr, Integer trace) {
         String suffix = trace==null ? "_x" : ("_"+trace);
         lines.add("\tsubgraph cluster"+suffix+" {");
         lines.add("\t\tlabel=\"trace"+suffix+"\";");
@@ -265,7 +265,7 @@ public class CausalGraph {
             lb.append("\t\t");
             lb.append("n").append(nodeId).append(suffix);
             lb.append(" [");
-            String node = nodes.get(nodeId);
+            Object node = nodes.get(nodeId);
 
             String label = nodeRepr.apply(node);
             if (trace == null) label = (nodeId + distNodes.size()) + "\n" + label;
@@ -322,11 +322,11 @@ public class CausalGraph {
         lines.add("\t}");
     }
 
-    public void dumpDot(Path dotFilePath, Function<String, String> nodeRepr, Function<Categorical01, String> distRepr) {
+    public void dumpDot(Path dotFilePath, Function<Object, String> nodeRepr, Function<Categorical01, String> distRepr) {
         dumpDot(dotFilePath, nodeRepr, distRepr, 0);
     }
 
-    public void dumpDot(Path dotFilePath, Function<String, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
+    public void dumpDot(Path dotFilePath, Function<Object, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
         List<String> lines = new ArrayList<>();
         lines.add("digraph G{");
 
@@ -360,7 +360,7 @@ public class CausalGraph {
         }
     }
 
-    public Integer getNodeId(String node) {
+    public Integer getNodeId(Object node) {
         int nodeId = nodes.indexOf(node);
         if (nodeId < 0)
             return null;
@@ -368,13 +368,13 @@ public class CausalGraph {
             return nodeId;
     }
 
-    public String getNode(Integer nodeId) {
+    public Object getNode(Integer nodeId) {
         return nodes.get(nodeId);
     }
 
-    public Set<String> getAllNodes() {
-        Set<String> allNodes = new HashSet<>();
-        for (String node: nodes) {
+    public Set<Object> getAllNodes() {
+        Set<Object> allNodes = new HashSet<>();
+        for (Object node: nodes) {
             allNodes.add(node);
         }
         return allNodes;
@@ -416,7 +416,7 @@ public class CausalGraph {
         return singletons.iterator();
     }
 
-    public Integer addNode(String node) {
+    public Integer addNode(Object node) {
         this.nodes.add(node);
         return this.nodes.indexOf(node);
     }

@@ -3,14 +3,13 @@ package com.neuromancer42.tea.libdai;
 import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
-import com.neuromancer42.tea.commons.configs.Messages;
 
 import java.nio.file.Path;
 import java.util.*;
 
 public class DynaboostCausalDriver extends AbstractCausalDriver {
     public static final String type = "dynaboost";
-    private final Map<String, Integer> obsCount = new LinkedHashMap<>();
+    private final Map<Object, Integer> obsCount = new LinkedHashMap<>();
     private final double ruleProb = Double.parseDouble(System.getProperty("dynaboost.ruleprob", "0.999"));
     private int obsRuns;
     private boolean updated;
@@ -23,7 +22,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
         var prodIter = super.causalGraph.getProdIter();
         while (prodIter.hasNext()) {
             var prod = prodIter.next();
-            String prodNode = causalGraph.getNode(prod.getKey());
+            Object prodNode = causalGraph.getNode(prod.getKey());
             super.causalGraph.setStochNode(prodNode, new Categorical01(ruleProb));
         }
         updated = false;
@@ -32,10 +31,10 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
 
 
     @Override
-    protected void appendObservation(Map<String, Boolean> obs) {
+    protected void appendObservation(Map<Object, Boolean> obs) {
         obsRuns++;
         for (var entry : obs.entrySet()) {
-            String obsNode = entry.getKey();
+            Object obsNode = entry.getKey();
             obsCount.putIfAbsent(obsNode, 0);
             Boolean obsVal = entry.getValue();
             if (obsVal) {
@@ -72,7 +71,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
         differentiated.setName(differentiated.getName() + "_Dyna_" + obsRuns);
         // differentiate unfiltered dataflow, and apply observed frequencies
         for (var entry: obsCount.entrySet()) {
-            String node = entry.getKey();
+            Object node = entry.getKey();
             int nodeId = differentiated.getNodeId(node);
             double freq = entry.getValue() * 1.0 / obsRuns;
             // 1. create differentiated Node
@@ -128,7 +127,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
             metaNetwork.release();
         metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "_" + obsRuns, differentiated, 0);
         // apply observations
-        for (String node : obsCount.keySet()) {
+        for (Object node : obsCount.keySet()) {
             String oNode = "_DynaO_" + node;
             int oNodeId = differentiated.getNodeId(oNode);
 //            Messages.debug("DynaboostInferer: set observation node %d[%s] to true", oNodeId, oNode);

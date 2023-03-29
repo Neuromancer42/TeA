@@ -314,30 +314,24 @@ public class Project {
     }
 
     public List<Map.Entry<Trgt.Tuple, Double>> postRanking(List<Trgt.Tuple> alarms, List<Map<Trgt.Tuple, Boolean>> trace) {
-        Map<String, Trgt.Tuple> outputDict = new LinkedHashMap<>();
-        for (Trgt.Tuple alarm : alarms) {
-            outputDict.put(ProvenanceUtil.encodeTuple(alarm), alarm);
-        }
         if (driver == null) {
             Messages.fatal("Project %s: causal driver not built yet before querying", ID);
             assert false;
         }
         if (trace != null) {
-            List<Map<String, Boolean>> encTrace = new ArrayList<>();
+            List<Map<Object, Boolean>> encTrace = new ArrayList<>();
             for (Map<Trgt.Tuple, Boolean> obs : trace) {
-                Map<String, Boolean> encObs = new LinkedHashMap<>();
-                for (var entry : obs.entrySet()) {
-                    encObs.put(ProvenanceUtil.encodeTuple(entry.getKey()), entry.getValue());
-                }
+                Map<Object, Boolean> encObs = new LinkedHashMap<>(obs);
                 encTrace.add(encObs);
             }
             driver.appendObservations(encTrace);
             rank_time += trace.size();
         }
-        Map<String, Double> dist = driver.queryPossibilities(outputDict.keySet());
+        Set<Object> queries = new LinkedHashSet<>(alarms);
+        Map<Object, Double> dist = driver.queryPossibilities(queries);
         Map<Trgt.Tuple, Double> unorderedAlarms = new LinkedHashMap<>();
-        for (String outputRepr : dist.keySet()) {
-            Trgt.Tuple output = outputDict.get(outputRepr);
+        for (Object outputRepr : dist.keySet()) {
+            Trgt.Tuple output = (Trgt.Tuple) outputRepr;
             unorderedAlarms.put(output, dist.get(outputRepr));
         }
         List<Map.Entry<Trgt.Tuple, Double>> sortedAlarmProb = unorderedAlarms.entrySet().stream()
@@ -346,7 +340,7 @@ public class Project {
 
         List<String> logLines = new ArrayList<>();
         for (var entry : sortedAlarmProb) {
-            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()) + "\t" + ProvenanceUtil.encodeTuple(entry.getKey()));
+            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()) + "\t" + entry.getKey().hashCode());
         }
         Path logPath = workDir.resolve(String.format("rank_%03d.list", rank_time));
         try {

@@ -10,10 +10,9 @@ public class Categorical01 {
     private static final double epsilon = 1.0/1024;
     private static final double stride = 1.0/16;
     protected final double[] supports;
-    private EnumeratedRealDistribution dist;
+    protected final double[] weights;
 
     public Categorical01(double[] values, double[] weights) {
-        dist = new EnumeratedRealDistribution(values, weights);
         Set<Double> supportValues = new HashSet<>();
         for (double v : values) {
             if (v < 0 || v > 1) {
@@ -23,14 +22,17 @@ public class Categorical01 {
         }
         List<Double> sorted = new ArrayList<>(supportValues);
         Collections.sort(sorted);
-        supports = new double[sorted.size()];
+        this.supports = new double[sorted.size()];
+        this.weights = new double[sorted.size()];
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(values, weights);
         for (int i =  0; i  < sorted.size(); i++) {
-            supports[i] = sorted.get(i);
+            double p = sorted.get(i);
+            this.supports[i] = p;
+            this.weights[i] = dist.probability(p);
         }
     }
 
     public Categorical01(double ... values) {
-        dist = new EnumeratedRealDistribution(values);
         Set<Double> supportValues = new HashSet<>();
         for (double v : values) {
             if (v < 0 || v > 1) {
@@ -40,15 +42,19 @@ public class Categorical01 {
         }
         List<Double> sorted = new ArrayList<>(supportValues);
         Collections.sort(sorted);
-        supports = new double[sorted.size()];
+        this.supports = new double[sorted.size()];
+        this.weights = new double[sorted.size()];
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(values);
         for (int i =  0; i  < sorted.size(); i++) {
-            supports[i] = sorted.get(i);
+            double p = sorted.get(i);
+            this.supports[i] = p;
+            this.weights[i] = dist.probability(p);
         }
     }
 
     public Categorical01(Categorical01 other) {
-        dist = new EnumeratedRealDistribution(other.getSupports(), other.getProbabilitis());
         this.supports = other.supports.clone();
+        this.weights = other.weights.clone();
     }
 
     public String toString() {
@@ -56,10 +62,9 @@ public class Categorical01 {
         sb.append("Cat[");
         for (int i = 0; i < supports.length; i++) {
             if (i > 0) sb.append(";");
-            double v = supports[i];
-            sb.append(v);
+            sb.append(supports[i]);
             sb.append(":");
-            sb.append(String.format("%.2f", probability(v)));
+            sb.append(String.format("%.2f", weights[i]));
         }
         sb.append("]");
         return sb.toString();
@@ -69,18 +74,23 @@ public class Categorical01 {
 
     public double[] getProbabilitis() {
         double[] probs = new double[supports.length];
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(supports, weights);
         for (int i = 0; i < supports.length; i++) {
-            probs[i] = probability(supports[i]);
+            probs[i] = dist.probability(supports[i]);
         }
         return probs;
     }
 
     public void updateProbs(double[] newWeights) {
         assert (newWeights.length == supports.length);
-        dist = new EnumeratedRealDistribution(supports, newWeights);
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(supports, newWeights);
+        for (int i = 0; i < supports.length; ++i) {
+            weights[i] = dist.probability(supports[i]);
+        }
     }
 
     public double probability(double x) {
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(supports, weights);
         return dist.probability(x);
     }
 
@@ -91,8 +101,12 @@ public class Categorical01 {
         if (post == null)
             return prev;
         Map<Double, Double> probMap = new HashMap<>();
-        for (double p : prev.supports) {
-            for (double q : prev.supports) {
+        for (int i = 0; i < prev.supports.length; ++i) {
+            double p = prev.supports[i];
+            double wp = prev.weights[i];
+            for (int j = 0; j < post.supports.length; ++j) {
+                double q = post.supports[j];
+                double wq = post.weights[j];
                 double pq = 1 - (1- p) * (1- q);
 //                if (pq < 1 && pq >= 1 - epsilon)
 //                    pq = 1 - epsilon;
@@ -104,7 +118,7 @@ public class Categorical01 {
                     Messages.error("Categorical01: computed support %f = 1-(1-%f)*(1-%f) out of range", pq, p, q);
                 if (pq > 1) pq = 1;
                 if (pq < 0) pq = 0;
-                double w = prev.probability(p) * prev.probability(q);
+                double w = wp * wq;
                 probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
             }
         }
@@ -135,8 +149,12 @@ public class Categorical01 {
         if (post == null)
             return prev;
         Map<Double, Double> probMap = new HashMap<>();
-        for (double p : prev.supports) {
-            for (double q : prev.supports) {
+        for (int i = 0; i < prev.supports.length; ++i) {
+            double p = prev.supports[i];
+            double wp = prev.weights[i];
+            for (int j = 0; j < post.supports.length; ++j) {
+                double q = post.supports[j];
+                double wq = post.weights[j];
                 double pq = p * q;
 //                if (pq > 0 && pq <= epsilon)
 //                    pq = epsilon;
@@ -148,7 +166,7 @@ public class Categorical01 {
                     Messages.error("Categorical01: computed support %f = %f*%f out of range", pq, p, q);
                 if (pq > 1) pq = 1;
                 if (pq < 0) pq = 0;
-                double w = prev.probability(p) * prev.probability(q);
+                double w = wp * wq;
                 probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
             }
         }

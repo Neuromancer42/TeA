@@ -25,7 +25,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     }
 
     @Override
-    public void appendObservation(Map<String, Boolean> observations) {
+    public void appendObservation(Map<Object, Boolean> observations) {
         // 1. dumping factor graph
         dumpNetwork();
         ++updateCnt;
@@ -50,8 +50,8 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
         for (var debugQueryProb : sortedDebugQueryProbs) {
             Integer nodeId = debugQueryProb.getKey();
             Double prob = debugQueryProb.getValue();
-            String repr = debugQueries.get(nodeId);
-            debugLines.add(nodeId + "\t" + prob + "\t" + repr);
+            Object repr = debugQueries.get(nodeId);
+            debugLines.add(nodeId + "\t" + prob + "\t" + repr.hashCode());
         }
         try {
             Path debugListPath = workDir.resolve(String.format("%03d", updateCnt)+".local.list");

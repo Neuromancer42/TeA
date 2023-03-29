@@ -12,7 +12,7 @@ public abstract class AbstractCausalDriver {
     protected final String name;
 
     // For debug only
-    protected final Map<Integer, String> debugQueries = new LinkedHashMap<>();
+    protected final Map<Integer, Object> debugQueries = new LinkedHashMap<>();
 
     protected AbstractCausalDriver(String name, Path path, CausalGraph causalGraph) {
         this.name = name;
@@ -20,7 +20,7 @@ public abstract class AbstractCausalDriver {
         this.causalGraph = new CausalGraph(causalGraph);
     }
 
-    public void appendObservations(List<Map<String, Boolean>> traces) {
+    public void appendObservations(List<Map<Object, Boolean>> traces) {
         // For debug only
 //        Map<String, Boolean> obsTrace = new HashMap<>();
 //        for (String tupleId : allTupleIds) {
@@ -28,25 +28,25 @@ public abstract class AbstractCausalDriver {
 //                obsTrace.put(tupleId, true);
 //            }
 //        }
-        for (Map<String, Boolean> trace : traces) {
+        for (Map<Object, Boolean> trace : traces) {
             appendObservation(trace);
         }
     }
 
 
-    protected abstract void appendObservation(Map<String, Boolean> obs);
+    protected abstract void appendObservation(Map<Object, Boolean> obs);
 
     protected abstract Double queryPossibilityById(int nodeId);
 
-    protected Double queryPossibility(String node) {
+    protected Double queryPossibility(Object node) {
         Integer nodeId = causalGraph.getNodeId(node);
         debugQueries.putIfAbsent(nodeId, node);
         return queryPossibilityById(nodeId);
     }
 
-    public Map<String, Double> queryPossibilities(Collection<String> nodes) {
-        Map<String, Double> queryResults = new HashMap<>();
-        for (String node : nodes) {
+    public Map<Object, Double> queryPossibilities(Collection<Object> nodes) {
+        Map<Object, Double> queryResults = new HashMap<>();
+        for (Object node : nodes) {
             Double possibility = queryPossibility(node);
             if (possibility != null)
                 queryResults.put(node, possibility);
@@ -54,7 +54,7 @@ public abstract class AbstractCausalDriver {
         return queryResults;
     }
 
-    protected Map<String, Double> queryAllPossibilities() {
+    protected Map<Object, Double> queryAllPossibilities() {
         return queryPossibilities(causalGraph.getAllNodes());
     }
 

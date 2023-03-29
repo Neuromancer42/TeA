@@ -9,7 +9,7 @@ import java.util.*;
 
 public class OneShotCausalDriver extends AbstractCausalDriver {
     public static final String type = "oneshot";
-    private final List<Map<String, Boolean>> obsHistory = new ArrayList<>();
+    private final List<Map<Object, Boolean>> obsHistory = new ArrayList<>();
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
@@ -20,7 +20,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
 
 
     @Override
-    protected void appendObservation(Map<String, Boolean> obs) {
+    protected void appendObservation(Map<Object, Boolean> obs) {
         obsHistory.add(obs);
         // drop previous results
         updated = false;
@@ -53,7 +53,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
         metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size());
         // 2. dump observation
         for (int timeId = 1; timeId <= obsHistory.size(); timeId++) {
-            Map<String, Boolean> obs = obsHistory.get(timeId - 1);
+            Map<Object, Boolean> obs = obsHistory.get(timeId - 1);
             for (var obsEntry : obs.entrySet()) {
                 Integer nodeId = causalGraph.getNodeId(obsEntry.getKey());
                 metaNetwork.observeNode(nodeId, timeId, obsEntry.getValue());

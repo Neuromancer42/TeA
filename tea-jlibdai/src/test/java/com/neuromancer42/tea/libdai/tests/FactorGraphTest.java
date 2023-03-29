@@ -28,13 +28,13 @@ public class FactorGraphTest {
     public static void setup() throws IOException {
         Files.createDirectories(workPath);
         DAIRuntime.init(Paths.get(workdir, "build"));
-        List<String> nodes = new ArrayList<>();
+        List<Object> nodes = new ArrayList<>();
         nodes.add("Coin1");  nodes.add("Coin2");
         nodes.add("Or"); nodes.add("And");
-        List<String> singletons = new ArrayList<>();
+        List<Object> singletons = new ArrayList<>();
         singletons.add("Coin1"); singletons.add("Coin2");
-        Map<String, List<String>> sums = new HashMap<>();
-        Map<String, List<String>> prods = new HashMap<>();
+        Map<Object, List<Object>> sums = new HashMap<>();
+        Map<Object, List<Object>> prods = new HashMap<>();
         sums.put("Or", singletons);
         prods.put("And", singletons);
         causalGraph = CausalGraph.createCausalGraph("two_coins", nodes, singletons, sums, prods);
@@ -53,7 +53,7 @@ public class FactorGraphTest {
             causalGraph.setStochNode("Coin2", unknownCoin);
             causalGraph.setStochNode("Or", new Categorical01(confidence));
             causalGraph.setStochNode("And", new Categorical01(confidence));
-            causalGraph.dumpDot(Paths.get(workdir, "cg1_2.dot"), String::toString, Categorical01::toString);
+            causalGraph.dumpDot(Paths.get(workdir, "cg1_2.dot"), Object::toString, Categorical01::toString);
             PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln1_2.fg")));
             DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
         } catch (IOException e) {
@@ -71,7 +71,7 @@ public class FactorGraphTest {
             causalGraph.setStochNode("Coin2", new Categorical01(unknownCoin));
             causalGraph.setStochNode("Or", new Categorical01(confidence));
             causalGraph.setStochNode("And", new Categorical01(confidence));
-            causalGraph.dumpDot(Paths.get(workdir, "cg2_1.dot"), String::toString, Categorical01::toString);
+            causalGraph.dumpDot(Paths.get(workdir, "cg2_1.dot"), Object::toString, Categorical01::toString);
             PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln2_1.fg")));
             DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
         } catch (IOException e) {
@@ -96,7 +96,7 @@ public class FactorGraphTest {
         double p_either0 = inferer.queryPossibilityById(causalGraph.getNodeId("Or"));
         Messages.log("Predict: \tboth - " + p_both0 + "\teither - " + p_either0);
 
-        Map<String, Boolean> obs = new HashMap<>();
+        Map<Object, Boolean> obs = new HashMap<>();
         obs.put("And", true); obs.put("Or", true);
         inferer.appendObservation(obs);
         Messages.log("Posterior: \t" +
