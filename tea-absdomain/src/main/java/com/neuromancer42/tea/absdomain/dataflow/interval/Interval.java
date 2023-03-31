@@ -10,11 +10,17 @@ public class Interval {
     public static final Interval MIN_INF = new Interval(min_inf);
     public static final Interval MAX_INF = new Interval(max_inf);
     public static final Interval EMPTY = new Interval(max_bound, min_bound);
+    public static final Interval UNKNOWN = new Interval();
     public static final Interval ZERO = new Interval(0);
     public static final Interval ONE = new Interval(1);
 
     public final int lower;
     public final int upper;
+
+    private Interval() {
+        lower = min_inf;
+        upper = max_inf;
+    }
 
     public Interval(int l, int r) {
         if (l > r) {
@@ -45,6 +51,8 @@ public class Interval {
     }
 
     public boolean contains(int x) {
+        if (lower < min_bound && upper > max_bound)
+            return true;
         if (lower > max_bound)
             return x > max_bound;
         if (upper < min_bound)
@@ -55,6 +63,8 @@ public class Interval {
     public boolean overlap(int l, int r) {
         if (l > r || lower > upper)
             return false;
+        if ((lower < min_bound && upper > max_bound) || (l < min_bound && r > max_bound))
+            return true;
         if (lower > max_bound)
             return r > max_bound;
         if (upper < min_bound)
@@ -81,6 +91,9 @@ public class Interval {
         if (lower > upper) {
             return "Itv:empty";
         }
+        if (lower < min_bound && upper > max_bound) {
+            return "Itv:unknown";
+        }
         if (lower < min_bound) {
             return "Itv:-inf";
         }
@@ -98,6 +111,8 @@ public class Interval {
             s = s.substring("Itv:".length());
         if (s.equals("empty")) {
             return EMPTY;
+        } else if (s.equals("unknown")) {
+            return UNKNOWN;
         } else if (s.equals("-inf")) {
             return MIN_INF;
         } else if (s.equals("+inf")) {
@@ -119,6 +134,10 @@ public class Interval {
 
     public boolean isEmpty() {
         return this.lower > this.upper;
+    }
+
+    public boolean isUnknown() {
+        return this.lower < min_bound && this.upper > max_bound;
     }
 
     public boolean isSingleton() {

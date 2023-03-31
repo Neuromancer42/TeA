@@ -22,6 +22,7 @@ public class IntervalGenerator extends AbstractAnalysis {
     public static final String name = "gen_interval";
 
     private static final String emptyRepr = Interval.EMPTY.toString();
+    private static final String unknownRepr = Interval.UNKNOWN.toString();
     private static final String zeroRepr = Interval.ZERO.toString();
     private static final String oneRepr = Interval.ONE.toString();
     public static final String mininfRepr = Interval.MIN_INF.toString();
@@ -197,7 +198,8 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
         sortedITVs.add(Interval.MAX_INF);
         Messages.debug("IntervalGenerator: generated Intervals: %s", Arrays.toString(sortedITVs.toArray()));
-        domU.add(Interval.EMPTY.toString());
+        domU.add(emptyRepr);
+        domU.add(unknownRepr);
         for (Interval itv : sortedITVs) {
             domU.add(itv.toString());
         }
@@ -211,18 +213,19 @@ public class IntervalGenerator extends AbstractAnalysis {
         {
             // build arithmetics
             assert domU.contains(emptyRepr);
+            assert domU.contains(unknownRepr);
             assert domU.contains(zeroRepr);
             assert domU.contains(oneRepr);
             relUempty.add(emptyRepr);
+            relUunknown.add(unknownRepr);
             relUzero.add(zeroRepr);
             for (String u : domU) {
-                if (!(u.equals(emptyRepr) || u.equals(maxinfRepr) || u.equals(mininfRepr))) {
+                if (!(u.equals(emptyRepr) || u.equals(unknownRepr) || u.equals(maxinfRepr) || u.equals(mininfRepr))) {
                     relUinput.add(u);
                 }
                 if (!u.equals(zeroRepr)) {
                     relUnonzero.add(u);
                 }
-                relUunknown.add(u);
             }
             for (String op : domOP) {
                 switch (op) {
@@ -232,6 +235,7 @@ public class IntervalGenerator extends AbstractAnalysis {
                         break;
                     case Constants.OP_NEG:
                         relEvalUnaryU.add(op, emptyRepr, emptyRepr);
+                        relEvalUnaryU.add(op, unknownRepr, unknownRepr);
                         for (Interval x : sortedITVs) {
                             int l = -x.upper;
                             int r = -x.lower;
@@ -278,9 +282,12 @@ public class IntervalGenerator extends AbstractAnalysis {
                         break;
                     default:
                         for (String x : domU) {
-                            relEvalUnaryU.add(op, x, emptyRepr);
-                            for (String y : domU)
-                                relEvalBinopU.add(op, x, y, emptyRepr);
+//                            relEvalUnaryU.add(op, x, emptyRepr);
+                            relEvalUnaryU.add(op, x, unknownRepr);
+                            for (String y : domU) {
+//                                relEvalBinopU.add(op, x, y, emptyRepr);
+                                relEvalBinopU.add(op, x, y, unknownRepr);
+                            }
                         }
                 }
             }
@@ -296,9 +303,10 @@ public class IntervalGenerator extends AbstractAnalysis {
                     }
 
                 } else {
-                    for (Interval itv : sortedITVs) {
-                        relConstU.add(c, itv.toString());
-                    }
+//                    for (Interval itv : sortedITVs) {
+//                        relConstU.add(c, itv.toString());
+//                    }
+                    relConstU.add(c, unknownRepr);
                 }
             }
 //            {
@@ -329,6 +337,7 @@ public class IntervalGenerator extends AbstractAnalysis {
             // build predicates
             Set<Interval> allItvs = new LinkedHashSet<>();
             allItvs.add(Interval.EMPTY);
+            allItvs.add(Interval.UNKNOWN);
             allItvs.addAll(sortedITVs);
             for (ItvPredicate up : ItvPredicate.allPredicates()) {
                 for (Interval u1 : allItvs) {
@@ -452,6 +461,7 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeIncr(Set<Interval> sortedITVs, ProgramRel relEvalUnaryU) {
         String op = Constants.OP_INCR;
         relEvalUnaryU.add(op, emptyRepr, emptyRepr);
+        relEvalUnaryU.add(op, unknownRepr, unknownRepr);
         relEvalUnaryU.add(op, mininfRepr, mininfRepr);
         for (Interval x : sortedITVs) {
             int l = x.lower + 1;
@@ -465,6 +475,7 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeDecr(Set<Interval> sortedITVs, ProgramRel relEvalUnaryU) {
         String op = Constants.OP_DECR;
         relEvalUnaryU.add(op, emptyRepr, emptyRepr);
+        relEvalUnaryU.add(op, unknownRepr, unknownRepr);
         relEvalUnaryU.add(op, maxinfRepr, maxinfRepr);
         for (Interval x : sortedITVs) {
             int l = x.lower - 1;
@@ -478,6 +489,8 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeNot(Set<Interval> sortedITVs, ProgramRel relEvalUnaryU) {
         String op = Constants.OP_NOT;
         relEvalUnaryU.add(op, emptyRepr, emptyRepr);
+        relEvalUnaryU.add(op, unknownRepr, zeroRepr);
+        relEvalUnaryU.add(op, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             if (x.contains(0)) {
                 relEvalUnaryU.add(op, x.toString(), oneRepr);
@@ -491,15 +504,20 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeAnd(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_AND;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
             if (x.contains(0)) {
                 relEvalBinopU.add(op, x.toString(), emptyRepr, zeroRepr);
+                relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
                 for (Interval y : sortedITVs)
                     relEvalBinopU.add(op, x.toString(), y.toString(), zeroRepr);
             }
             if (!(x.isSingleton() && x.contains(0))) {
+                relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+                relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
                 for (Interval y : sortedITVs) {
                     if (y.contains(0)) {
                         relEvalBinopU.add(op, x.toString(), y.toString(), zeroRepr);
@@ -515,10 +533,14 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeOr(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_OR;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
             if (x.contains(0)) {
+                relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+                relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
                 for (Interval y : sortedITVs) {
                     if (y.contains(0)) {
                         relEvalBinopU.add(op, x.toString(), y.toString(), zeroRepr);
@@ -530,6 +552,7 @@ public class IntervalGenerator extends AbstractAnalysis {
             }
             if (!(x.isSingleton() && x.contains(0))) {
                 relEvalBinopU.add(op, x.toString(), emptyRepr, oneRepr);
+                relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
                 for (Interval y : sortedITVs) {
                     relEvalBinopU.add(op, x.toString(), y.toString(), oneRepr);
                 }
@@ -541,11 +564,17 @@ public class IntervalGenerator extends AbstractAnalysis {
         String op = Constants.OP_ADD;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
         relEvalPlusU.add(emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, unknownRepr);
+        relEvalPlusU.add(unknownRepr, unknownRepr, unknownRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalPlusU.add(emptyRepr, x.toString(), emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), unknownRepr);
+            relEvalPlusU.add(unknownRepr, x.toString(), unknownRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
             relEvalPlusU.add(x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, unknownRepr);
+            relEvalPlusU.add(x.toString(), unknownRepr, unknownRepr);
             for (Interval y : sortedITVs) {
                 int l = x.lower + y.lower;
                 if (x.equals(Interval.MIN_INF) || y.equals(Interval.MIN_INF)) {
@@ -567,9 +596,12 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeMinus(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_SUB;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, unknownRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), unknownRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, unknownRepr);
             for (Interval y : sortedITVs) {
                 int l = x.lower - y.upper;
                 if (x.equals(Interval.MIN_INF) || y.equals(Interval.MAX_INF)) {
@@ -591,11 +623,17 @@ public class IntervalGenerator extends AbstractAnalysis {
         String op = Constants.OP_MUL;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
         relEvalMultU.add(emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, unknownRepr);
+        relEvalMultU.add(unknownRepr, unknownRepr, unknownRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalMultU.add(emptyRepr, x.toString(), emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), unknownRepr);
+            relEvalMultU.add(unknownRepr, x.toString(), unknownRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
             relEvalMultU.add(x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, unknownRepr);
+            relEvalMultU.add(x.toString(), unknownRepr, unknownRepr);
             for (Interval y : sortedITVs) {
                 int p1 =  x.lower * y.lower,
                         p2 = x.lower * y.upper,
@@ -615,9 +653,15 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeEQ(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_EQ;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), zeroRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), oneRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
             relEvalBinopU.add(op, x.toString(), x.toString(), oneRepr);
             if (x.equals(Interval.MIN_INF) || x.equals(Interval.MAX_INF) || x.lower < x.upper) {
                 relEvalBinopU.add(op, x.toString(), x.toString(), zeroRepr);
@@ -633,9 +677,15 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeNE(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_NE;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), zeroRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), oneRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
             relEvalBinopU.add(op, x.toString(), x.toString(), zeroRepr);
             if (x.equals(Interval.MIN_INF) || x.equals(Interval.MAX_INF) || x.lower < x.upper) {
                 relEvalBinopU.add(op, x.toString(), x.toString(), oneRepr);
@@ -651,9 +701,15 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeLT(Set<Interval> sortedITVs, ProgramRel relEvalBinopU) {
         String op = Constants.OP_LT;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), zeroRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), oneRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
             {
                 int l = Interval.min_inf;
                 int r = x.upper - 1;
@@ -676,9 +732,18 @@ public class IntervalGenerator extends AbstractAnalysis {
     private static void computeLE(Set<Interval> sortedITVs, ProgramRel relEvalBinopU, ProgramRel relEvalLEU) {
         String op = Constants.OP_LE;
         relEvalBinopU.add(op, emptyRepr, emptyRepr, emptyRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, zeroRepr);
+        relEvalBinopU.add(op, unknownRepr, unknownRepr, oneRepr);
+        relEvalLEU.add(unknownRepr, unknownRepr);
         for (Interval x : sortedITVs) {
             relEvalBinopU.add(op, emptyRepr, x.toString(), emptyRepr);
             relEvalBinopU.add(op, x.toString(), emptyRepr, emptyRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), zeroRepr);
+            relEvalBinopU.add(op, unknownRepr, x.toString(), oneRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, zeroRepr);
+            relEvalBinopU.add(op, x.toString(), unknownRepr, oneRepr);
+            relEvalLEU.add(x.toString(), unknownRepr);
+            relEvalLEU.add(unknownRepr, x.toString());
             {
                 int l = Interval.min_inf;
                 int r = x.upper;
