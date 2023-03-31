@@ -16,10 +16,11 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 public class DAIRuntime {
-    // 31 - 1 (output) - 5 (paramNum_bits) = 25
-    private static final int clauseLimit = Integer.getInteger("chord.dai.clause.limit", 20);
+    // 31 - 1 (output bit) - 1 (control bit) = 29
+    private static final int clauseLimit = Integer.getInteger("tea.dai.clause.limit", 29);
     private static DAIRuntime runtime = null;
 
     public static DAIRuntime g() {
@@ -87,22 +88,7 @@ public class DAIRuntime {
 
     public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats) throws IOException {
         assert (clauseLimit > 1);
-        int numPhony = 0;
-        // each phony reduces subnums by (clauseLimit-1)
-        for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext();) {
-            int subNum = sumIter.next().getValue().size();
-            while (subNum > clauseLimit) {
-                numPhony++;
-                subNum -= clauseLimit - 1;
-            }
-        }
-        for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext(); ) {
-            int subNum = prodIter.next().getValue().size();
-            while (subNum > clauseLimit) {
-                numPhony++;
-                subNum -= clauseLimit - 1;
-            }
-        }
+        Messages.debug("DAIRuntime: current clause limit %d", clauseLimit);
 
         // all non-singleton node needs an latent node to connect to random node
         // and singletons can be random nodes by themselves
@@ -110,6 +96,35 @@ public class DAIRuntime {
         for (int nodeId = 0; nodeId < causalGraph.nodeSize(); ++nodeId) {
             if (causalGraph.isStochNode(nodeId) && !causalGraph.isSingleton(nodeId)) {
                 latentMap.add(nodeId);
+            }
+        }
+
+        int numPhony = 0;
+        // each phony reduces subnums by (clauseLimit-1)
+        for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext();) {
+            Map.Entry<Integer, List<Integer>> sub = sumIter.next();
+            int headId = sub.getKey();
+            int subNum = sub.getValue().size();
+            int limit = clauseLimit;
+            if (latentMap.contains(headId))
+                limit -= 1;
+            while (subNum > limit) {
+//                Messages.debug("DAIRuntime: replace %d/%d nodes with phony node %d", clauseLimit, subNum, numPhony);
+                numPhony++;
+                subNum -= clauseLimit - 1;
+            }
+        }
+        for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext(); ) {
+            Map.Entry<Integer, List<Integer>> sub = prodIter.next();
+            int headId = sub.getKey();
+            int subNum = sub.getValue().size();
+            int limit = clauseLimit;
+            if (latentMap.contains(headId))
+                limit -= 1;
+            while (subNum > limit) {
+//                Messages.debug("DAIRuntime: replace %d/%d nodes with phony node %d", clauseLimit, subNum, numPhony);
+                numPhony++;
+                subNum -= clauseLimit - 1;
             }
         }
 
@@ -172,7 +187,7 @@ public class DAIRuntime {
                 Messages.debug("CausalGraph: Create sum phony node " + phonyHead);
                 pw.println();
                 dumpSumFactor(pw, phonyHead, phonyBody);
-                sumBody = sumBody.subList(0, sumBody.size() - clauseLimit);
+                phonyBody.clear();
                 sumBody.add(phonyHead);
             }
             int latentId = latentMap.indexOf(headId);
@@ -201,7 +216,7 @@ public class DAIRuntime {
                 Messages.debug("CausalGraph: Create product phony node " + phonyHead);
                 pw.println();
                 dumpProdFactor(pw, phonyHead, phonyBody);
-                prodBody = prodBody.subList(0, prodBody.size() - clauseLimit);
+                phonyBody.clear();
                 prodBody.add(phonyHead);
             }
             int latentId = latentMap.indexOf(headId);
@@ -363,13 +378,13 @@ public class DAIRuntime {
 
     private static void dumpClauseWithoutControl(PrintWriter pw, long condRep, int result) {
         long rep = condRep * 2 + result;
-        pw.println(rep + " " + 1);
+        pw.println(Long.toUnsignedString(rep) + " " + 1);
     }
 
     private static void dumpClauseWithControl(PrintWriter pw, long condRep, int result) {
         long blockRep = condRep * 2 * 2;
         long passRep = blockRep + 2 + result;
-        pw.println(blockRep + " " + 1);
-        pw.println(passRep + " " + 1);
+        pw.println(Long.toUnsignedString(blockRep) + " " + 1);
+        pw.println(Long.toUnsignedString(passRep) + " " + 1);
     }
 }
