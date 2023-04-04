@@ -19,8 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 public class DAIRuntime {
-    // 31 - 1 (output bit) - 1 (control bit) = 29
-    private static final int clauseLimit = Integer.getInteger("tea.dai.clause.limit", 29);
+    private static final int clauseLimit = Integer.getInteger("tea.dai.clause.limit", 4);
     private static DAIRuntime runtime = null;
 
     public static DAIRuntime g() {
@@ -182,13 +181,21 @@ public class DAIRuntime {
             if (latentMap.contains(headId))
                 limit -= 1;
             while (sumBody.size() > limit) {
-                Integer phonyHead = phonyId++;
-                List<Integer> phonyBody = sumBody.subList(sumBody.size() - clauseLimit, sumBody.size());
-                Messages.debug("CausalGraph: Create sum phony node " + phonyHead);
-                pw.println();
-                dumpSumFactor(pw, phonyHead, phonyBody);
-                phonyBody.clear();
-                sumBody.add(phonyHead);
+                List<Integer> phonyHeads = new ArrayList<>();
+                for (int phonyBodyStart = 0; phonyBodyStart < sumBody.size(); phonyBodyStart += clauseLimit) {
+                    int phonyBodyEnd = phonyBodyStart + clauseLimit;
+                    if (phonyBodyEnd > sumBody.size()) {
+                        phonyHeads.addAll(sumBody.subList(phonyBodyStart, sumBody.size()));
+                    } else {
+                        Integer phonyHead = phonyId++;
+                        List<Integer> phonyBody = sumBody.subList(phonyBodyStart, phonyBodyEnd);
+                        Messages.debug("CausalGraph: Create sum phony node " + phonyHead);
+                        pw.println();
+                        dumpSumFactor(pw, phonyHead, phonyBody);
+                        phonyHeads.add(phonyHead);
+                    }
+                }
+                sumBody = phonyHeads;
             }
             int latentId = latentMap.indexOf(headId);
             if (latentId < 0) {
@@ -211,13 +218,21 @@ public class DAIRuntime {
             if (latentMap.contains(headId))
                 limit -= 1;
             while (prodBody.size() > limit) {
-                Integer phonyHead = phonyId++;
-                List<Integer> phonyBody = prodBody.subList(prodBody.size() - clauseLimit, prodBody.size());
-                Messages.debug("CausalGraph: Create product phony node " + phonyHead);
-                pw.println();
-                dumpProdFactor(pw, phonyHead, phonyBody);
-                phonyBody.clear();
-                prodBody.add(phonyHead);
+                List<Integer> phonyHeads = new ArrayList<>();
+                for (int phonyBodyStart = 0; phonyBodyStart < prodBody.size(); phonyBodyStart += clauseLimit) {
+                    int phonyBodyEnd = phonyBodyStart + clauseLimit;
+                    if (phonyBodyEnd > prodBody.size()) {
+                        phonyHeads.addAll(prodBody.subList(phonyBodyStart, prodBody.size()));
+                    } else {
+                        Integer phonyHead = phonyId++;
+                        List<Integer> phonyBody = prodBody.subList(phonyBodyStart, phonyBodyEnd);
+                        Messages.debug("CausalGraph: Create prod phony node " + phonyHead);
+                        pw.println();
+                        dumpProdFactor(pw, phonyHead, phonyBody);
+                        phonyHeads.add(phonyHead);
+                    }
+                }
+                prodBody = phonyHeads;
             }
             int latentId = latentMap.indexOf(headId);
             if (latentId < 0) {

@@ -171,9 +171,9 @@ public class IntervalGenerator extends AbstractAnalysis {
             int arrLen = literalMap.getOrDefault(arrLenStr, 1);
             if (arrLen <= Interval.max_bound) {
                 intConstants.add(arrLen);
-                intConstants.add(arrLen - 1);
+//                intConstants.add(arrLen - 1);
                 if (arrLen * contentWidth <= Interval.max_bound) {
-                    intConstants.add(arrLen * contentWidth);
+//                    intConstants.add(arrLen * contentWidth);
                     intConstants.add((arrLen - 1) * contentWidth);
                 }
             }
