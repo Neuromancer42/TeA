@@ -263,6 +263,9 @@ public class CDTCManager extends AbstractAnalysis {
             definedSymbols.putIfAbsent("__GNUC_MINOR__", "3");
             // Note: special handling of some types
             definedSymbols.putIfAbsent("size_t", "unsigned long");
+            definedSymbols.putIfAbsent("off_t", "long");
+            definedSymbols.putIfAbsent("off32_t", "int");
+            definedSymbols.putIfAbsent("off64_t", "long");
             definedSymbols.putIfAbsent("int64_t", "long");
             definedSymbols.putIfAbsent("uint64_t", "unsigned long");
             definedSymbols.putIfAbsent("int32_t", "int");
@@ -286,7 +289,8 @@ public class CDTCManager extends AbstractAnalysis {
             String[] headers = {"stdio.h", "stdlib.h", "stddef.h", "stdarg.h", "stdint.h",
                     "time.h", "limits.h", "string.h", "ctype.h", "wchar.h", "fcntl.h", "signal.h", "errno.h",
                     "sys/types.h", "sys/stat.h", "sys/sysmacros.h", "io.h", "libio.h", "assert.h", "unistd.h",
-                    "bits/types.h"
+                    "bits/types.h", "libintl.h", "locale.h", "getopt.h", "iconv.h", "dirent.h", "pthread.h",
+                    "nl_types.h", "sys/statfs.h", "pcre.h", "langinfo.h", "fnmatch.h", "strings.h"
             };
             for (String header : headers) {
                 String dummyInclude = String.format("%s <%s>", incDirective, header);

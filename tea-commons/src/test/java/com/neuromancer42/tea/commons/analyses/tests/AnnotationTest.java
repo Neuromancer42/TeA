@@ -34,7 +34,7 @@ public class AnnotationTest {
         relP.add("1");
         relP.save(workdir);
         relP.close();
-        relLocMap.put("P", workdir);
+        relLocMap.put("P", relP.getLocation());
     }
 
     @Test

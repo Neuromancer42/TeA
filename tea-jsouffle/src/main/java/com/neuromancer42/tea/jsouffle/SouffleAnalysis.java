@@ -78,26 +78,6 @@ public final class SouffleAnalysis {
         return outputRelSignMap;
     }
 
-    private static List<int[]> loadTableFromFile(Path outPath) {
-        List<int[]> table = new ArrayList<>();
-        try {
-            List<String> lines = Files.readAllLines(outPath);
-            for (String line : lines) {
-                String[] tuple = line.split("\t");
-                int width = tuple.length;
-                int[] indexes = new int[width];
-                for (int i = 0; i < width; ++i) {
-                    indexes[i] = Integer.parseInt(tuple[i]);
-                }
-                table.add(indexes);
-            }
-        } catch (IOException e) {
-            Messages.error("SouffleAnalysis: failed to read table from %s", outPath.toString());
-            Messages.fatal(e);
-        }
-        return table;
-    }
-
     public Instance createInstance(String ID, Path workPath) throws IOException {
         Path factDir = Files.createDirectories(workPath.resolve("fact"));
         Path outDir = Files.createDirectories(workPath.resolve("out"));
@@ -149,7 +129,7 @@ public final class SouffleAnalysis {
                 doms.put(domName, domMap.get(domName));
             }
             for (String relName : inputRelNames) {
-                dumpRel(relName, inputRelMap.get(relName));
+                dumpFactsFromRel(relName, inputRelMap.get(relName));
             }
             activate();
 //            close();
@@ -186,29 +166,35 @@ public final class SouffleAnalysis {
 //            }
 //        }
 
-        private void dumpRel(String relName, ProgramRel rel) {
+        private void dumpFactsFromRel(String relName, ProgramRel rel) {
             assert relName.equals(rel.getName());
             Path factPath = factDir.resolve(relName+".facts");
-            Messages.debug("SouffleAnalysis: dumping facts to path %s", factPath.toAbsolutePath());
             try {
-                rel.load();
-                List<String> lines = new ArrayList<>();
-                Iterable<int[]> tuples = rel.getIntTuples();
-                int domNum = rel.getDoms().length;
-                for (int[] tuple: tuples) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < domNum; ++i) {
-                        int id = tuple[i];
-                        //s += rel.getDoms()[i].toUniqueString(element);
-                        sb.append(id);
-                        if (i < domNum - 1) {
-                            sb.append("\t");
+                if (rel.getLocation().endsWith(".csv")) {
+                    Path origPath = Paths.get(rel.getLocation());
+                    Messages.debug("SouffleAnalysis %s: copying facts to path %s from %s", name, factPath.toAbsolutePath(), origPath.toString());
+                    Files.copy(origPath, factPath, StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    Messages.debug("SouffleAnalysis %s: dumping facts to path %s from %s", name, factPath.toAbsolutePath(), rel.getLocation());
+                    rel.load();
+                    List<String> lines = new ArrayList<>();
+                    Iterable<int[]> tuples = rel.getIntTuples();
+                    int domNum = rel.getDoms().length;
+                    for (int[] tuple : tuples) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < domNum; ++i) {
+                            int id = tuple[i];
+                            //s += rel.getDoms()[i].toUniqueString(element);
+                            sb.append(id + 1); // Note: let output id starts from 1
+                            if (i < domNum - 1) {
+                                sb.append("\t");
+                            }
                         }
+                        lines.add(sb.toString());
                     }
-                    lines.add(sb.toString());
+                    Files.write(factPath, lines, StandardCharsets.UTF_8);
+                    rel.close();
                 }
-                Files.write(factPath, lines, StandardCharsets.UTF_8);
-                rel.close();
             } catch (IOException e) {
                 Messages.error("SouffleAnalysis %s: failed to dump relation %s", name, relName);
                 Messages.fatal(e);
@@ -229,16 +215,10 @@ public final class SouffleAnalysis {
 
             ProgramRel rel = new ProgramRel(relName, relDoms);
 
-            rel.init();
-            Path outPath = outDir.resolve(relName+".csv");
-            Messages.debug("SouffleAnalysis: loading facts from path %s", outPath.toAbsolutePath());
-            List<int[]> table = loadTableFromFile(outPath);
-            for (int[] row: table) {
-                rel.add(row);
-            }
-
-            rel.save(outDir.toString());
-            rel.close();
+            Path csvPath = outDir.resolve(relName+".csv").toAbsolutePath();
+            rel.attach(csvPath.toString());
+            assert Files.exists(csvPath);
+            Messages.debug("SouffleAnalysis %s: attach cache file %s", name, csvPath);
 
             return rel;
         }
@@ -320,11 +300,11 @@ public final class SouffleAnalysis {
             String[] attributes = new String[domKinds.length];
             for (int i = 0; i < attributes.length; ++i) {
                 ProgramDom dom = doms.get(domKinds[i]);
-                if (indices[i] >= dom.size()) {
+                if (indices[i] > dom.size()) {
                     Messages.fatal("SouffleAnalysis %s: index %d out of bound of dom %s", name, indices[i], domKinds[i]);
                     assert false;
                 }
-                attributes[i] = dom.get(indices[i]);
+                attributes[i] = dom.get(indices[i] - 1); // Note: indices starts from 1
             }
             return attributes;
         }
@@ -336,7 +316,7 @@ public final class SouffleAnalysis {
             int[] domIndices = new int[domKinds.length];
             for (int i = 0; i < domKinds.length; ++i) {
                 ProgramDom dom = doms.get(domKinds[i]);
-                domIndices[i] = dom.indexOf(attributes[i]);
+                domIndices[i] = dom.indexOf(attributes[i]) + 1;  // Note: let index start from 1
                 if (domIndices[i] < 0) {
                     Messages.fatal("SouffleAnalysis %s: dom %s does not contain element %s", getName(), domKinds[i], attributes[i]);
                     assert false;
