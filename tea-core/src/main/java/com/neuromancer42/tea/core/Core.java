@@ -100,17 +100,20 @@ public class Core {
         allTimer.stop();
         Messages.log("Core: all providers registered in %s", allTimer);
         int core_port = Integer.parseInt(cmd.getOptionValue(Constants.OPT_PORT, Constants.DEFAULT_PORT));
+        var core_impl = new CoreServiceImpl(distMap, defaultDist);
         Server coreServer = Grpc.newServerBuilderForPort(core_port, InsecureServerCredentials.create())
-                .addService(new CoreServiceImpl(distMap, defaultDist)).build();
+                .addService(core_impl).build();
         System.err.println("*** core server started on port " + core_port);
         coreServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.err.println("*** shutting down core server due to JVM shutdown");
-            for (var entry : providerMap.entrySet()) {
-                String name = entry.getKey();
-                ProviderGrpc.ProviderBlockingStub stub = entry.getValue();
-                System.err.println("** shutting down provider " + name);
-                Analysis.ShutdownResponse resp = stub.shutdown(Analysis.ShutdownRequest.newBuilder().build());
+            for (var proj : core_impl.projects) {
+                for (var entry : providerMap.entrySet()) {
+                    String name = entry.getKey();
+                    ProviderGrpc.ProviderBlockingStub stub = entry.getValue();
+                    System.err.println("** release project " + proj + " on provider " + name);
+                    Analysis.ShutdownResponse resp = stub.shutdown(Analysis.ShutdownRequest.newBuilder().setProjectId(proj).build());
+                }
             }
             try {
                 coreServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);

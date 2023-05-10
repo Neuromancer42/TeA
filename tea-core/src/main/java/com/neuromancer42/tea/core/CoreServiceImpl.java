@@ -13,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.*;
 
 public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
+    protected final Set<String> projects = new HashSet<>();
     /**
      * @param request
      * @param responseObserver
@@ -28,6 +29,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             responseObserver.onNext(response);
         }
         String projId = request.getProjectId();
+        projects.add(projId);
         Map<String, String> appOption = new LinkedHashMap<>(request.getOptionMap());
         CoreUtil.Compilation compInfo = request.getSource();
         appOption.put(Constants.OPT_SRC, compInfo.getSource());
@@ -169,6 +171,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         }
         Messages.log("Core: release all instances for project %s", projId);
         proj.shutdown();
+        projects.remove(projId);
         responseObserver.onCompleted();
     }
 
