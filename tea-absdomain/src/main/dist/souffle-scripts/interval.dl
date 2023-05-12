@@ -91,8 +91,8 @@
 .decl Pload(p:P, v:V)
 .input Pload
 
-.decl Palloc(p:P, v:V)
-.input Palloc
+.decl Palloca(p:P, v:V)
+.input Palloca
 .decl Pnoop(p:P)
 .input Pnoop
 
@@ -237,7 +237,7 @@ ci_postPHval(p,h,c) :- Pstore(p,_), ci_PHval(p,h,c), P_weak_update(p,h).
 ci_postPHval(p,h,c) :- Pstore(p,_), ci_PHval(p,h,c), P_no_update(p,h).
 ci_postPHval(p,h,c) :- Peval(p,_,_), ci_PHval(p,h,c).
 ci_postPHval(p,h,c) :- Pload(p,_), ci_PHval(p,h,c).
-ci_postPHval(p,h,c) :- Palloc(p,_), ci_PHval(p,h,c).
+ci_postPHval(p,h,c) :- Palloca(p,_), ci_PHval(p,h,c).
 ci_postPHval(p,h,c) :- Pnoop(p), ci_PHval(p,h,c).
 
 ci_Vval(u,c) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_Vval(v,c).
@@ -294,7 +294,7 @@ ci_postPHoffset(p,h,content,t,c) :- Pstore(p,_), ci_PHoffset(p,h,content,t,c), P
 ci_postPHoffset(p,h,content,t,c) :- Pstore(p,_), ci_PHoffset(p,h,content,t,c), P_no_update(p,h).
 ci_postPHoffset(p,h,content,t,c) :- Peval(p,_,_), ci_PHoffset(p,h,content,t,c).
 ci_postPHoffset(p,h,content,t,c) :- Pload(p,_), ci_PHoffset(p,h,content,t,c).
-ci_postPHoffset(p,h,content,t,c) :- Palloc(p,_), ci_PHoffset(p,h,content,t,c).
+ci_postPHoffset(p,h,content,t,c) :- Palloca(p,_), ci_PHoffset(p,h,content,t,c).
 ci_postPHoffset(p,h,content,t,c) :- Pnoop(p), ci_PHoffset(p,h,content,t,c).
 
 ci_Voffset(u,content,t,c) :- ci_IM(i,m), IinvkArg(i,z,v), MmethArg(m,z,u), ci_Voffset(v,content,t,c).

@@ -26,8 +26,8 @@
 .input Pload
 .decl Pstore(p:P,v:V)
 .input Pstore
-.decl Palloc(p:P,v:V)
-.input Palloc
+.decl Palloca(p:P,v:V)
+.input Palloca
 .decl Pinvk(p:P,i:I)
 .input Pinvk
 
@@ -52,11 +52,7 @@ MI(m,i) :- MP(m,p), Pinvk(p,i).
 
 MV(m,v) :- MP(m,p), Peval(p,v,_).
 MV(m,v) :- MP(m,p), Pload(p,v).
-MV(m,v) :- MP(m,p), Pstore(p,v).
-MV(m,v) :- MP(m,p), Palloc(p,v).
+MV(m,v) :- MP(m,p), Palloca(p,v).
 
 MV(m,v) :- MmethArg(m,_,v).
-MV(m,v) :- MmethRet(m,v).
-
-MV(m,v) :- MI(m,i), IinvkArg(i,_,v).
 MV(m,v) :- MI(m,i), IinvkRet(i,v).

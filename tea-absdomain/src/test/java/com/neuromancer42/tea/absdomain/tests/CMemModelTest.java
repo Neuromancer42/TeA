@@ -89,8 +89,8 @@ public class CMemModelTest {
         ProgramRel relMP = new ProgramRel("MP", domM, domP);
         setRel(dir, relLocMap, relMP);
 
-        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
-        setRel(dir, relLocMap, relPalloc);
+        ProgramRel relPalloca = new ProgramRel("Palloca", domP, domV);
+        setRel(dir, relLocMap, relPalloca);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
         setRel(dir, relLocMap, relStructFldType);
@@ -175,8 +175,8 @@ public class CMemModelTest {
         ProgramRel relMP = new ProgramRel("MP", domM, domP);
         setRel(dir, relLocMap, relMP);
 
-        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
-        setRel(dir, relLocMap, relPalloc);
+        ProgramRel relPalloca = new ProgramRel("Palloca", domP, domV);
+        setRel(dir, relLocMap, relPalloca);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
         setRel(dir, relLocMap, relStructFldType, new Object[]{baseType, field, fType});
@@ -261,8 +261,8 @@ public class CMemModelTest {
         ProgramRel relMP = new ProgramRel("MP", domM, domP);
         setRel(dir, relLocMap, relMP);
 
-        ProgramRel relPalloc = new ProgramRel("Palloc", domP, domV);
-        setRel(dir, relLocMap, relPalloc);
+        ProgramRel relPalloca = new ProgramRel("Palloca", domP, domV);
+        setRel(dir, relLocMap, relPalloca);
 
         ProgramRel relStructFldType = new ProgramRel("StructFldType", domT, domF, domT);
         setRel(dir, relLocMap, relStructFldType);

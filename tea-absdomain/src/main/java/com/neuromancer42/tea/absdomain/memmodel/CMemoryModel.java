@@ -52,7 +52,7 @@ public class CMemoryModel extends AbstractAnalysis {
     @ConsumeRel(doms = {"M", "P"})
     public ProgramRel relMP;
     @ConsumeRel(doms = {"P", "V"})
-    public ProgramRel relPalloc;
+    public ProgramRel relPalloca;
 
     // Note : dynamic objects, "malloc-ed" ones
     @ConsumeDom(description = "invocations")
@@ -152,8 +152,8 @@ public class CMemoryModel extends AbstractAnalysis {
         relAlloca.load();
         relMP = inputRels.get("MP");
         relMP.load();
-        relPalloc = inputRels.get("Palloc");
-        relPalloc.load();
+        relPalloca = inputRels.get("Palloca");
+        relPalloca.load();
 
         domI = inputDoms.get("I");
         domZ = inputDoms.get("Z");
@@ -204,7 +204,7 @@ public class CMemoryModel extends AbstractAnalysis {
         relGlobalAlloca.close();
         relAlloca.close();
         relMP.close();
-        relPalloc.close();
+        relPalloca.close();
 
         relMI.close();
         relStaticCall.close();
@@ -258,7 +258,7 @@ public class CMemoryModel extends AbstractAnalysis {
                 String p = (String) tuple[1];
                 PinM.put(p, m);
             }
-            for (Object[] tuple : relPalloc.getValTuples()) {
+            for (Object[] tuple : relPalloca.getValTuples()) {
                 String p = (String) tuple[0];
                 String v = (String) tuple[1];
                 String m = PinM.get(p);

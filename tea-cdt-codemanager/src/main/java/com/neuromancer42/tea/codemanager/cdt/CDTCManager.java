@@ -35,7 +35,7 @@ import java.util.*;
 
 @TeAAnalysis(name = "cmanager")
 public class CDTCManager extends AbstractAnalysis {
-
+    // TODO eliminate domE, domI, domA
     @ProduceDom(description = "functions")
     public ProgramDom domM;
 
@@ -91,8 +91,8 @@ public class CDTCManager extends AbstractAnalysis {
     public ProgramRel relPload;
     @ProduceRel(doms = {"P", "V"}, description = "Pstore(point,r):store value of reg r to somewhere")
     public ProgramRel relPstore;
-    @ProduceRel(doms = {"P", "V"}, description = "Palloc(point,r):alloc a address and assign to r")
-    public ProgramRel relPalloc;
+    @ProduceRel(doms = {"P", "V"}, description = "Palloca(point,r):alloc a address and assign to r")
+    public ProgramRel relPalloca;
     @ProduceRel(doms = {"P", "I"}, description = "Pinvk(point,invk):invoke at this point")
     public ProgramRel relPinvk;
     @ProduceRel(doms = {"P"}, description = "mark no-op or unhandled point")
@@ -176,7 +176,7 @@ public class CDTCManager extends AbstractAnalysis {
         return List.of(
                 relStructFldType, relArrContentType, relTypeWidth,
                 relMPentry, relMPexit, relPPdirect, relPPtrue, relPPfalse,
-                relPeval, relPload, relPstore, relPalloc, relPinvk, relPnoop,
+                relPeval, relPload, relPstore, relPalloca, relPinvk, relPnoop,
                 relAlloca, relGlobalAlloca, relLoadPtr, relStorePtr, relLoadFld, relStoreFld, relLoadArr, relStoreArr,
                 relIinvkArg, relIinvkRet, relIndirectCall, relStaticCall,
                 relExtMeth, relFuncRef, relMmethArg, relMmethRet, relEntryM,
@@ -363,7 +363,7 @@ public class CDTCManager extends AbstractAnalysis {
         relPeval = new ProgramRel("Peval", domP, domV, domE);
         relPload = new ProgramRel("Pload", domP, domV);
         relPstore = new ProgramRel("Pstore", domP, domV);
-        relPalloc = new ProgramRel("Palloc", domP, domV);
+        relPalloca = new ProgramRel("Palloc", domP, domV);
         relPinvk = new ProgramRel("Pinvk", domP, domI);
         relPnoop = new ProgramRel("Pnoop", domP);
         relAlloca = new ProgramRel("Alloca", domV, domA, domT);
@@ -696,7 +696,7 @@ public class CDTCManager extends AbstractAnalysis {
                     relStorePtr.add(uRepr, vRepr);
                 } else if (p.hasAlloca()) {
                     String vRepr = p.getAlloca().getReg();
-                    relPalloc.add(pRepr, vRepr);
+                    relPalloca.add(pRepr, vRepr);
                     String variable = p.getAlloca().getVariable();
                     String type = p.getAlloca().getType();
                     relAlloca.add(vRepr, variable, type);
