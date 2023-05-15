@@ -43,7 +43,7 @@ fi
 
 nohup_pids=()
 
-nohup ../tea-absdomain/build/install/tea-absdomain/bin/tea-absdomain -p 10004 ${outdir} > ${outdir}/tea-absdomain.log 2>&1 &
+nohup ../tea-absdomain/build/install/tea-absdomain/bin/tea-absdomain -p 10004 -d ${outdir} > ${outdir}/tea-absdomain.log 2>&1 &
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-absdomain, pid: ${nohup_pids[0]}"
 
