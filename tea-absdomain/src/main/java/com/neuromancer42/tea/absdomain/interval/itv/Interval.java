@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.absdomain.dataflow.interval;
+package com.neuromancer42.tea.absdomain.interval.itv;
 
 import java.util.Objects;
 

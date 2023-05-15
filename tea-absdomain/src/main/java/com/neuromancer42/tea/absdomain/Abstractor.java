@@ -1,9 +1,10 @@
 package com.neuromancer42.tea.absdomain;
 
-import com.neuromancer42.tea.absdomain.dataflow.InputMarker;
-import com.neuromancer42.tea.absdomain.dataflow.IntervalGenerator;
+import com.neuromancer42.tea.absdomain.memmodel.LLVMMemoryModel;
+import com.neuromancer42.tea.absdomain.misc.ExtMethMarker;
+import com.neuromancer42.tea.absdomain.misc.Cardinals;
+import com.neuromancer42.tea.absdomain.interval.IntervalGenerator;
 import com.neuromancer42.tea.absdomain.memmodel.PostPointerAnalysis;
-import com.neuromancer42.tea.absdomain.memmodel.CMemoryModel;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
@@ -14,11 +15,8 @@ import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.cli.*;
-import org.apache.commons.configuration2.INIConfiguration;
-import org.apache.commons.configuration2.ex.ConfigurationException;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -72,10 +70,11 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
         Messages.log("Abstractor: processing getFeature request");
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName(NAME_ABS);
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(CMemoryModel.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(LLVMMemoryModel.class));
         infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(PostPointerAnalysis.class));
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(InputMarker.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(ExtMethMarker.class));
         infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(IntervalGenerator.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(Cardinals.class));
         Analysis.ProviderInfo info = infoBuilder.build();
         responseObserver.onNext(info);
         responseObserver.onCompleted();
@@ -95,13 +94,13 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
                 default_workdir + File.separator + request.getProjectId() + File.separator + request.getAnalysisName());
         Path workPath = Paths.get(workDir);
         switch (request.getAnalysisName()) {
-            case CMemoryModel.name :
+            case LLVMMemoryModel.name :
                 try {
                     Files.createDirectories(workPath);
-                    CMemoryModel cMemModel = new CMemoryModel(workPath);
-                    results = AnalysisUtil.runAnalysis(cMemModel, request);
+                    LLVMMemoryModel llvmMemModel = new LLVMMemoryModel(workPath);
+                    results = AnalysisUtil.runAnalysis(llvmMemModel, request);
                 } catch (IOException e) {
-                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", CMemoryModel.name, e.getMessage());
+                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", LLVMMemoryModel.name, e.getMessage());
                     e.printStackTrace();
                     results = Analysis.RunResults.newBuilder()
                             .setMsg(Constants.MSG_FAIL + ": analysis execution failed")
@@ -121,13 +120,13 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
                             .build();
                 }
                 break;
-            case InputMarker.name:
+            case ExtMethMarker.name:
                 try {
                     Files.createDirectories(workPath);
-                    InputMarker inputMarker = new InputMarker(workPath);
-                    results = AnalysisUtil.runAnalysis(inputMarker, request);
+                    ExtMethMarker extMethMarker = new ExtMethMarker(workPath);
+                    results = AnalysisUtil.runAnalysis(extMethMarker, request);
                 } catch (IOException e) {
-                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", InputMarker.name, e.getMessage());
+                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", ExtMethMarker.name, e.getMessage());
                     e.printStackTrace();
                     results = Analysis.RunResults.newBuilder()
                             .setMsg(Constants.MSG_FAIL + ": analysis execution failed")
@@ -141,6 +140,19 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
                     results = AnalysisUtil.runAnalysis(itvGen, request);
                 } catch (IOException e) {
                     Messages.error("Abstractor: failed to create working directory for analysis %s: %s", IntervalGenerator.name, e.getMessage());
+                    e.printStackTrace();
+                    results = Analysis.RunResults.newBuilder()
+                            .setMsg(Constants.MSG_FAIL + ": analysis execution failed")
+                            .build();
+                }
+                break;
+            case Cardinals.name:
+                try {
+                    Files.createDirectories(workPath);
+                    Cardinals card = new Cardinals(workPath);
+                    results = AnalysisUtil.runAnalysis(card, request);
+                } catch (IOException e) {
+                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", Cardinals.name, e.getMessage());
                     e.printStackTrace();
                     results = Analysis.RunResults.newBuilder()
                             .setMsg(Constants.MSG_FAIL + ": analysis execution failed")

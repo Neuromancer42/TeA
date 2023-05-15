@@ -8,6 +8,10 @@ public class FuncObj implements IMemObj {
         this.func = func;
     }
 
+    public String getFunc() {
+        return func;
+    }
+
     @Override
     public String getObjectType() {
         return TYPE_FPTR;

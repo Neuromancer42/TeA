@@ -58,6 +58,7 @@ public class Constants {
 
     public static final String UNKNOWN = "unknown";
     public static final String NULL = "nullptr";
+    public static final String POISON = "poison";
 
     public static final String TYPE_INT = "int";
     public static final String TYPE_CHAR = "char";

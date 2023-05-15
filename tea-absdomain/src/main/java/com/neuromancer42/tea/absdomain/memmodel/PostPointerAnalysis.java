@@ -38,17 +38,22 @@ public class PostPointerAnalysis extends AbstractAnalysis {
     @ConsumeRel(doms = {"M"}, description = "marked external functions")
     public ProgramRel relExtMeth;
 
-    @ConsumeRel(doms = {"M", "P"})
-    public ProgramRel relMP;
+//    @ConsumeRel(doms = {"M", "P"})
+//    public ProgramRel relMP;
+    @ConsumeRel(name = "ci_reachableP", doms = {"M", "P"})
+    public ProgramRel relCIrP;
 
-    @ConsumeRel(name = "ci_MH", doms = {"M", "H"})
-    public ProgramRel relCIMH;
+    @ConsumeRel(name = "instruction_store_addr", doms = {"P", "V"})
+    public ProgramRel relInstStoreAddr;
 
-    @ConsumeRel(doms = {"P", "V"})
-    public ProgramRel relPstore;
+    @ConsumeRel(name = "MmodH", doms = {"M", "H"})
+    public ProgramRel relMmodH;
 
-    @ConsumeRel(doms = {"V", "V"})
-    public ProgramRel relStorePtr;
+//    @ConsumeRel(doms = {"P", "V"})
+//    public ProgramRel relPstore;
+
+//    @ConsumeRel(doms = {"V", "V"})
+//    public ProgramRel relStorePtr;
 
     @ConsumeRel(name = "ci_pt", doms = {"V", "H"})
     public ProgramRel relCIPT;
@@ -62,8 +67,8 @@ public class PostPointerAnalysis extends AbstractAnalysis {
     @ProduceRel(name = "P_no_update", doms = {"P", "H"})
     public ProgramRel relPNoUpdate;
 
-    @ProduceRel(name = "ci_non_MH", doms = {"M", "H"})
-    public ProgramRel relNonMH;
+    @ProduceRel(name = "MunmodH", doms = {"M", "H"})
+    public ProgramRel relMunmodH;
 
     public void run(Map<String, ProgramDom> inputDoms, Map<String, ProgramRel> inputRels) {
         domM = inputDoms.get("M");
@@ -72,20 +77,23 @@ public class PostPointerAnalysis extends AbstractAnalysis {
         domH = inputDoms.get("H");
 
         relExtMeth = inputRels.get("ExtMeth");
-        relMP = inputRels.get("MP");
-        relCIMH = inputRels.get("ci_MH");
-        relPstore = inputRels.get("Pstore");
-        relStorePtr = inputRels.get("StorePtr");
+//        relMP = inputRels.get("MP");
+        relCIrP = inputRels.get("ci_reachableP");
+        relInstStoreAddr = inputRels.get("instruction_store_addr");
+        relMmodH = inputRels.get("MmodH");
+//        relCIMH = inputRels.get("ci_MH");
+//        relPstore = inputRels.get("Pstore");
+//        relStorePtr = inputRels.get("StorePtr");
         relCIPT = inputRels.get("ci_pt");
-        ProgramRel[] consumedRels = new ProgramRel[]{relExtMeth, relMP, relCIMH, relPstore, relStorePtr, relCIPT};
+        ProgramRel[] consumedRels = new ProgramRel[]{relExtMeth/*, relMP*/, relCIrP, relInstStoreAddr, relMmodH/*, relCIMH*//*, relPstore, relStorePtr*/, relCIPT};
         for (var rel : consumedRels)
             rel.load();
 
         relPStrongUpdate = new ProgramRel("P_strong_update", domP, domH);
         relPWeakUpdate = new ProgramRel("P_weak_update", domP, domH);
         relPNoUpdate = new ProgramRel("P_no_update", domP, domH);
-        relNonMH = new ProgramRel("ci_non_MH", domM, domH);
-        ProgramRel[] generatedRels = new ProgramRel[]{relPStrongUpdate, relPWeakUpdate, relPNoUpdate, relNonMH};
+        relMunmodH = new ProgramRel("ci_non_MH", domM, domH);
+        ProgramRel[] generatedRels = new ProgramRel[]{relPStrongUpdate, relPWeakUpdate, relPNoUpdate, relMunmodH};
         for (var rel: generatedRels) {
             rel.init();
         }
@@ -115,24 +123,24 @@ public class PostPointerAnalysis extends AbstractAnalysis {
             extMeths.add(m);
         }
         Map<String, String> PinM = new HashMap<>();
-        for (Object[] tuple: relMP.getValTuples()) {
+        for (Object[] tuple: /*relMP*/ relCIrP.getValTuples()) {
             String f = (String) tuple[0];
             String p = (String) tuple[1];
             PinM.put(p, f);
         }
         Map<String, Set<String>> mh = new LinkedHashMap<>();
-        for (Object[] tuple: relCIMH.getValTuples()) {
+        for (Object[] tuple: /*relCIMH*/ relMmodH.getValTuples()) {
             String f = (String) tuple[0];
             String h = (String) tuple[1];
             mh.computeIfAbsent(f, k -> new LinkedHashSet<>()).add(h);
         }
 
-        Map<String, String> storeToPtr = new HashMap<>();
-        for (Object[] tuple: relStorePtr.getValTuples()) {
-            String u = (String) tuple[0];
-            String v = (String) tuple[1];
-            storeToPtr.put(v, u);
-        }
+//        Map<String, String> storeToPtr = new HashMap<>();
+//        for (Object[] tuple: relStorePtr.getValTuples()) {
+//            String u = (String) tuple[0];
+//            String v = (String) tuple[1];
+//            storeToPtr.put(v, u);
+//        }
         Map<String, Set<String>> pt = new HashMap<>();
         for (Object[] tuple: relCIPT.getValTuples()) {
             String u = (String) tuple[0];
@@ -141,13 +149,13 @@ public class PostPointerAnalysis extends AbstractAnalysis {
         }
 
 
-        for (Object[] tuple : relPstore.getValTuples()) {
+        for (Object[] tuple : /*relPstore*/ relInstStoreAddr.getValTuples()) {
             String p = (String) tuple[0];
             String m = PinM.get(p);
             Set<String> objs = mh.getOrDefault(m, new LinkedHashSet<>());
             String v = (String) tuple[1];
-            String u = storeToPtr.get(v);
-            Set<String> modObjs = pt.getOrDefault(u, new LinkedHashSet<>());
+//            String u = storeToPtr.get(v);
+            Set<String> modObjs = pt.getOrDefault(v, new LinkedHashSet<>());
             for (String h : objs) {
                 if (modObjs.contains(h)) {
                     if (modObjs.size() == 1) {
@@ -163,17 +171,16 @@ public class PostPointerAnalysis extends AbstractAnalysis {
 
         for (String m : domM) {
             if (extMeths.contains(m))  {
-                // Note: this is a temporal trick, treat all heaps in external methods as untouched
-                //       interval.dl used another handling which does the same thing
-                // TODO: mark impure external functions?
+                // Note: most external functions do not modify memory
+                // except some are specially marked
                 for (String h : domH) {
-                    relNonMH.add(m, h);
+                    relMunmodH.add(m, h);
                 }
             } else {
                 Set<String> hs = mh.getOrDefault(m, Set.of());
                 for (String h : domH) {
                     if (!hs.contains(h)) {
-                        relNonMH.add(m, h);
+                        relMunmodH.add(m, h);
                     }
                 }
             }

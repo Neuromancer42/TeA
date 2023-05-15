@@ -1,0 +1,1317 @@
+// BEGIN of AUTO-GENERATED LLVM RULE, do not modify them directly
+
+
+
+
+
+
+
+
+
+
+
+.type  B <: unsigned //  "basic blocks" 
+
+.type  P <: unsigned //  "instructions" 
+
+.type  V <: unsigned //  "variables" 
+
+.type  T <: unsigned //  "llvm types" 
+
+.type  M <: unsigned //  "functions" 
+
+.type  C <: unsigned //  "constants" 
+
+.type  Z <: unsigned //  "cardinals" 
+
+
+
+
+
+.decl  basicblock_pred( pred:B, next:B ) //  ""
+
+.decl  basicblock_entry( bb:B, entry:P ) //  ""
+
+.decl  basicblock_exit( bb:B, exit:P ) //  ""
+
+.decl  instruction_basicblock( inst:P, bb:B ) //  "an instruction `inst` belongs to a basicblock `bb`"
+
+.decl  instruction_next( inst:P, next:P ) //  ""
+
+.decl  basicblock_function( bb:B, f:M ) //  ""
+
+
+.decl  void_type( t:T ) //  ""
+
+.decl  fn_type( t:T ) //  ""
+
+.decl  fn_type_varargs( t:T ) //  "this function type `ty` can accept variable arguments"
+
+.decl  fn_type_return( fnty:T, retty:T ) //  "this function type `fn_ty` has return type `ret_ty`"
+
+.decl  fn_type_nparams( fnty:T, n:Z ) //  "this function type `fn_ty` has `n` parameters"
+
+.decl  fn_type_param( fnty:T, i:Z, paramty:T ) //  "the `i`-th parameter of function type `fn_ty` has type `param_ty`"
+
+.decl  integer_type( ty:T ) //  ""
+
+.decl  floatingpoint_type( ty:T ) //  ""
+
+.decl  pointer_type( ty:T ) //  ""
+
+.decl  pointer_type_opaque( ty:T ) //  "the pointer type `ty` is opaque."
+
+
+.decl  pointer_type_component( ty:T, pty:T ) //  ""
+
+
+.decl  vector_type( ty:T ) //  ""
+
+.decl  vector_type_size( ty:T, size:C ) //  "a fixed-length vector type `ty` has length `size`"
+
+
+.decl  vector_type_min_size( ty:T, size:C ) //  "a scalable vector type `ty` has minimum length `min_size`"
+
+.decl  vector_type_component( ty:T, comp:T ) //  ""
+
+.decl  array_type( ty:T ) //  ""
+
+.decl  array_type_size( ty:T, size:C ) //  ""
+
+.decl  array_type_component( ty:T, comp:T ) //  ""
+
+.decl  struct_type( ty:T ) //  ""
+
+
+.decl  opaque_struct_type( ty:T ) //  "a struct type may be opaque"
+
+.decl  struct_type_nfields( ty:T, n:Z ) //  "a struct type `ty` has `n` fields"
+
+.decl  struct_type_field( ty:T, i:Z,fty:T ) //  ""
+
+.decl  label( ty:T ) //  ""
+
+.decl  token( ty:T ) //  ""
+
+.decl  metadata( ty:T ) //  ""
+
+.decl  x86mmx( ty:T ) //  ""
+
+.decl  x86amx( ty:T ) //  ""
+
+
+
+.decl  variable_type( v:V, ty:T ) //  ""
+
+.decl  variable_const_int( v:V, c:C ) //  ""
+
+.decl  variable_const_fp( v:V, c:C ) //  ""
+
+.decl  variable_const_ptr_null( v:V ) //  ""
+
+.decl  variable_const_token_none( v:V ) //  ""
+
+.decl  variable_const_struct( v:V ) //  ""
+
+.decl  variable_const_struct_nfields( v:V, n:Z ) //  ""
+
+.decl  variable_const_struct_field( v:V, i:Z, fval:V ) //  ""
+
+.decl  variable_const_array( v:V ) //  ""
+
+.decl  variable_const_array_len( v:V, l:C ) //  ""
+
+.decl  variable_const_array_elem( v:V, elem:V ) //  ""
+
+.decl  variable_const_vector( v:V ) //  ""
+
+.decl  variable_const_vector_len( v:V, l:C ) //  ""
+
+.decl  variable_const_vector_elem( v:V, elem:V ) //  ""
+
+.decl  variable_const_aggzero( v:V ) //  ""
+
+.decl  variable_undef( v:V ) //  ""
+
+.decl  variable_undef_poison( v:V ) //  ""
+
+.decl  variable_local( v:V, m:M ) //  "variable is local to a function"
+
+.decl  variable_global( v:V ) //  ""
+
+.decl  variable_global_type( v:V, vty:T ) //  ""
+
+
+.decl  variable_global_align( v:V, align:C ) //  ""
+
+.decl  variable_global_init( v:V, init:V ) //  ""
+
+.decl  variable_alias( v:V ) //  ""
+
+.decl  variable_alias_aliasee( v:V, alias:V ) //  ""
+
+.decl  variable_ifunc( v:V ) //  ""
+
+.decl  variable_ifunc_resolver( v:V, res:M ) //  ""
+
+.decl  variable_func( v:V, f:M ) //  ""
+
+.decl  variable_blockaddr( v:V, b:B ) //  ""
+
+.decl  variable_constexpr( v:V ) //  ""
+
+.decl  operation_unary_fneg( res:V, inner:V ) //  ""
+
+.decl  operation_binary_add( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_fadd( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_sub( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_fsub( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_mul( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_fmul( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_udiv( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_sdiv( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_fdiv( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_urem( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_srem( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_frem( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_shl( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_lshr( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_ashr( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_and( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_or( res:V, l:V, r:V ) //  ""
+
+.decl  operation_binary_xor( res:V, l:V, r:V ) //  ""
+
+.decl  operation_extractelement( res:V, l:V, r:V ) //  ""
+
+.decl  operation_insertelement( res:V, base:V, elem:V, idx:V ) //  ""
+
+.decl  operation_shufflevector( res:V, v1:V, v2:V, mask:V ) //  ""
+
+.decl  operation_extractvalue_base( res:V, base:V ) //  ""
+
+.decl  operation_extractvalue_nindices( res:V, n:Z ) //  ""
+
+.decl  operation_extractvalue_index( res:V, i:Z, idx:Z ) //  ""
+
+.decl  operation_insertvalue_base( res:V, base:V ) //  ""
+
+.decl  operation_insertvalue_elem( res:V, elem:V ) //  ""
+
+.decl  operation_insertvalue_nindices( res:V, n:Z ) //  ""
+
+.decl  operation_insertvalue_index( res:V, i:Z, idx:Z ) //  ""
+
+.decl  operation_gep_inbounds( res:V ) //  ""
+
+.decl  operation_gep_base( res:V, gep:V ) //  ""
+
+.decl  operation_gep_type( res:V, ty:T ) //  ""
+
+.decl  operation_gep_nindices( res:V, n:Z ) //  ""
+
+.decl  operation_gep_index_field( res:V, i:Z, f:Z ) //  ""
+
+.decl  operation_gep_index_offset( res:V, i:Z, off:V ) //  ""
+
+.decl  operation_cast_trunc( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_zext( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_sext( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_fptoui( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_fptosi( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_uitofp( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_sitofp( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_fptrunc( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_fpext( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_ptrtoint( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_inttoptr( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_bitcast( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_cast_addrspacecast( res:V, src:V, fromty:T, toty:T ) //  ""
+
+.decl  operation_icmp_eq( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_ne( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_ugt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_uge( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_ult( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_ule( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_sgt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_sge( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_slt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_icmp_sle( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_false( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_oeq( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ogt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_oge( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_olt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ole( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_one( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ord( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ueq( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ugt( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_uge( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ult( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_ule( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_une( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_uno( res:V, l:V, r:V ) //  ""
+
+.decl  operation_fcmp_true( res:V, l:V, r:V ) //  ""
+
+
+
+.decl  main_function( f:M ) //  ""
+
+.decl  function_type( f:M, ty:T ) //  ""
+
+
+
+   
+.decl  function_nparams( f:M, n:Z ) //  ""
+
+.decl  function_param( f:M, i:Z, arg:V ) //  ""
+
+.decl  function_extern( f:M ) //  ""
+
+.decl  function_entry( f:M, bb:B ) //  ""
+
+
+
+
+.decl  instruction_ret( p:P ) //  ""
+
+.decl  instruction_ret_var( inst:P, v:V ) //  "instruction `inst` returns value of variable `v`"
+
+.decl  instruction_ret_void( inst:P ) //  "instruction `inst` has no return value"
+
+.decl  instruction_br( inst:P ) //  ""
+
+.decl  instruction_br_cond( inst:P ) //  "instruction `inst` is a conditional branch"
+
+.decl  instruction_br_cond_var( inst:P, v:V ) //  ""
+
+.decl  instruction_br_cond_iftrue( inst:P, b:B ) //  ""
+
+.decl  instruction_br_cond_iffalse( inst:P, bb:B ) //  ""
+
+.decl  instruction_br_uncond( inst:P ) //  "instruction `inst` is an unconditional branch"
+
+.decl  instruction_br_uncond_goto( inst:P, bb:B ) //  ""
+
+.decl  instruction_switch( inst:P ) //  ""
+
+.decl  instruction_switch_var( inst:P, v:V ) //  ""
+
+.decl  instruction_switch_default( inst:P, bb:B ) //  ""
+
+.decl  instruction_switch_ncases( inst:P, n:Z ) //  ""
+
+.decl  instruction_switch_case_val( inst:P, i:Z, c:C ) //  ""
+
+.decl  instruction_switch_case_goto( inst:P, i:Z, bb:B ) //  ""
+
+.decl  instruction_indirectbr( inst:P ) //  ""
+
+.decl  instruction_indirectbr_addr( inst:P, addr:V ) //  ""
+
+.decl  instruction_indirectbr_nlabels( inst:P, n:Z ) //  ""
+
+.decl  instruction_indirectbr_label( inst:P, i:Z, bb:B ) //  ""
+
+.decl  instruction_invk( inst:P ) //  ""
+
+.decl  instruction_invk_void( inst:P ) //  ""
+
+.decl  instruction_invk_res( inst:P, res:V ) //  ""
+
+.decl  instruction_invk_static( inst:P, f:M ) //  ""
+
+.decl  instruction_invk_dynamic( inst:P, fptr:V ) //  ""
+
+.decl  instruction_invk_nargs( inst:P, n:Z ) //  ""
+
+.decl  instruction_invk_arg( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_invk_normaldest( inst:P, bb:B ) //  ""
+
+.decl  instruction_invk_exceptiondest( inst:P, bb:B ) //  ""
+
+.decl  instruction_callbr( inst:P ) //  ""
+
+.decl  instruction_callbr_void( inst:P ) //  ""
+
+.decl  instruction_callbr_res( inst:P, res:V ) //  ""
+
+.decl  instruction_callbr_static( inst:P, f:M ) //  ""
+
+.decl  instruction_callbr_dynamic( inst:P, fptr:V ) //  ""
+
+.decl  instruction_callbr_nargs( inst:P, n:Z ) //  ""
+
+.decl  instruction_callbr_arg( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_callbr_fallthrough( inst:P, bb:B ) //  ""
+
+.decl  instruction_callbr_indirect( inst:P, bb:B ) //  ""
+
+.decl  instruction_resume( inst:P ) //  ""
+
+.decl  instruction_resume_var( inst:P, v:V ) //  ""
+
+.decl  instruction_catchswitch( inst:P ) //  ""
+
+.decl  instruction_catchswitch_res( inst:P, res:V ) //  ""
+
+.decl  instruction_catchswitch_within( inst:P, v:V ) //  ""
+
+.decl  instruction_catchswitch_handler( inst:P, bb:B ) //  ""
+
+.decl  instruction_catchswitch_unwindlabel( inst:P, bb:B ) //  ""
+
+.decl  instruction_catchswitch_unwindcaller( inst:P ) //  ""
+
+.decl  instruction_catchret( inst:P ) //  ""
+
+.decl  instruction_catchret_fromto( inst:P, v:V, bb:B ) //  ""
+
+.decl  instruction_cleanupret( inst:P ) //  ""
+
+.decl  instruction_cleanupret_from( inst:P, v:V ) //  ""
+
+.decl  instruction_cleanupret_unwindlabel( inst:P, l:B ) //  ""
+
+.decl  instruction_cleanupret_unwindcaller( inst:P ) //  ""
+
+.decl  instruction_unreachable( inst:P ) //  ""
+
+
+.decl  instruction_alloca( inst:P ) //  ""
+
+.decl  instruction_alloca_res( inst:P, res:V ) //  ""
+
+.decl  instruction_alloca_type( inst:P, ty:T ) //  ""
+
+.decl  instruction_alloca_size( inst:P, size:V ) //  ""
+
+.decl  instruction_alloca_align( inst:P, align:C ) //  ""
+
+
+.decl  instruction_load( inst:P ) //  ""
+
+.decl  instruction_load_volatile( inst:P ) //  ""
+
+
+.decl  instruction_load_res( inst:P, res:V ) //  ""
+
+.decl  instruction_load_ptr( inst:P, ptr:V ) //  ""
+
+.decl  instruction_load_align( inst:P, align:C ) //  ""
+
+.decl  instruction_store( inst:P ) //  ""
+
+.decl  instruction_store_volatile( inst:P ) //  ""
+
+
+.decl  instruction_store_var( inst:P, ptr:V ) //  ""
+
+.decl  instruction_store_addr( inst:P, addr:V ) //  ""
+
+.decl  instruction_store_align( inst:P, align:C ) //  ""
+
+.decl  instruction_fence( inst:P ) //  ""
+
+
+.decl  instruction_cmpxchg( inst:P ) //  ""
+
+.decl  instruction_cmpxchg_weak( inst:P ) //  ""
+
+.decl  instruction_cmpxchg_strong( inst:P ) //  ""
+
+.decl  instruction_cmpxchg_volatile( inst:P ) //  ""
+
+
+
+   
+.decl  instruction_cmpxchg_addr( inst:P, addr:V ) //  ""
+
+.decl  instruction_cmpxchg_cmp( inst:P, cmp:V ) //  ""
+
+.decl  instruction_cmpxchg_new( inst:P, new:V ) //  ""
+
+.decl  instruction_atomicrmw( inst:P ) //  ""
+
+.decl  instruction_atomicrmw_volatile( inst:P ) //  ""
+
+
+.decl  instruction_atomicrmw_xchg( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_add( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_sub( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_and( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_nand( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_or( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_xor( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_max( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_min( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_umax( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_umin( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_fadd( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_fsub( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_fmax( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_fmin( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_atomicrmw_bad( inst:P, v:V, delta:V ) //  ""
+
+.decl  instruction_phi( inst:P ) //  ""
+
+.decl  instruction_phi_res( inst:P, res:V ) //  ""
+
+.decl  instruction_phi_npairs( inst:P, n:Z ) //  ""
+
+.decl  instruction_phi_pair( inst:P, i:Z, v:V, l:B ) //  ""
+
+.decl  instruction_select( inst:P ) //  ""
+
+.decl  instruction_select_expr( inst:P, res:V, cond:V, trueval:V, falseval:V ) //  ""
+
+.decl  instruction_freeze( inst:P ) //  ""
+
+.decl  instruction_freeze_var( inst:P, v:V ) //  ""
+
+.decl  instruction_call( inst:P ) //  ""
+
+.decl  instruction_call_void( inst:P ) //  ""
+
+.decl  instruction_call_res( inst:P, res:V ) //  ""
+
+.decl  instruction_call_static( inst:P, f:M ) //  ""
+
+.decl  instruction_call_dynamic( inst:P, fptr:V ) //  ""
+
+.decl  instruction_call_nargs( inst:P, n:Z ) //  ""
+
+.decl  instruction_call_arg( inst:P, i:Z, arg:V ) //  ""
+
+.decl  instruction_vaarg( inst:P ) //  ""
+
+.decl  instruction_vaarg_expr( inst:P, res:V, list:V ) //  ""
+
+.decl  instruction_landingpad( inst:P ) //  ""
+
+.decl  instruction_landingpad_res( inst:P, res:V ) //  ""
+
+.decl  instruction_landingpad_cleanup( inst:P ) //  ""
+
+.decl  instruction_landingpad_nocleanup( inst:P ) //  ""
+
+.decl  instruction_landingpad_nclses( inst:P, n:Z ) //  ""
+
+.decl  instruction_landingpad_cls_catch( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_landingpad_cls_filter( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_catchpad( inst:P ) //  ""
+
+.decl  instruction_catchpad_res( inst:P, res:V ) //  ""
+
+.decl  instruction_catchpad_within( inst:P, res:V ) //  ""
+
+.decl  instruction_catchpad_nargs( inst:P, n:Z ) //  ""
+
+.decl  instruction_catchpad_arg( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_cleanuppad( inst:P ) //  ""
+
+.decl  instruction_cleanuppad_res( inst:P, res:V ) //  ""
+
+.decl  instruction_cleanuppad_within( inst:P, b:B ) //  ""
+
+.decl  instruction_cleanuppad_nargs( inst:P, n:Z ) //  ""
+
+.decl  instruction_cleanuppad_arg( inst:P, i:Z, v:V ) //  ""
+
+.decl  instruction_op( inst:P ) //  ""
+
+.decl  instruction_op_res( inst:P, res:V ) //  ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+
+
+
+.input  basicblock_pred
+
+.input  basicblock_entry
+
+.input  basicblock_exit
+
+.input  instruction_basicblock
+
+.input  instruction_next
+
+.input  basicblock_function
+
+
+.input  void_type
+
+.input  fn_type
+
+.input  fn_type_varargs
+
+.input  fn_type_return
+
+.input  fn_type_nparams
+
+.input  fn_type_param
+
+.input  integer_type
+
+.input  floatingpoint_type
+
+.input  pointer_type
+
+.input  pointer_type_opaque
+
+
+.input  pointer_type_component
+
+
+.input  vector_type
+
+.input  vector_type_size
+
+
+.input  vector_type_min_size
+
+.input  vector_type_component
+
+.input  array_type
+
+.input  array_type_size
+
+.input  array_type_component
+
+.input  struct_type
+
+
+.input  opaque_struct_type
+
+.input  struct_type_nfields
+
+.input  struct_type_field
+
+.input  label
+
+.input  token
+
+.input  metadata
+
+.input  x86mmx
+
+.input  x86amx
+
+
+
+.input  variable_type
+
+.input  variable_const_int
+
+.input  variable_const_fp
+
+.input  variable_const_ptr_null
+
+.input  variable_const_token_none
+
+.input  variable_const_struct
+
+.input  variable_const_struct_nfields
+
+.input  variable_const_struct_field
+
+.input  variable_const_array
+
+.input  variable_const_array_len
+
+.input  variable_const_array_elem
+
+.input  variable_const_vector
+
+.input  variable_const_vector_len
+
+.input  variable_const_vector_elem
+
+.input  variable_const_aggzero
+
+.input  variable_undef
+
+.input  variable_undef_poison
+
+.input  variable_local
+
+.input  variable_global
+
+.input  variable_global_type
+
+
+.input  variable_global_align
+
+.input  variable_global_init
+
+.input  variable_alias
+
+.input  variable_alias_aliasee
+
+.input  variable_ifunc
+
+.input  variable_ifunc_resolver
+
+.input  variable_func
+
+.input  variable_blockaddr
+
+.input  variable_constexpr
+
+.input  operation_unary_fneg
+
+.input  operation_binary_add
+
+.input  operation_binary_fadd
+
+.input  operation_binary_sub
+
+.input  operation_binary_fsub
+
+.input  operation_binary_mul
+
+.input  operation_binary_fmul
+
+.input  operation_binary_udiv
+
+.input  operation_binary_sdiv
+
+.input  operation_binary_fdiv
+
+.input  operation_binary_urem
+
+.input  operation_binary_srem
+
+.input  operation_binary_frem
+
+.input  operation_binary_shl
+
+.input  operation_binary_lshr
+
+.input  operation_binary_ashr
+
+.input  operation_binary_and
+
+.input  operation_binary_or
+
+.input  operation_binary_xor
+
+.input  operation_extractelement
+
+.input  operation_insertelement
+
+.input  operation_shufflevector
+
+.input  operation_extractvalue_base
+
+.input  operation_extractvalue_nindices
+
+.input  operation_extractvalue_index
+
+.input  operation_insertvalue_base
+
+.input  operation_insertvalue_elem
+
+.input  operation_insertvalue_nindices
+
+.input  operation_insertvalue_index
+
+.input  operation_gep_inbounds
+
+.input  operation_gep_base
+
+.input  operation_gep_type
+
+.input  operation_gep_nindices
+
+.input  operation_gep_index_field
+
+.input  operation_gep_index_offset
+
+.input  operation_cast_trunc
+
+.input  operation_cast_zext
+
+.input  operation_cast_sext
+
+.input  operation_cast_fptoui
+
+.input  operation_cast_fptosi
+
+.input  operation_cast_uitofp
+
+.input  operation_cast_sitofp
+
+.input  operation_cast_fptrunc
+
+.input  operation_cast_fpext
+
+.input  operation_cast_ptrtoint
+
+.input  operation_cast_inttoptr
+
+.input  operation_cast_bitcast
+
+.input  operation_cast_addrspacecast
+
+.input  operation_icmp_eq
+
+.input  operation_icmp_ne
+
+.input  operation_icmp_ugt
+
+.input  operation_icmp_uge
+
+.input  operation_icmp_ult
+
+.input  operation_icmp_ule
+
+.input  operation_icmp_sgt
+
+.input  operation_icmp_sge
+
+.input  operation_icmp_slt
+
+.input  operation_icmp_sle
+
+.input  operation_fcmp_false
+
+.input  operation_fcmp_oeq
+
+.input  operation_fcmp_ogt
+
+.input  operation_fcmp_oge
+
+.input  operation_fcmp_olt
+
+.input  operation_fcmp_ole
+
+.input  operation_fcmp_one
+
+.input  operation_fcmp_ord
+
+.input  operation_fcmp_ueq
+
+.input  operation_fcmp_ugt
+
+.input  operation_fcmp_uge
+
+.input  operation_fcmp_ult
+
+.input  operation_fcmp_ule
+
+.input  operation_fcmp_une
+
+.input  operation_fcmp_uno
+
+.input  operation_fcmp_true
+
+
+
+.input  main_function
+
+.input  function_type
+
+
+
+   
+.input  function_nparams
+
+.input  function_param
+
+.input  function_extern
+
+.input  function_entry
+
+
+
+
+.input  instruction_ret
+
+.input  instruction_ret_var
+
+.input  instruction_ret_void
+
+.input  instruction_br
+
+.input  instruction_br_cond
+
+.input  instruction_br_cond_var
+
+.input  instruction_br_cond_iftrue
+
+.input  instruction_br_cond_iffalse
+
+.input  instruction_br_uncond
+
+.input  instruction_br_uncond_goto
+
+.input  instruction_switch
+
+.input  instruction_switch_var
+
+.input  instruction_switch_default
+
+.input  instruction_switch_ncases
+
+.input  instruction_switch_case_val
+
+.input  instruction_switch_case_goto
+
+.input  instruction_indirectbr
+
+.input  instruction_indirectbr_addr
+
+.input  instruction_indirectbr_nlabels
+
+.input  instruction_indirectbr_label
+
+.input  instruction_invk
+
+.input  instruction_invk_void
+
+.input  instruction_invk_res
+
+.input  instruction_invk_static
+
+.input  instruction_invk_dynamic
+
+.input  instruction_invk_nargs
+
+.input  instruction_invk_arg
+
+.input  instruction_invk_normaldest
+
+.input  instruction_invk_exceptiondest
+
+.input  instruction_callbr
+
+.input  instruction_callbr_void
+
+.input  instruction_callbr_res
+
+.input  instruction_callbr_static
+
+.input  instruction_callbr_dynamic
+
+.input  instruction_callbr_nargs
+
+.input  instruction_callbr_arg
+
+.input  instruction_callbr_fallthrough
+
+.input  instruction_callbr_indirect
+
+.input  instruction_resume
+
+.input  instruction_resume_var
+
+.input  instruction_catchswitch
+
+.input  instruction_catchswitch_res
+
+.input  instruction_catchswitch_within
+
+.input  instruction_catchswitch_handler
+
+.input  instruction_catchswitch_unwindlabel
+
+.input  instruction_catchswitch_unwindcaller
+
+.input  instruction_catchret
+
+.input  instruction_catchret_fromto
+
+.input  instruction_cleanupret
+
+.input  instruction_cleanupret_from
+
+.input  instruction_cleanupret_unwindlabel
+
+.input  instruction_cleanupret_unwindcaller
+
+.input  instruction_unreachable
+
+
+.input  instruction_alloca
+
+.input  instruction_alloca_res
+
+.input  instruction_alloca_type
+
+.input  instruction_alloca_size
+
+.input  instruction_alloca_align
+
+
+.input  instruction_load
+
+.input  instruction_load_volatile
+
+
+.input  instruction_load_res
+
+.input  instruction_load_ptr
+
+.input  instruction_load_align
+
+.input  instruction_store
+
+.input  instruction_store_volatile
+
+
+.input  instruction_store_var
+
+.input  instruction_store_addr
+
+.input  instruction_store_align
+
+.input  instruction_fence
+
+
+.input  instruction_cmpxchg
+
+.input  instruction_cmpxchg_weak
+
+.input  instruction_cmpxchg_strong
+
+.input  instruction_cmpxchg_volatile
+
+
+
+   
+.input  instruction_cmpxchg_addr
+
+.input  instruction_cmpxchg_cmp
+
+.input  instruction_cmpxchg_new
+
+.input  instruction_atomicrmw
+
+.input  instruction_atomicrmw_volatile
+
+
+.input  instruction_atomicrmw_xchg
+
+.input  instruction_atomicrmw_add
+
+.input  instruction_atomicrmw_sub
+
+.input  instruction_atomicrmw_and
+
+.input  instruction_atomicrmw_nand
+
+.input  instruction_atomicrmw_or
+
+.input  instruction_atomicrmw_xor
+
+.input  instruction_atomicrmw_max
+
+.input  instruction_atomicrmw_min
+
+.input  instruction_atomicrmw_umax
+
+.input  instruction_atomicrmw_umin
+
+.input  instruction_atomicrmw_fadd
+
+.input  instruction_atomicrmw_fsub
+
+.input  instruction_atomicrmw_fmax
+
+.input  instruction_atomicrmw_fmin
+
+.input  instruction_atomicrmw_bad
+
+.input  instruction_phi
+
+.input  instruction_phi_res
+
+.input  instruction_phi_npairs
+
+.input  instruction_phi_pair
+
+.input  instruction_select
+
+.input  instruction_select_expr
+
+.input  instruction_freeze
+
+.input  instruction_freeze_var
+
+.input  instruction_call
+
+.input  instruction_call_void
+
+.input  instruction_call_res
+
+.input  instruction_call_static
+
+.input  instruction_call_dynamic
+
+.input  instruction_call_nargs
+
+.input  instruction_call_arg
+
+.input  instruction_vaarg
+
+.input  instruction_vaarg_expr
+
+.input  instruction_landingpad
+
+.input  instruction_landingpad_res
+
+.input  instruction_landingpad_cleanup
+
+.input  instruction_landingpad_nocleanup
+
+.input  instruction_landingpad_nclses
+
+.input  instruction_landingpad_cls_catch
+
+.input  instruction_landingpad_cls_filter
+
+.input  instruction_catchpad
+
+.input  instruction_catchpad_res
+
+.input  instruction_catchpad_within
+
+.input  instruction_catchpad_nargs
+
+.input  instruction_catchpad_arg
+
+.input  instruction_cleanuppad
+
+.input  instruction_cleanuppad_res
+
+.input  instruction_cleanuppad_within
+
+.input  instruction_cleanuppad_nargs
+
+.input  instruction_cleanuppad_arg
+
+.input  instruction_op
+
+.input  instruction_op_res
+
+// END of AUTO-GENERATED LLVM RULES
+.decl entryM(m:M)
+.output entryM
+
+entryM(m) :- main_function(m).
+
+.decl MmethArg(m:M,z:Z,v:V)
+.output MmethArg
+.decl ExtMeth(m:M)
+.output ExtMeth
+.decl MPentry(m:M,p:P)
+.output MPentry
+.decl MPexit(m:M,p:P)
+.output MPexit
+.decl MmethRet(m:M,v:V)
+.output MmethRet
+.decl PPdirect(p:P,q:P)
+.output PPdirect
+.decl PPtrue(p:P,q:P,v:V)
+.output PPtrue
+.decl PPfalse(p:P,q:P,v:V)
+.output PPfalse
+.decl PPmatch(p:P, q:P, v:V, c:C)
+.output PPmatch
+MmethArg(m, i, v) :- function_param(m, i, v).
+ExtMeth(m) :- function_extern(m).
+MPentry(m, p) :- function_entry(m, bb), basicblock_entry(bb, p).
+MPexit(m, p), MmethRet(m, v) :- instruction_ret_var(p, v), instruction_basicblock(p, bb), basicblock_function(bb, m).
+PPdirect(p, q) :- instruction_next(p, q).
+PPdirect(p, q) :- basicblock_exit(_, p), instruction_br_uncond_goto(p, goto), basicblock_entry(goto, q).
+PPtrue(p, q, v) :- basicblock_exit(_, p), instruction_br_cond_var(p, v), instruction_br_cond_iftrue(p, bb), basicblock_entry(bb, q).
+PPfalse(p, q, v) :- basicblock_exit(_, p), instruction_br_cond_var(p, v), instruction_br_cond_iffalse(p, bb), basicblock_entry(bb, q).
+PPmatch(p, q, v, c) :- basicblock_exit(_, p), instruction_switch_var(p, v), instruction_switch_case_val(p, i, c), instruction_switch_case_goto(p, i, bb), basicblock_entry(bb, q).
+// TODO: temporary handling of `indirectbr`
+PPdirect(p, q) :- basicblock_exit(_, p), instruction_indirectbr_label(p, _, bb), basicblock_entry(bb, q).
+// TODO: temproray handling of `invoke`, ignoring exception flow
+PPdirect(p, q) :- basicblock_exit(_, p), instruction_invk_normaldest(p, bb), basicblock_entry(bb, q).
+// TODO: ignoring `callbr` `resume` `catchswitch` `catchret` `cleanupret`
+// Note : `unreachable` goes to nowhere, so no control-flow edge
+
+.decl Peval(p:P,v:V)
+.output Peval
+.decl Palloca(p:P,v:V)
+.output Palloca
+.decl Pstore(p:P,v:V)
+.output Pstore
+.decl Pload(p:P,v:V)
+.output Pload
+.decl Pinvk(p:P)
+.output Pinvk
+.decl Pnoop(p:P)
+.output Pnoop
+Peval(p, v):- instruction_op_res(p, v).
+Palloca(p, v) :- instruction_alloca_res(p, v).
+Pstore(p, v) :- instruction_store_var(p, v).
+Pload(p, v) :- instruction_load_res(p, v).
+Pinvk(p) :- instruction_call(p).
+Pinvk(p) :- instruction_invk(p). // treat exceptional `invoke` as normal call
+// TODO: handle `phi` `select` `vaarg`
+// most terminator instructions are "noop"
+Pnoop(p) :- instruction_ret(p) ; instruction_br(p) ; instruction_switch(p) ; instruction_indirectbr(p).
+Pnoop(p) :- instruction_callbr(p) ; instruction_resume(p) ; instruction_catchswitch(p) ; instruction_catchret(p) ; instruction_cleanupret(p) ; instruction_unreachable(p).
+// TODO: ignoring `fence` `cmpxchg` `atomicrmw` `freeze`  `landingpad` `catchpad` `cleanuppad`
+Pnoop(p) :- instruction_fence(p) ; instruction_cmpxchg(p) ; instruction_atomicrmw(p) ; instruction_freeze(p) ; instruction_landingpad(p) ; instruction_catchpad(p) ; instruction_cleanuppad(p).
+
+.decl Alloca(v:V, n:V, t:T)
+.output Alloca
+.decl GlobalAlloca(v:V, t:T)
+.output GlobalAlloca
+// TODO check these two relations' usage?
+// TODO how about alignment?
+Alloca(v, n, t) :- instruction_alloca_res(p, v), instruction_alloca_size(p, n), instruction_alloca_type(p, t).
+GlobalAlloca(v, t) :- variable_global_type(v, t).
+
+.decl LoadPtr(res:V, addr:V)
+.output LoadPtr
+LoadPtr(res, addr) :- instruction_load_res(p, res), instruction_load_ptr(p, addr), variable_type(res, ty), pointer_type(ty).
+.decl StorePtr(addr:V, val:V)
+.output StorePtr
+StorePtr(addr, val) :- instruction_store_addr(p, addr), instruction_store_var(p, val), variable_type(val, ty), pointer_type(ty).
+//StorePtr(gvar, init) :- variable_global_init(gvar, init), variable_type(val, ty), pointer_type(ty).
+
+.decl IinvkArg(p:P, i:Z, v:V)
+.output IinvkArg
+IinvkArg(p, i, v) :- instruction_call_arg(p, i, v).
+IinvkArg(p, i, v) :- instruction_invk_arg(p, i, v).
+.decl IinvkRet(p:P, v:V)
+.output IinvkRet
+IinvkRet(p, v) :- instruction_call_res(p, v).
+IinvkRet(p, v) :- instruction_invk_res(p, v).
+.decl StaticCall(p:P, m:M)
+.output StaticCall
+StaticCall(p, m) :- instruction_call_static(p, m).
+StaticCall(p, m) :- instruction_invk_static(p, m).
+.decl IndirectCall(p:P, fptr:V)
+.output IndirectCall
+IndirectCall(p, fptr) :- instruction_call_dynamic(p, fptr).
+IndirectCall(p, fptr) :- instruction_invk_dynamic(p, fptr).
+.decl FuncRef(m:M, v:V)
+.output FuncRef
+FuncRef(m, v) :- variable_func(v, m).
+
+// special handling, eliminate dom B
+.decl variable_instaddr(v:V, p:P)
+.output variable_instaddr
+variable_instaddr(v, p) :- variable_blockaddr(v, bb), basicblock_entry(bb, p).
+
+// Note: leave arithmetic variable evaluations (a.k.a constants and operations) as is
+
+// Note: leave type relations as is
+
+
+// validate relations
+.decl validate_P(p:P)
+.output validate_P
+validate_P(p) :- entryM(m), MPentry(m, p).
+validate_P(p) :- validate_P(q), PPdirect(q, p).
+validate_P(p) :- validate_P(q), PPtrue(q, p, _).
+validate_P(p) :- validate_P(q), PPfalse(q, p, _).
+validate_P(p) :- validate_P(q), PPmatch(q, p, _, _).

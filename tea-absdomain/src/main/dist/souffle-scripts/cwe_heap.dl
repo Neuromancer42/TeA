@@ -1,0 +1,74 @@
+.type P <: unsigned
+.type M <: unsigned
+.type V <: unsigned
+.type H <: unsigned
+.type Z <: unsigned
+.type C <: unsigned
+
+.decl ci_pt(v:V, h:H)
+.input ci_pt
+.decl ci_IM(p:P, m:M)
+.input ci_IM
+.decl Z0(z:Z)
+.input Z0
+.decl IinvkArg(p:P, z:Z, v:V)
+.input IinvkArg
+.decl freeFunc(m:M)
+.input freeFunc
+.decl ExtMeth(m:M)
+.input ExtMeth
+.decl PPdirect(p:P, q:P)
+.input PPdirect
+.decl PPtrue(p:P, q:P, v:V)
+.input PPtrue
+.decl PPfalse(p:P, q:P, v:V)
+.input PPfalse
+.decl PPmatch(p:P, q:P, v:V, c:C)
+.input PPmatch
+.decl Peval(p:P, v:V)
+.input Peval
+.decl Palloca(p:P, v:V)
+.input Palloca
+.decl Pload(p:P, v:V)
+.input Pload
+.decl Pstore(p:P, v:V)
+.input Pstore
+.decl Pnoop(p:P)
+.input Pnoop
+.decl Pinvk(p:P)
+.input Pinvk
+.decl MPentry(m:M, p:P)
+.input MPentry
+.decl MPexit(m:M, p:P)
+.input MPexit
+.decl instruction_load_ptr(p:P, v:V)
+.input instruction_load_ptr
+.decl instruction_store_addr(p:P, v:V)
+.input instruction_store_addr
+.decl ci_PHfreed(p:P, h:H)
+.decl ci_postPHfreed(p:P, h:H)
+ci_postPHfreed(p, h) :- ci_IM(p, m), freeFunc(m), Z0(i0), IinvkArg(p, i0, v), ci_pt(v, h).
+
+ci_PHfreed(q,h) :- ci_postPHfreed(p,h), PPdirect(p, q).
+ci_PHfreed(q,h) :- ci_postPHfreed(p,h), PPtrue(p, q, _).
+ci_PHfreed(q,h) :- ci_postPHfreed(p,h), PPfalse(p, q, _).
+ci_PHfreed(q,h) :- ci_postPHfreed(p,h), PPmatch(p, q, _, _).
+
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Peval(p, _).
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Palloca(p, _).
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Pload(p, _).
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Pstore(p, _).
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Pnoop(p).
+ci_postPHfreed(p, h) :- ci_PHfreed(p,h), Pinvk(p).
+
+ci_PHfreed(q,h) :- ci_PHfreed(p,h), ci_IM(p,m), MPentry(m,q).
+ci_postPHfreed(q,h) :- ci_PHfreed(p,h), MPexit(m,p), ci_IM(q,m).
+
+.decl CWE415_double_free(p:P, v:V)
+.output CWE415_double_free
+.decl CWE416_use_after_free(p:P, v:V)
+.output CWE416_use_after_free
+CWE415_double_free(p, v) :- ci_PHfreed(p, h), ci_IM(p, m), freeFunc(m), Z0(i0), IinvkArg(p, i0, v), ci_pt(v, h).
+CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), instruction_load_ptr(p, v), ci_pt(v,h).
+CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), instruction_store_addr(p, v), ci_pt(v,h).
+CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), ci_IM(p, m), ExtMeth(m), IinvkArg(p, _, v), ci_pt(v, h).

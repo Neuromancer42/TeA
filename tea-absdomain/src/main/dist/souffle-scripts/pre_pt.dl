@@ -1,10 +1,9 @@
 // generate flow-insensitive & path-insensitive facts
 .type M <: unsigned
 .type P <: unsigned
-.type E <: unsigned
 .type V <: unsigned
-.type I <: unsigned
 .type Z <: unsigned
+.type C <: unsigned
 
 .decl MPentry(m:M,p:P)
 .input MPentry
@@ -14,32 +13,25 @@
 .input PPtrue
 .decl PPfalse(p:P,q:P,v:V)
 .input PPfalse
+.decl PPmatch(p:P,q:P,v:V,c:C)
+.input PPmatch
 
 .decl MmethArg(m:M,z:Z,v:V)
 .input MmethArg
 .decl MmethRet(m:M,v:V)
 .input MmethRet
 
-.decl Peval(p:P,v:V,e:E)
+.decl Peval(p:P,v:V)
 .input Peval
 .decl Pload(p:P,v:V)
 .input Pload
-.decl Pstore(p:P,v:V)
-.input Pstore
 .decl Palloca(p:P,v:V)
 .input Palloca
-.decl Pinvk(p:P,i:I)
-.input Pinvk
-
-.decl IinvkArg(i:I,z:Z,v:V)
-.input IinvkArg
-.decl IinvkRet(i:I,v:V)
+.decl IinvkRet(p:P, v:V)
 .input IinvkRet
 
 .decl MP(m:M,p:P)
 .output MP
-.decl MI(m:M,i:I)
-.output MI
 .decl MV(m:M,v:V)
 .output MV
 
@@ -47,12 +39,11 @@ MP(m,p) :- MPentry(m,p).
 MP(m,q) :- MP(m,p), PPdirect(p,q).
 MP(m,q) :- MP(m,p), PPtrue(p,q,_).
 MP(m,q) :- MP(m,p), PPfalse(p,q,_).
+MP(m,q) :- MP(m,p), PPmatch(p,q,_,_).
 
-MI(m,i) :- MP(m,p), Pinvk(p,i).
-
-MV(m,v) :- MP(m,p), Peval(p,v,_).
+MV(m,v) :- MP(m,p), Peval(p,v).
 MV(m,v) :- MP(m,p), Pload(p,v).
 MV(m,v) :- MP(m,p), Palloca(p,v).
 
 MV(m,v) :- MmethArg(m,_,v).
-MV(m,v) :- MI(m,i), IinvkRet(i,v).
+MV(m,v) :- MP(m, p), IinvkRet(p,v).

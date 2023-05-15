@@ -13,6 +13,7 @@ import com.neuromancer42.tea.absdomain.memmodel.object.StackObj;
 import java.nio.file.Path;
 import java.util.*;
 
+@Deprecated
 @TeAAnalysis(name = "c_mem_model")
 public class CMemoryModel extends AbstractAnalysis {
     public static final String name = "c_mem_model";
@@ -100,8 +101,8 @@ public class CMemoryModel extends AbstractAnalysis {
     public ProgramRel relHeapStructField;
 
     // 3. func ptr objects points to a (executable) function
-    @ProduceRel(name = "funcPtr", doms = {"H", "M"}, description = "mark heap object of a function")
-    public ProgramRel relFuncPtr;
+    @ProduceRel(doms = {"H", "M"}, description = "mark heap object of a function")
+    public ProgramRel relObjFunc;
 
     @ProduceRel(name = "primH", doms = {"H"}, description = "mark heaps of non-pointer type")
     public ProgramRel relPrimH;
@@ -177,7 +178,7 @@ public class CMemoryModel extends AbstractAnalysis {
         relFixArrayShape = new ProgramRel("FixArrayShape", domH, domT, domC);
         relVarArrayShape = new ProgramRel("VarArraYShape", domH, domT, domA);
         relHeapStructField = new ProgramRel("HeapStructField", domH, domF, domH);
-        relFuncPtr = new ProgramRel("funcPtr", domH, domM);
+        relObjFunc = new ProgramRel("funcPtr", domH, domM);
         relPrimH = new ProgramRel("primH", domH);
     }
 
@@ -192,7 +193,7 @@ public class CMemoryModel extends AbstractAnalysis {
         relFixArrayShape.init();
         relVarArrayShape.init();
         relHeapStructField.init();
-        relFuncPtr.init();
+        relObjFunc.init();
         relPrimH.init();
     }
 
@@ -231,8 +232,8 @@ public class CMemoryModel extends AbstractAnalysis {
         relVarArrayShape.close();
         relHeapStructField.save(getOutDir());
         relHeapStructField.close();
-        relFuncPtr.save(getOutDir());
-        relFuncPtr.close();
+        relObjFunc.save(getOutDir());
+        relObjFunc.close();
         relPrimH.save(getOutDir());
         relPrimH.close();
     }
@@ -373,7 +374,7 @@ public class CMemoryModel extends AbstractAnalysis {
             String v = (String) tuple[1];
             IMemObj fObj = refRegObjMap.get(v);
             relGlobalAllocMem.add(v, fObj.toString());
-            relFuncPtr.add(fObj.toString(), m);
+            relObjFunc.add(fObj.toString(), m);
         }
         for (Object[] tuple : relGlobalAlloca.getValTuples()) {
             String v = (String) tuple[0];

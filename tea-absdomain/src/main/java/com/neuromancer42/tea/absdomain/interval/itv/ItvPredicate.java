@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.absdomain.dataflow.interval;
+package com.neuromancer42.tea.absdomain.interval.itv;
 
 import com.neuromancer42.tea.commons.configs.Constants;
 
@@ -7,6 +7,13 @@ import java.util.Objects;
 import java.util.Set;
 
 public class ItvPredicate {
+    static public final ItvPredicate EQ = new ItvPredicate(Symbol.EQ);
+    static public final ItvPredicate NE = new ItvPredicate(Symbol.NE);
+    static public final ItvPredicate GE = new ItvPredicate(Symbol.GE);
+    static public final ItvPredicate GT = new ItvPredicate(Symbol.GT);
+    static public final ItvPredicate LE = new ItvPredicate(Symbol.LE);
+    static public final ItvPredicate LT = new ItvPredicate(Symbol.LT);
+    static public final ItvPredicate BOTTOM = new ItvPredicate(Symbol.BOTTOM);
     public enum Symbol {
         EQ, NE, GE, GT, LE, LT, BOTTOM
     }

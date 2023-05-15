@@ -111,25 +111,28 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                         .build();
                 responseObserver.onNext(response);
             }
-            Stopwatch priorTimer = Stopwatch.createStarted();
-            List<Map.Entry<Trgt.Tuple, Double>> priorRanking = proj.priorRanking(prov,
-                    this::getRuleParam,
-                    this::getRelParam,
-                    alarms,
-                    obsTuples,
-                    appOption
-            );
-            priorTimer.stop();
-            {
-                CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": compute prior ranking in %s", priorTimer));
-                for (var alarmProb : priorRanking) {
-                    Trgt.Tuple alarm = alarmProb.getKey();
-                    Double prob = alarmProb.getValue();
-                    respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+            boolean testOnly = appOption.getOrDefault("tea.debug.testonly", "false").equals("true");
+            if (!testOnly) {
+                Stopwatch priorTimer = Stopwatch.createStarted();
+                List<Map.Entry<Trgt.Tuple, Double>> priorRanking = proj.priorRanking(prov,
+                        this::getRuleParam,
+                        this::getRelParam,
+                        alarms,
+                        obsTuples,
+                        appOption
+                );
+                priorTimer.stop();
+                {
+                    CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
+                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": compute prior ranking in %s", priorTimer));
+                    for (var alarmProb : priorRanking) {
+                        Trgt.Tuple alarm = alarmProb.getKey();
+                        Double prob = alarmProb.getValue();
+                        respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                    }
+                    CoreUtil.ApplicationResponse response = respBuilder.build();
+                    responseObserver.onNext(response);
                 }
-                CoreUtil.ApplicationResponse response = respBuilder.build();
-                responseObserver.onNext(response);
             }
             Stopwatch testTimer = Stopwatch.createStarted();
             List<Map<Trgt.Tuple, Boolean>> trace = new ArrayList<>();
@@ -144,23 +147,24 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                         .build();
                 responseObserver.onNext(response);
             }
+            if (!testOnly) {
+                Stopwatch postTimer = Stopwatch.createStarted();
+                List<Map.Entry<Trgt.Tuple, Double>> postRanking;
+                postRanking = proj.postRanking(alarms, trace);
+                postTimer.stop();
+                {
+                    CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
 
-            Stopwatch postTimer = Stopwatch.createStarted();
-            List<Map.Entry<Trgt.Tuple, Double>> postRanking;
-            postRanking = proj.postRanking(alarms, trace);
-            postTimer.stop();
-            {
-                CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
+                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", postTimer));
 
-                respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", postTimer));
-
-                for (var alarmProb : postRanking) {
-                    Trgt.Tuple alarm = alarmProb.getKey();
-                    Double prob = alarmProb.getValue();
-                    respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                    for (var alarmProb : postRanking) {
+                        Trgt.Tuple alarm = alarmProb.getKey();
+                        Double prob = alarmProb.getValue();
+                        respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                    }
+                    CoreUtil.ApplicationResponse response = respBuilder.build();
+                    responseObserver.onNext(response);
                 }
-                CoreUtil.ApplicationResponse response = respBuilder.build();
-                responseObserver.onNext(response);
             }
             {
                 CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()

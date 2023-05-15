@@ -1,4 +1,4 @@
-package com.neuromancer42.tea.absdomain.dataflow;
+package com.neuromancer42.tea.absdomain.misc;
 
 import com.neuromancer42.tea.commons.analyses.AbstractAnalysis;
 import com.neuromancer42.tea.commons.analyses.annotations.ConsumeDom;
@@ -11,13 +11,13 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import java.nio.file.Path;
 import java.util.Map;
 
-@TeAAnalysis(name = "InputMarker")
-public class InputMarker extends AbstractAnalysis {
+@TeAAnalysis(name = "ExtMethMarker")
+public class ExtMethMarker extends AbstractAnalysis {
 
-    public static final String name = "InputMarker";
+    public static final String name = "ExtMethMarker";
     public final Path workPath;
 
-    public InputMarker(Path path) {
+    public ExtMethMarker(Path path) {
         workPath = path;
     }
 
@@ -36,6 +36,22 @@ public class InputMarker extends AbstractAnalysis {
     @ProduceRel(name = "argInput", doms = {"M", "Z"}, description = "input by function argument")
     public ProgramRel relArgInput;
 
+    @ProduceRel(name = "mallocFunc", doms = {"M"})
+    public ProgramRel relMallocFunc;
+    @ProduceRel(name = "callocFunc", doms = {"M"})
+    public ProgramRel relCallocFunc;
+    @ProduceRel(name = "reallocFunc", doms = {"M"})
+    public ProgramRel relReallocFunc;
+    @ProduceRel(name = "freeFunc", doms = {"M"})
+    public ProgramRel relFreeFunc;
+    @ProduceRel(name = "memcpyFunc", doms = {"M"})
+    public ProgramRel relMemcpyFunc;
+    @ProduceRel(name = "memmoveFunc", doms = {"M"})
+    public ProgramRel relMemmoveFunc;
+    @ProduceRel(name = "memsetFunc", doms = {"M"})
+    public ProgramRel relMemsetFunc;
+    @ProduceRel(name = "memchrFunc", doms = {"M"})
+    public ProgramRel relMemchrFunc;
 
     public void run(Map<String, ProgramDom> inputDoms, Map<String, ProgramRel> inputRels) {
 
@@ -67,14 +83,23 @@ public class InputMarker extends AbstractAnalysis {
     protected void relPhase() {
         for (Object[] tuple : relExtMeth.getValTuples()) {
             String name = (String) tuple[0];
-            if (name.equals("scanf")) {
-                for (String z : domZ) {
-                    if(!z.equals("0")) {
-                        relArgInput.add(name, z);
+            switch (name) {
+                case "scanf" -> {
+                    for (String z : domZ) {
+                        if (!z.equals("0")) {
+                            relArgInput.add(name, z);
+                        }
                     }
                 }
-            } else if (name.equals("strlen")) {
-                relRetInput.add(name);
+                case "strlen" -> relRetInput.add(name);
+                case "malloc" -> relMallocFunc.add(name);
+                case "calloc" -> relCallocFunc.add(name);
+                case "realloc" -> relReallocFunc.add(name);
+                case "free" -> relFreeFunc.add(name);
+                case "memcpy" -> relMemcpyFunc.add(name);
+                case "memmove" -> relMemmoveFunc.add(name);
+                case "memset" -> relMemsetFunc.add(name);
+                case "memchr" -> relMemchrFunc.add(name);
             }
         }
     }
