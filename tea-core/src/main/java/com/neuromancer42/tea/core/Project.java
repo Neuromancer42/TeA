@@ -135,6 +135,20 @@ public class Project {
         return Constants.MSG_SUCC + ": " + analysis + " completed in " + inclusiveTimer;
     }
 
+    public Map<String, Integer> summaryRels(List<String> relNames) {
+        Map<String, Integer> summary = new LinkedHashMap<>();
+        for (String relName : relNames) {
+            summary.put(relName, summaryRel(relName));
+        }
+        return summary;
+    }
+
+    public Integer summaryRel(String relName) {
+        ProgramRel rel = loadRel(relName);
+        if (rel == null) return 0;
+        return rel.size();
+    }
+
     public List<Trgt.Tuple> printRels(List<String> relNames) {
         List<Trgt.Tuple> alarms = new ArrayList<>();
         for (String relName : relNames) {

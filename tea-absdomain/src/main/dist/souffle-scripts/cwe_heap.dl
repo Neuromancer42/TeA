@@ -71,4 +71,4 @@ ci_postPHfreed(q,h) :- ci_PHfreed(p,h), MPexit(m,p), ci_IM(q,m).
 CWE415_double_free(p, v) :- ci_PHfreed(p, h), ci_IM(p, m), freeFunc(m), Z0(i0), IinvkArg(p, i0, v), ci_pt(v, h).
 CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), instruction_load_ptr(p, v), ci_pt(v,h).
 CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), instruction_store_addr(p, v), ci_pt(v,h).
-CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), ci_IM(p, m), ExtMeth(m), IinvkArg(p, _, v), ci_pt(v, h).
+CWE416_use_after_free(p, v) :- ci_PHfreed(p, h), ci_IM(p, m), ExtMeth(m), IinvkArg(p, _, v), ci_pt(v, h), freeFunc(ff), m != ff.

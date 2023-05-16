@@ -126,9 +126,3 @@ mem_ret(p, ret, dst) :- ci_IM(p, m), memmoveFunc(m), Z0(i0), IinvkArg(p, i0, dst
 mem_ret(p, ret, dst) :- ci_IM(p, m), memsetFunc(m), Z0(i0), IinvkArg(p, i0, dst), IinvkRet(p, ret).
 mem_ret(p, ret, dst) :- ci_IM(p, m), memchrFunc(m), Z0(i0), IinvkArg(p, i0, dst), IinvkRet(p, ret).
 ci_pt(ret, o) :- mem_ret(_, ret, dst), ci_pt(dst, o).
-
-.decl Alias(u:V, v:V)
-.output Alias
-// Only care about normal aliases
-Alias(u, v) :- ci_pt(u, h), ci_pt(v, h), AllocObj(_, h).
-Alias(u, v) :- ci_pt(u, h), ci_pt(v, h), GlobalAllocObj(_, h).

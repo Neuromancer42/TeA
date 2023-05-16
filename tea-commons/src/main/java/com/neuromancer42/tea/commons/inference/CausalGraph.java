@@ -30,7 +30,7 @@ public class CausalGraph {
         for (Object singleton: singletons) {
             int nodeId = nodeList.indexOf(singleton);
             if (!nodeList.contains(singleton)) {
-                Messages.fatal("CausalGraph: unmet singleton " + singleton);
+                Messages.fatal("CausalGraph: unmet singleton %s", singleton.toString());
             }
             singletonSet.add(nodeId);
         }

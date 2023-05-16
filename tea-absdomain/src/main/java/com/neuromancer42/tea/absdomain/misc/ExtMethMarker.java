@@ -84,6 +84,7 @@ public class ExtMethMarker extends AbstractAnalysis {
         for (Object[] tuple : relExtMeth.getValTuples()) {
             String name = (String) tuple[0];
             switch (name) {
+                case "rand" -> relRetInput.add(name);
                 case "scanf" -> {
                     for (String z : domZ) {
                         if (!z.equals("0")) {

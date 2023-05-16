@@ -84,8 +84,14 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
         List<String> alarm_rels = request.getAlarmRelList();
         if (!request.getNeedRank()) {
             CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
-            for (Trgt.Tuple alarm : proj.printRels(alarm_rels)) {
-                respBuilder.addAlarm(ProvenanceUtil.prettifyTuple(alarm));
+            if (appOption.getOrDefault("tea.debug.summaryonly", "false").equals("true")) {
+                for (var summary : proj.summaryRels(alarm_rels).entrySet()) {
+                    respBuilder.addAlarm(summary.getKey() + ":" + summary.getValue());
+                }
+            } else {
+                for (Trgt.Tuple alarm : proj.printRels(alarm_rels)) {
+                    respBuilder.addAlarm(ProvenanceUtil.prettifyTuple(alarm));
+                }
             }
             respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", allTimer));
             CoreUtil.ApplicationResponse response = respBuilder.build();
