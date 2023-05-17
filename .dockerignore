@@ -12,8 +12,10 @@
 .gradle
 **/build/
 !tea-*/src
-!gradle/gradle-wrapper.jar
-!gradle/gradle-wrapper.properties
+!tea-*/include
+!tea-*/lib
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
 # bnd workspace cache
 **/cnf/cache/
@@ -38,15 +40,9 @@
 # pycache
 **/__pycache__/
 
-# avoid unnecessary rebuild
-Dockerfile
-
-# clients, outside of servers
-local_scripts/
-example_configs/
-tea-clients/
-# testcases
+# testcases, ignore it for speed
 benchmarks/
 tests/
-# llvm-codemanager depeloyed separately
-tea-llvm-codemanager/
+
+# avoid unnecessary rebuild
+Dockerfile

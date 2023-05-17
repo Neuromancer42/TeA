@@ -5,37 +5,41 @@
 *.swo
 
 # IntelliJ IDEA files
-.idea/
+**/.idea/
 *.iml
 
 # Gradle files
 .gradle
 **/build/
-!src/**/build/
-!gradle-wrapper.jar
-!gradle-wrapper.properties
+!tea-*/src
+!tea-*/include
+!tea-*/lib
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
 # bnd workspace cache
 **/cnf/cache/
 
 # build output
-blobfiles/
-target/
-sootOutput/
-test-out/
-out/
+**/blobfiles/
+**/target/
+**/sootOutput/
+**/test-out/
+**/out/
+**/cmake-build-debug/
+**/cmake-build/
 
 # generated C++ files
-*.o
-*.so
-*.dylib
-
-# testcases
-/benchmarks/
-/tests/
+**/*.o
+**/*.so
+**/*.dylib
 
 # vscode
 .vscode/
 
 # pycache
 **/__pycache__/
+
+# testcases, ignore it for speed
+benchmarks/
+tests/

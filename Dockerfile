@@ -37,8 +37,7 @@ COPY --from=ibm-semeru-runtimes:open-17-jdk-focal $JAVA_HOME $JAVA_HOME
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 FROM base AS souffle-builder
-RUN wget https://github.com/souffle-lang/souffle/archive/refs/tags/2.3.tar.gz -O souffle-2.3.tar.gz
-RUN tar xf souffle-2.3.tar.gz
+RUN wget -qO- https://github.com/souffle-lang/souffle/archive/refs/tags/2.3.tar.gz | tar -xz
 WORKDIR souffle-2.3
 RUN cmake -S . -B build -DSOUFFLE_SWIG_JAVA=ON -DCMAKE_INSTALL_PREFIX=/opt/souffle
 RUN cmake --build build --target install --parallel "$(nproc)"
@@ -68,20 +67,37 @@ ENV GRADLE_HOME=/opt/gradle/gradle-7.6.1
 COPY --from=gradle-builder ${GRADLE_HOME} ${GRADLE_HOME}
 ENV PATH="${GRADLE_HOME}/bin:${PATH}"
 
-FROM tea-env AS tea-debug
+FROM tea-env AS tea-java-devenv
 WORKDIR /tea
-ADD . .
+COPY gradle/ ./gradle
+COPY gradlew gradlew.bat ./
+COPY settings.gradle build.gradle ./
+COPY ir ./ir
+COPY proto ./proto
+COPY tea-commons ./tea-commons
+COPY tea-jlibdai ./tea-jlibdai
+COPY tea-jsouffle ./tea-jsouffle
+COPY tea-absdomain ./tea-absdomain
+#COPY tea-cdt-codemanager ./tea-cdt-codemanager
+COPY tea-core ./tea-core
 
-FROM tea-debug AS tea-build
+FROM tea-java-devenv AS tea-build
 RUN ./gradlew installDist
 
-FROM tea-env AS tea-release
-ENV TEA_HOME=/opt/tea
-WORKDIR $TEA_HOME
-COPY --from=tea-build /tea/tea-cdt-codemanager/build/install/tea-cdt-codemanager .
-COPY --from=tea-build /tea/tea-absdomain/build/install/tea-absdomain .
-COPY --from=tea-build /tea/tea-jsouffle/build/install/tea-jsouffle .
-COPY --from=tea-build /tea/tea-core/build/install/tea-core .
+#FROM tea-env AS tea-cdt-codemanager
+#COPY --from=tea-build /tea/tea-cdt-codemanager/build/install/tea-cdt-codemanager /opt/tea/
+#WORKDIR /ws
+
+FROM tea-env AS tea-absdomain
+COPY --from=tea-build /tea/tea-absdomain/build/install/tea-absdomain /opt/tea/
 WORKDIR /ws
 
-FROM tea-debug
+FROM tea-env AS tea-jsouffle
+COPY --from=tea-build /tea/tea-jsouffle/build/install/tea-jsouffle /opt/tea/
+WORKDIR /ws
+
+FROM tea-env AS tea-core
+COPY --from=tea-build /tea/tea-core/build/install/tea-core /opt/tea/
+WORKDIR /ws
+
+FROM tea-java-devenv
