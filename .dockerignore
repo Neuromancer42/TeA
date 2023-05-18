@@ -4,6 +4,11 @@
 *.swp
 *.swo
 
+# git files
+**/.gitignore
+**/.git/
+**/.gitmodules
+
 # IntelliJ IDEA files
 **/.idea/
 *.iml
@@ -45,4 +50,5 @@ benchmarks/
 tests/
 
 # avoid unnecessary rebuild
-Dockerfile
+**/Dockerfile
+**/*.Dockerfile
