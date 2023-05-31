@@ -35,6 +35,7 @@ public final class SouffleAnalysis {
         relSignMap = new HashMap<>();
         domNames = new LinkedHashSet<>();
         for (String souffleSign : souffleProgram.getRelSigns()) {
+            Messages.debug("SouffleAnalysis %s: processing rel sign %s", name, souffleSign);
             int idx = souffleSign.indexOf('<');
             String relName = souffleSign.substring(0, idx);
             String[] relAttrs = souffleSign.substring(idx + 1, souffleSign.length() - 1).split((","));

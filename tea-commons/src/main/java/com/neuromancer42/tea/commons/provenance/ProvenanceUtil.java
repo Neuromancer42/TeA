@@ -144,6 +144,7 @@ public class ProvenanceUtil {
             Set<Trgt.Tuple> reservedTuples
     ) {
         Set<Trgt.Tuple> reserved = new HashSet<>(reservedTuples);
+        Messages.debug("ProvenanceUtil: %d reserved tuples", reserved.size());
 
         Map<Object, Categorical01> stochMapping = new HashMap<>();
         List<Trgt.Tuple> singletons = new ArrayList<>(provenance.getInputList());
@@ -186,8 +187,8 @@ public class ProvenanceUtil {
         for (var entry : headToConstrs.entrySet()) {
             headToNonEmptyConstrCnt.put(entry.getKey(), entry.getValue().size());
         }
-        Messages.log("ProvenanceUtil: original causal graph size [%d causal + %d random (%d params)]",
-                origHybrid.size(), stochMapping.size(), origParamNum);
+        Messages.log("ProvenanceUtil: original causal graph size [%d causal (head %d + constr %d + input %d) + %d random (%d params)]",
+                origHybrid.size(), headToConstrs.size(), constrToBodies.size(), singletons.size(), stochMapping.size(), origParamNum);
 
         Set<Trgt.Tuple> eliminatables = new LinkedHashSet<>();
         Set<Trgt.Tuple> inputEliminated = new HashSet<>();
@@ -327,6 +328,7 @@ public class ProvenanceUtil {
                 hybrid.addAll(bodies);
             }
         }
+        hybrid.addAll(newSingletons); // in case of lonely nodes
         int sqzParamNum = 0;
         for (Categorical01 dist : stochMapping.values()) {
             sqzParamNum += dist.getSupports().length;

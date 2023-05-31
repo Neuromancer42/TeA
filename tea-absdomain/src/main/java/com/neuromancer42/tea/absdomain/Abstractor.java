@@ -1,10 +1,11 @@
 package com.neuromancer42.tea.absdomain;
 
+import com.neuromancer42.tea.absdomain.memmodel.AccessPath;
 import com.neuromancer42.tea.absdomain.memmodel.LLVMMemoryModel;
+import com.neuromancer42.tea.absdomain.memmodel.MemorySSA;
 import com.neuromancer42.tea.absdomain.misc.ExtMethMarker;
 import com.neuromancer42.tea.absdomain.misc.Cardinals;
 import com.neuromancer42.tea.absdomain.interval.IntervalGenerator;
-import com.neuromancer42.tea.absdomain.memmodel.PostPointerAnalysis;
 import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.analyses.AnalysisUtil;
@@ -70,11 +71,12 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
         Messages.log("Abstractor: processing getFeature request");
         Analysis.ProviderInfo.Builder infoBuilder = Analysis.ProviderInfo.newBuilder();
         infoBuilder.setName(NAME_ABS);
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(LLVMMemoryModel.class));
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(PostPointerAnalysis.class));
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(ExtMethMarker.class));
-        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(IntervalGenerator.class));
         infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(Cardinals.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(LLVMMemoryModel.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(ExtMethMarker.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(AccessPath.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(MemorySSA.class));
+        infoBuilder.addAnalysis(AnalysisUtil.parseAnalysisInfo(IntervalGenerator.class));
         Analysis.ProviderInfo info = infoBuilder.build();
         responseObserver.onNext(info);
         responseObserver.onCompleted();
@@ -107,13 +109,26 @@ public class Abstractor extends ProviderGrpc.ProviderImplBase {
                             .build();
                 }
                 break;
-            case PostPointerAnalysis.name:
+            case AccessPath.name:
                 try {
                     Files.createDirectories(workPath);
-                    PostPointerAnalysis preDataflow = new PostPointerAnalysis(workPath);
-                    results = AnalysisUtil.runAnalysis(preDataflow, request);
+                    AccessPath ap = new AccessPath(workPath);
+                    results = AnalysisUtil.runAnalysis(ap, request);
                 } catch (IOException e) {
-                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", PostPointerAnalysis.name, e.getMessage());
+                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", AccessPath.name, e.getMessage());
+                    e.printStackTrace();
+                    results = Analysis.RunResults.newBuilder()
+                            .setMsg(Constants.MSG_FAIL + ": analysis execution failed")
+                            .build();
+                }
+                break;
+            case MemorySSA.name:
+                try {
+                    Files.createDirectories(workPath);
+                    MemorySSA memssa = new MemorySSA(workPath);
+                    results = AnalysisUtil.runAnalysis(memssa, request);
+                } catch (IOException e) {
+                    Messages.error("Abstractor: failed to create working directory for analysis %s: %s", MemorySSA.name, e.getMessage());
                     e.printStackTrace();
                     results = Analysis.RunResults.newBuilder()
                             .setMsg(Constants.MSG_FAIL + ": analysis execution failed")

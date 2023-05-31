@@ -50,8 +50,8 @@ public class LLVMMemoryModel extends AbstractAnalysis {
     public ProgramRel relObjNull;
     @ProduceRel(doms = {"H"})
     public ProgramRel relObjUnknown;
-    @ProduceRel(doms = {"V", "H"})
-    public ProgramRel relGlobalAllocObj;
+//    @ProduceRel(doms = {"V", "H"})
+//    public ProgramRel relGlobalAllocObj;
     @ProduceRel(doms = {"V", "H"})
     public ProgramRel relAllocObj;
     @ProduceRel(doms = {"H", "M"})
@@ -143,13 +143,15 @@ public class LLVMMemoryModel extends AbstractAnalysis {
         for (var e : funcVarObjMap.entrySet()) {
             String v = e.getKey();
             FuncObj obj = e.getValue();
-            relGlobalAllocObj.add(v, obj.toString());
+//            relGlobalAllocObj.add(v, obj.toString());
+            relAllocObj.add(v, obj.toString());
             relObjFunc.add(obj.toString(), obj.getFunc());
         }
         for (var e : globalVarObjMap.entrySet()) {
             String v = e.getKey();
             FixShapeObj obj = e.getValue();
-            relGlobalAllocObj.add(v, obj.toString());
+//            relGlobalAllocObj.add(v, obj.toString());
+            relAllocObj.add(v, obj.toString());
             relObjFixShape.add(obj.toString(), obj.getNumElems(), obj.getObjectType());
         }
         for (var e : localVarObjMap.entrySet()) {

@@ -42,6 +42,8 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramRel relVconstint;
     @ConsumeRel(name = "array_type_size", doms = {"T", "C"})
     public ProgramRel relArrLen;
+    @ConsumeRel(name = "type_width", doms = {"T", "C"})
+    public ProgramRel relTypeWidth;
     @ConsumeRel(doms = {"H", "C", "T"})
     public ProgramRel relObjFixShape;
     @ConsumeRel(doms = {"H", "V", "T"})
@@ -176,6 +178,11 @@ public class IntervalGenerator extends AbstractAnalysis {
         }
         Set<Integer> intConstants = new HashSet<>();
         for (Object[] tuple : relArrLen.getValTuples()) {
+            Integer len = literalMap.get((String) tuple[1]);
+            assert len != null;
+            intConstants.add(len);
+        }
+        for (Object[] tuple : relTypeWidth.getValTuples()) {
             Integer len = literalMap.get((String) tuple[1]);
             assert len != null;
             intConstants.add(len);

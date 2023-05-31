@@ -1,0 +1,118 @@
+.type M <: unsigned
+.type V <: unsigned
+.type P <: unsigned
+.type U <: unsigned
+.type Z <: unsigned
+.type C <: unsigned
+.type T <: unsigned
+.type H <: unsigned
+.type A <: unsigned
+
+// Note: this is a flow-insensitive, context-insensitivee, but field sensitive version of points-to analysis
+// No updating of call graph, but use access paths to distinguish field-insensitive results of previous cipa_cg
+
+.decl  pointer_type(t:T)
+.input pointer_type
+.decl  variable_type(v:V, t:T)
+.input variable_type
+
+.decl  variable_alias_aliasee(v:V, u:V)
+.input variable_alias_aliasee
+
+.decl  ci_IM(i:P, m:M)
+.input ci_IM
+.decl  MmethArg(m:M, i:Z, v:V)
+.input MmethArg
+.decl  MmethRet(m:M, v:V)
+.input MmethRet
+.decl  IinvkArg(p:P, i:Z, v:V)
+.input IinvkArg
+.decl  IinvkRet(p:P, v:V)
+.input IinvkRet
+
+.decl AllocObj(v:V, o:H)
+.input AllocObj
+.decl  LoadPtr(res:V, addr:V)
+.input LoadPtr
+.decl  StorePtr(addr:V, val:V)
+.input StorePtr
+.decl MayAssign(res:V, from:V)
+.input MayAssign
+
+.decl  operation_gep_base(res:V, base:V)
+.input operation_gep_base
+.decl  operation_gep_nindices(res:V, n:Z) 
+.input operation_gep_nindices
+.decl  operation_gep_index_field(res:V, i:Z, f:Z)
+.input operation_gep_index_field
+.decl  operation_gep_index_offset(res:V, i:Z, o:V)
+.input operation_gep_index_offset
+
+.decl Z1(i1:Z)
+.input Z1
+.decl Znext(i1:Z, i2:Z)
+.input Znext
+
+.decl baseAP(h:H, a:A)
+.input baseAP
+.decl APfield(a:A, f:Z, sub:A)
+.input APfield
+.decl APtype(a:A, t:T)
+.input APtype
+.decl APmixed(a:A)
+.input APmixed
+.decl APtoObj(a:A, o:H)
+.input APtoObj
+
+.decl mem_copy(p:P, dst:V, src:V)
+.input mem_copy
+
+.decl alias(u:V, v:V)
+.output alias
+.decl indirect_flow(to:V, from:V)
+.output indirect_flow
+.decl refine_pt(v:V, a:A)
+.output refine_pt
+.decl refine_hpt(ptr:A, a:A)
+.output refine_hpt
+
+// This is field-sensitive refinement on pointer analysis
+
+// 0. self aliasing for alloca and gep
+refine_pt(u, a) :- AllocObj(u, h), baseAP(h, a).
+// 1. pass by assignments
+refine_pt(v, a) :- refine_pt(u, a), MayAssign(v, u).
+// 2. passing by function params and ret
+refine_pt(v, a) :- refine_pt(u, a), IinvkArg(i, z, u), ci_IM(i, m), MmethArg(m, z, v).
+refine_pt(u, a) :- refine_pt(v, a), MmethRet(m, v), ci_IM(i, m), IinvkRet(i, u).
+// 3. store-load alias and transitive closure
+refine_hpt(h, o) :- StorePtr(u, v), refine_pt(u, h), refine_pt(v, o).
+refine_pt(v, o) :- LoadPtr(v, u), refine_pt(u, h), refine_hpt(h, o).
+// 4. get element ptr
+.decl refine_gep_pt(v:V, i:Z, a:A)
+refine_pt(v, a) :- refine_gep_pt(v, i, a), operation_gep_nindices(v, i).
+// we do not distinguish different elements in an array
+refine_gep_pt(v, i1, o) :- refine_pt(base, o), operation_gep_base(v, base), Z1(i1). // skip the first gep that index over pointers
+refine_gep_pt(v, i2, o) :- refine_gep_pt(v, i1, o), operation_gep_index_offset(v, i1, _), Znext(i1, i2).
+refine_gep_pt(v, i2, o) :- refine_gep_pt(v, i1, h), operation_gep_index_field(v, i1, f), APfield(h, f, o), Znext(i1, i2).
+refine_gep_pt(v, i2, o) :- refine_gep_pt(v, i1, o), operation_gep_index_field(v, i1, _), APmixed(o), Znext(i1, i2).
+// 5. memcpy & memmove creates indirect dataflow
+.decl refine_copy(p:P, to:A, from:A)
+.output refine_copy
+.decl ap_flow(to:A, from:A)
+refine_copy(p, dst, src) :- mem_copy(p, to, from), refine_pt(to, dst), refine_pt(from, src).
+refine_copy(p, dstf, srcf) :- refine_copy(p, dst, src), APfield(dst, f, dstf), APfield(src, f, srcf).
+refine_copy(p, dstf, src) :- refine_copy(p, dst, src), APfield(dst, _, dstf), APmixed(src).
+refine_copy(p, dst, srcf) :- refine_copy(p, dst, src), APmixed(dst), APfield(src, _, srcf).
+ap_flow(dst, src) :- refine_copy(_, dst, src).
+ap_flow(dst, src) :- ap_flow(dst, mid), refine_copy(_, mid, src).
+
+refine_hpt(dst, o) :- refine_hpt(src, o), ap_flow(dst, src), APmixed(dst).
+refine_hpt(dst, o) :- refine_hpt(src, o), ap_flow(dst, src), APtype(dst, t), pointer_type(t).
+
+alias(u, v) :- refine_pt(u, h), refine_pt(v, h).
+indirect_flow(to, from) :- ap_flow(dst, src), refine_pt(to, dst), refine_pt(from, src).
+
+.decl validate_pt(v:V, h:H)
+.output validate_pt
+validate_pt(v, h) :- refine_pt(v, a), APtoObj(a, h).

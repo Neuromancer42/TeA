@@ -3,18 +3,11 @@
 .type P <: unsigned
 .type V <: unsigned
 .type Z <: unsigned
-.type C <: unsigned
 
 .decl MPentry(m:M,p:P)
 .input MPentry
-.decl PPdirect(p:P,q:P)
-.input PPdirect
-.decl PPtrue(p:P,q:P,v:V)
-.input PPtrue
-.decl PPfalse(p:P,q:P,v:V)
-.input PPfalse
-.decl PPmatch(p:P,q:P,v:V,c:C)
-.input PPmatch
+.decl PP(p:P,q:P)
+.input PP
 
 .decl MmethArg(m:M,z:Z,v:V)
 .input MmethArg
@@ -27,6 +20,8 @@
 .input Pload
 .decl Palloca(p:P,v:V)
 .input Palloca
+.decl Passign(p:P,v:V)
+.input Passign
 .decl IinvkRet(p:P, v:V)
 .input IinvkRet
 
@@ -36,14 +31,12 @@
 .output MV
 
 MP(m,p) :- MPentry(m,p).
-MP(m,q) :- MP(m,p), PPdirect(p,q).
-MP(m,q) :- MP(m,p), PPtrue(p,q,_).
-MP(m,q) :- MP(m,p), PPfalse(p,q,_).
-MP(m,q) :- MP(m,p), PPmatch(p,q,_,_).
+MP(m,q) :- MP(m,p), PP(p,q).
 
 MV(m,v) :- MP(m,p), Peval(p,v).
 MV(m,v) :- MP(m,p), Pload(p,v).
 MV(m,v) :- MP(m,p), Palloca(p,v).
+MV(m,v) :- MP(m,p), Passign(p,v).
 
 MV(m,v) :- MmethArg(m,_,v).
 MV(m,v) :- MP(m, p), IinvkRet(p,v).

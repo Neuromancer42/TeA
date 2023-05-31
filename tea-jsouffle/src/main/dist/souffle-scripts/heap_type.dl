@@ -1,0 +1,50 @@
+.type T <: unsigned
+.type V <: unsigned
+.type P <: unsigned
+.type H <: unsigned
+.type Z <: unsigned
+.type M <: unsigned
+
+.decl AllocObj(v:V, h:H)
+.input AllocObj
+.decl GlobalAlloca(v:V, t:T)
+.input GlobalAlloca
+.decl Alloca(v:V, num:V, t:T)
+.input Alloca
+.decl IinvkArg(i:P, z:Z, v:V)
+.input IinvkArg
+.decl IinvkRet(i:P, v:V)
+.input IinvkRet
+.decl MmethArg(m:M, z:Z, v:V)
+.input MmethArg
+.decl MmethRet(m:M, v:V)
+.input MmethRet
+.decl ci_IM(i:P, m:M)
+.input ci_IM
+.decl MayAssign(res:V, from:V)
+.input MayAssign
+.decl instruction_load_ptr(p:P, v:V)
+.input instruction_load_ptr
+.decl instruction_load_res(p:P, v:V)
+.input instruction_load_res
+.decl variable_type(v:V, t:T)
+.input variable_type
+.decl operation_gep_base(res:V, base:V)
+.input operation_gep_base
+.decl operation_gep_type(res:V, t:T)
+.input operation_gep_type
+
+.decl HeapUsedAsType(h:H, t:T)
+.output HeapUsedAsType
+
+HeapUsedAsType(h, t) :- AllocObj(v, h), Alloca(v, _, t).
+HeapUsedAsType(h, t) :- AllocObj(v, h), GlobalAlloca(v, t).
+
+.decl pt_base(v:V, h:H)
+pt_base(v, h) :- AllocObj(v, h).
+pt_base(v, h) :- pt_base(u, h), IinvkArg(i, z, u), ci_IM(i, m), MmethArg(m, z, v).
+pt_base(v, h) :- pt_base(u, h), MmethRet(m, u), ci_IM(i, m), IinvkRet(i, v).
+pt_base(v, h) :- pt_base(u, h), MayAssign(v, u).
+
+HeapUsedAsType(h, t) :- pt_base(v, h), instruction_load_ptr(p, v), instruction_load_res(p, u), variable_type(u, t).
+HeapUsedAsType(h, t) :- pt_base(v, h), operation_gep_base(res, v), operation_gep_type(res, t).

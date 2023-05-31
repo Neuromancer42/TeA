@@ -11,6 +11,8 @@ import com.neuromancer42.tea.commons.bddbddb.ProgramRel;
 import java.nio.file.Path;
 import java.util.*;
 
+// TODO: note that only local allocated objects, without gep mutation, can be strongly updated
+@Deprecated
 @TeAAnalysis(name = "post_pt")
 public class PostPointerAnalysis extends AbstractAnalysis {
 

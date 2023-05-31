@@ -182,6 +182,10 @@ public class Project {
 
     private ProgramRel loadRel(String relName) {
         String[] domKinds = relSign.get(relName);
+        if (domKinds == null) {
+            Messages.error("Project %s: relation %s is not recorded", ID, relName);
+            return null;
+        }
         ProgramDom[] doms = new ProgramDom[domKinds.length];
         Map<String, ProgramDom> domMap = new HashMap<>();
         for (int i = 0; i < domKinds.length; ++i) {
@@ -367,7 +371,7 @@ public class Project {
         return sortedAlarmProb;
     }
 
-    private Set<ProviderGrpc.ProviderBlockingStub> observers = new LinkedHashSet<>();
+    private final Set<ProviderGrpc.ProviderBlockingStub> observers = new LinkedHashSet<>();
 
     public Set<Trgt.Tuple> setObservation(Trgt.Provenance provenance, Map<String, String> options) {
         Set<Trgt.Tuple> observableTuples = new LinkedHashSet<>();

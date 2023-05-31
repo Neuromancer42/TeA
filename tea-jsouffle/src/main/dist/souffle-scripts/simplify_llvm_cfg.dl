@@ -41,6 +41,8 @@
 .decl  basicblock_function( bb:B, f:M ) //  ""
 
 
+.decl  type_width( t:T, sz:C ) //  "the allocated bytes needed for a type"
+
 .decl  void_type( t:T ) //  ""
 
 .decl  fn_type( t:T ) //  ""
@@ -639,6 +641,8 @@
 .input  basicblock_function
 
 
+.input  type_width
+
 .input  void_type
 
 .input  fn_type
@@ -1219,6 +1223,8 @@ entryM(m) :- main_function(m).
 .output PPfalse
 .decl PPmatch(p:P, q:P, v:V, c:C)
 .output PPmatch
+.decl PP(p:P, q:P)
+.output PP
 MmethArg(m, i, v) :- function_param(m, i, v).
 ExtMeth(m) :- function_extern(m).
 MPentry(m, p) :- function_entry(m, bb), basicblock_entry(bb, p).
@@ -1228,12 +1234,16 @@ PPdirect(p, q) :- basicblock_exit(_, p), instruction_br_uncond_goto(p, goto), ba
 PPtrue(p, q, v) :- basicblock_exit(_, p), instruction_br_cond_var(p, v), instruction_br_cond_iftrue(p, bb), basicblock_entry(bb, q).
 PPfalse(p, q, v) :- basicblock_exit(_, p), instruction_br_cond_var(p, v), instruction_br_cond_iffalse(p, bb), basicblock_entry(bb, q).
 PPmatch(p, q, v, c) :- basicblock_exit(_, p), instruction_switch_var(p, v), instruction_switch_case_val(p, i, c), instruction_switch_case_goto(p, i, bb), basicblock_entry(bb, q).
-// TODO: temporary handling of `indirectbr`
+// temporary handling of `indirectbr`
 PPdirect(p, q) :- basicblock_exit(_, p), instruction_indirectbr_label(p, _, bb), basicblock_entry(bb, q).
-// TODO: temproray handling of `invoke`, ignoring exception flow
+// temproray handling of `invoke`, ignoring exception flow
 PPdirect(p, q) :- basicblock_exit(_, p), instruction_invk_normaldest(p, bb), basicblock_entry(bb, q).
-// TODO: ignoring `callbr` `resume` `catchswitch` `catchret` `cleanupret`
+// ignoring `callbr` `resume` `catchswitch` `catchret` `cleanupret`
 // Note : `unreachable` goes to nowhere, so no control-flow edge
+PP(p, q) :- PPdirect(p, q).
+PP(p, q) :- PPtrue(p, q, _).
+PP(p, q) :- PPfalse(p, q, _).
+PP(p, q) :- PPmatch(p, q, _, _).
 
 .decl Peval(p:P,v:V)
 .output Peval
@@ -1245,6 +1255,8 @@ PPdirect(p, q) :- basicblock_exit(_, p), instruction_invk_normaldest(p, bb), bas
 .output Pload
 .decl Pinvk(p:P)
 .output Pinvk
+.decl Passign(p:P,v:V)
+.output Passign
 .decl Pnoop(p:P)
 .output Pnoop
 Peval(p, v):- instruction_op_res(p, v).
@@ -1253,29 +1265,44 @@ Pstore(p, v) :- instruction_store_var(p, v).
 Pload(p, v) :- instruction_load_res(p, v).
 Pinvk(p) :- instruction_call(p).
 Pinvk(p) :- instruction_invk(p). // treat exceptional `invoke` as normal call
-// TODO: handle `phi` `select` `vaarg`
+Passign(p, v) :- instruction_phi_res(p, v).
+Passign(p, v) :- instruction_select_expr(p, v, _, _, _).
+// TODO: temperorily treat `vaarg` as noop
+Pnoop(p) :- instruction_vaarg(p).
 // most terminator instructions are "noop"
 Pnoop(p) :- instruction_ret(p) ; instruction_br(p) ; instruction_switch(p) ; instruction_indirectbr(p).
 Pnoop(p) :- instruction_callbr(p) ; instruction_resume(p) ; instruction_catchswitch(p) ; instruction_catchret(p) ; instruction_cleanupret(p) ; instruction_unreachable(p).
-// TODO: ignoring `fence` `cmpxchg` `atomicrmw` `freeze`  `landingpad` `catchpad` `cleanuppad`
+// ignoring `fence` `cmpxchg` `atomicrmw` `freeze`  `landingpad` `catchpad` `cleanuppad`
 Pnoop(p) :- instruction_fence(p) ; instruction_cmpxchg(p) ; instruction_atomicrmw(p) ; instruction_freeze(p) ; instruction_landingpad(p) ; instruction_catchpad(p) ; instruction_cleanuppad(p).
 
 .decl Alloca(v:V, n:V, t:T)
 .output Alloca
 .decl GlobalAlloca(v:V, t:T)
 .output GlobalAlloca
-// TODO check these two relations' usage?
 // TODO how about alignment?
 Alloca(v, n, t) :- instruction_alloca_res(p, v), instruction_alloca_size(p, n), instruction_alloca_type(p, t).
 GlobalAlloca(v, t) :- variable_global_type(v, t).
 
+.decl VarPtr(v:V)
+VarPtr(v) :- variable_type(v, t), pointer_type(t).
 .decl LoadPtr(res:V, addr:V)
 .output LoadPtr
-LoadPtr(res, addr) :- instruction_load_res(p, res), instruction_load_ptr(p, addr), variable_type(res, ty), pointer_type(ty).
+LoadPtr(res, addr) :- instruction_load_res(p, res), instruction_load_ptr(p, addr), VarPtr(res).
 .decl StorePtr(addr:V, val:V)
 .output StorePtr
-StorePtr(addr, val) :- instruction_store_addr(p, addr), instruction_store_var(p, val), variable_type(val, ty), pointer_type(ty).
-//StorePtr(gvar, init) :- variable_global_init(gvar, init), variable_type(val, ty), pointer_type(ty).
+StorePtr(addr, val) :- instruction_store_addr(p, addr), instruction_store_var(p, val), VarPtr(val).
+StorePtr(gvar, init) :- variable_global_init(gvar, init), VarPtr(init).
+.decl MayAssign(res:V, from:V)
+.output MayAssign
+MayAssign(res, from) :- instruction_phi_res(p, res), instruction_phi_pair(p, _, from, _).
+MayAssign(res, from) :- instruction_select_expr(_, res, _ ,from, _).
+MayAssign(res, from) :- instruction_select_expr(_, res, _, _, from).
+.decl AggPtr(agg:V, ptr:V)
+AggPtr(arr, ptr) :- variable_const_array_elem(arr, ptr), VarPtr(ptr).
+AggPtr(struct, ptr) :- variable_const_struct_field(struct, _, ptr), VarPtr(ptr).
+AggPtr(arr, ptr) :- variable_const_array_elem(arr, elem), AggPtr(elem, ptr).
+AggPtr(struct, ptr) :- variable_const_struct_field(struct, _, fval), AggPtr(fval, ptr).
+StorePtr(gvar, ptr) :- variable_global_init(gvar, init), AggPtr(init, ptr).
 
 .decl IinvkArg(p:P, i:Z, v:V)
 .output IinvkArg

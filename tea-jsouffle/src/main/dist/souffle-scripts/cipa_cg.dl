@@ -8,8 +8,6 @@
 // declared variables
 .decl AllocObj(y:V,h:H)
 .input AllocObj
-.decl GlobalAllocObj(y:V,h:H)
-.input GlobalAllocObj
 .decl variable_global_init(gvar:V, init:V)
 .input variable_global_init
 
@@ -19,6 +17,8 @@
 // lhs *y = $x // store ptr y, ptr x
 .decl StorePtr(y:V,x:V)
 .input StorePtr
+.decl MayAssign(res:V, from:V)
+.input MayAssign
 
 // statements
 .decl MV(m:M,v:V)
@@ -100,9 +100,10 @@ ci_pt(v,o) :- ci_IM(i,m), IinvkRet(i,v), MmethRet(m,u), ci_pt(u,o).
 ci_pt(v,h) :- AllocObj(v,h).
 ci_hpt(h,o) :- StorePtr(u,v), ci_pt(u,h), ci_pt(v,o).
 ci_pt(u,o) :- LoadPtr(u,v), ci_pt(v,h), ci_hpt(h,o).
-// handling global variables
-ci_pt(v,h) :- GlobalAllocObj(v,h).
-ci_hpt(h,o) :- variable_global_init(gvar, init), ci_pt(gvar, h), ci_pt(init, o).
+// global variables are the same since as their alloc and store are in the same relation
+
+// instructions that passing values
+ci_pt(v,h) :- ci_pt(u, h), MayAssign(v, u).
 // handling special constants
 ci_pt(v,h) :- variable_const_ptr_null(v), ObjNull(h).
 ci_pt(v,h) :- variable_const_aggzero(v), ObjNull(h).

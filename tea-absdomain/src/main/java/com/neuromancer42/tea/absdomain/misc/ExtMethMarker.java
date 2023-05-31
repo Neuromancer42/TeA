@@ -53,6 +53,9 @@ public class ExtMethMarker extends AbstractAnalysis {
     @ProduceRel(name = "memchrFunc", doms = {"M"})
     public ProgramRel relMemchrFunc;
 
+    @ProduceRel(name = "allocaFunc", doms = {"M"})
+    public ProgramRel relAllocaFunc;
+
     public void run(Map<String, ProgramDom> inputDoms, Map<String, ProgramRel> inputRels) {
 
         ProgramDom domM = inputDoms.get("M");
@@ -83,24 +86,33 @@ public class ExtMethMarker extends AbstractAnalysis {
     protected void relPhase() {
         for (Object[] tuple : relExtMeth.getValTuples()) {
             String name = (String) tuple[0];
-            switch (name) {
-                case "rand" -> relRetInput.add(name);
-                case "scanf" -> {
-                    for (String z : domZ) {
-                        if (!z.equals("0")) {
-                            relArgInput.add(name, z);
+            if (name.startsWith("llvm.memcpy")) {
+                relMemcpyFunc.add(name);
+            } else if (name.startsWith("llvm.memmove")) {
+                relMemmoveFunc.add(name);
+            } else if (name.startsWith("llvm.memset")) {
+                relMemsetFunc.add(name);
+            } else {
+                switch (name) {
+                    case "rand" -> relRetInput.add(name);
+                    case "scanf" -> {
+                        for (String z : domZ) {
+                            if (!z.equals("0")) {
+                                relArgInput.add(name, z);
+                            }
                         }
                     }
+                    case "strlen" -> relRetInput.add(name);
+                    case "malloc" -> relMallocFunc.add(name);
+                    case "calloc" -> relCallocFunc.add(name);
+                    case "realloc" -> relReallocFunc.add(name);
+                    case "free" -> relFreeFunc.add(name);
+                    case "memcpy" -> relMemcpyFunc.add(name);
+                    case "memmove" -> relMemmoveFunc.add(name);
+                    case "memset" -> relMemsetFunc.add(name);
+                    case "memchr" -> relMemchrFunc.add(name);
+                    case "alloca" -> relAllocaFunc.add(name);
                 }
-                case "strlen" -> relRetInput.add(name);
-                case "malloc" -> relMallocFunc.add(name);
-                case "calloc" -> relCallocFunc.add(name);
-                case "realloc" -> relReallocFunc.add(name);
-                case "free" -> relFreeFunc.add(name);
-                case "memcpy" -> relMemcpyFunc.add(name);
-                case "memmove" -> relMemmoveFunc.add(name);
-                case "memset" -> relMemsetFunc.add(name);
-                case "memchr" -> relMemchrFunc.add(name);
             }
         }
     }
