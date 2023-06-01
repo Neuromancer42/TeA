@@ -312,7 +312,7 @@ ci_Voffset(v,off,lim) :- ci_gep_offset(v,n,off,lim,_), operation_gep_nindices(v,
 
 //.output ci_gep_offset // for debug
 
-ci_Voffset(u,off,lim) :- instruction_load_res(p, u), variable_type(u, t), integer_type(t), memuse(p, r, g), ci_Poffset(r,g,off,lim).
+ci_Voffset(u,off,lim) :- instruction_load_res(p, u), variable_type(u, t), pointer_type(t), memuse(p, r, g), ci_Poffset(r,g,off,lim).
 
 ci_Voffset(u,off,lim) :- interproc_var_assign(u, v), ci_Voffset(v,off,lim).
 

@@ -42,6 +42,8 @@ public class IntervalGenerator extends AbstractAnalysis {
     public ProgramRel relVconstint;
     @ConsumeRel(name = "array_type_size", doms = {"T", "C"})
     public ProgramRel relArrLen;
+    @ConsumeRel(name = "array_type_component", doms = {"T", "T"})
+    public ProgramRel relArrComp;
     @ConsumeRel(name = "type_width", doms = {"T", "C"})
     public ProgramRel relTypeWidth;
     @ConsumeRel(doms = {"H", "C", "T"})
@@ -177,26 +179,61 @@ public class IntervalGenerator extends AbstractAnalysis {
             cmpVars.add(v);
         }
         Set<Integer> intConstants = new HashSet<>();
-        for (Object[] tuple : relArrLen.getValTuples()) {
-            Integer len = literalMap.get((String) tuple[1]);
-            assert len != null;
-            intConstants.add(len);
-        }
+        Map<String, Integer> typeWidth = new HashMap<>();
         for (Object[] tuple : relTypeWidth.getValTuples()) {
             Integer len = literalMap.get((String) tuple[1]);
             assert len != null;
             intConstants.add(len);
+
+            String t = (String) tuple[0];
+            typeWidth.put(t, len);
+        }
+        for (Object[] tuple : relArrLen.getValTuples()) {
+            Integer len = literalMap.get((String) tuple[1]);
+            assert len != null;
+
+            intConstants.add(len);
+        }
+        for (Object[] tuple : relArrComp.getValTuples()) {
+            String arrTy = (String) tuple[0];
+            String compTy = (String) tuple[1];
+            // add special offset to distinguish last element
+            int width = typeWidth.get(compTy);
+            if (width > 1) {
+                int fullLen = typeWidth.get(arrTy);
+                int lastOffset = fullLen - width;
+                intConstants.add(lastOffset);
+            }
         }
         for (Object[] tuple : relObjFixShape.getValTuples()) {
             Integer len = literalMap.get((String) tuple[1]);
             assert len != null;
             intConstants.add(len);
+
+            String type = (String) tuple[2];
+            int width = typeWidth.get(type);
+            int fullLen = width * len;
+            intConstants.add(fullLen);
+            if (width > 1) {
+                int lastOff = fullLen - width;
+                intConstants.add(lastOff);
+            }
         }
         for (Object[] tuple : relObjVarShape.getValTuples()) {
             String lenVar = (String) tuple[1];
             Integer len = regToLiteral.get(lenVar);
-            if (len != null)
+            if (len != null) {
                 intConstants.add(len);
+
+                String type = (String) tuple[2];
+                int width = typeWidth.get(type);
+                int fullLen = width * len;
+                intConstants.add(fullLen);
+                if (width > 1) {
+                    int lastOff = fullLen - width;
+                    intConstants.add(lastOff);
+                }
+            }
         }
         intConstants.add(0);
         intConstants.add(1);
