@@ -33,8 +33,8 @@ if [[ ! -f ${source_file} ]]; then
 fi
 
 if [[ -z ${compile_cmd} ]]; then
-  compile_cmd="gcc ${source_file} -o test"
-  echo "use default compile_comd: ${compile_cmd}" 1>&2;
+  compile_cmd=""
+  echo "use empty compile_comd: ${compile_cmd}" 1>&2;
 fi
 
 if [[ ! -d ${outdir} ]]; then

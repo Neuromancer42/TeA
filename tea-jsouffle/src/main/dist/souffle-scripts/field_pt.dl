@@ -16,9 +16,6 @@
 .decl  variable_type(v:V, t:T)
 .input variable_type
 
-.decl  variable_alias_aliasee(v:V, u:V)
-.input variable_alias_aliasee
-
 .decl  ci_IM(i:P, m:M)
 .input ci_IM
 .decl  MmethArg(m:M, i:Z, v:V)
@@ -67,10 +64,10 @@
 .decl mem_copy(p:P, dst:V, src:V)
 .input mem_copy
 
-.decl alias(u:V, v:V)
-.output alias
-.decl indirect_flow(to:V, from:V)
-.output indirect_flow
+//.decl alias(u:V, v:V)
+//.output alias
+//.decl indirect_flow(to:V, from:V)
+//.output indirect_flow
 .decl refine_pt(v:V, a:A)
 .output refine_pt
 .decl refine_hpt(ptr:A, a:A)
@@ -110,8 +107,8 @@ ap_flow(dst, src) :- ap_flow(dst, mid), refine_copy(_, mid, src).
 refine_hpt(dst, o) :- refine_hpt(src, o), ap_flow(dst, src), APmixed(dst).
 refine_hpt(dst, o) :- refine_hpt(src, o), ap_flow(dst, src), APtype(dst, t), pointer_type(t).
 
-alias(u, v) :- refine_pt(u, h), refine_pt(v, h).
-indirect_flow(to, from) :- ap_flow(dst, src), refine_pt(to, dst), refine_pt(from, src).
+//alias(u, v) :- refine_pt(u, h), refine_pt(v, h).
+//indirect_flow(to, from) :- ap_flow(dst, src), refine_pt(to, dst), refine_pt(from, src).
 
 .decl validate_pt(v:V, h:H)
 .output validate_pt
