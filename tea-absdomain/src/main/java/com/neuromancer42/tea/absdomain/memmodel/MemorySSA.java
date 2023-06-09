@@ -27,6 +27,8 @@ public class MemorySSA extends AbstractAnalysis {
     public ProgramDom domB;
     @ConsumeDom
     public ProgramDom domZ;
+    @ConsumeDom
+    public ProgramDom domV;
 
     @ConsumeRel(name = "instruction_basicblock", doms = {"P", "B"})
     public ProgramRel relPB;
@@ -48,22 +50,23 @@ public class MemorySSA extends AbstractAnalysis {
     public ProgramRel relLoadUse;
     @ConsumeRel(name = "store_may_def", doms = {"P", "A"})
     public ProgramRel relStoreDef;
-    @ConsumeRel(name = "iarg_may_use", doms = {"P", "Z", "A"})
-    public ProgramRel relIArgUse;
-    @ConsumeRel(name = "iarg_may_def", doms = {"P", "Z", "A"})
-    public ProgramRel relIArgDef;
-    @ConsumeRel(name = "iret_may_use", doms = {"P", "A"})
-    public ProgramRel relIRetUse;
-    @ConsumeRel(name = "iret_may_def", doms = {"P", "A"})
-    public ProgramRel relIRetDef;
+    @ConsumeRel(name = "invk_may_use", doms = {"P", "A"})
+    public ProgramRel relInvkUse;
+    @ConsumeRel(name = "invk_may_def", doms = {"P", "A"})
+    public ProgramRel relInvkDef;
 
-    @ConsumeRel(name = "live_on_entry", doms = {"M", "Z", "A"})
+    @ConsumeRel(name = "live_on_entry", doms = {"M", "A"})
     public ProgramRel relLiveOnEntry;
     @ConsumeRel(name = "ret_may_use", doms = {"P", "A"})
     public ProgramRel relRetUse;
-    @ConsumeRel(name = "global_obj", doms = {"A"})
+    @ConsumeRel(name = "global_obj", doms = {"V", "A"})
     public ProgramRel relGlobalObj;
-
+    @ConsumeRel(name = "local_obj", doms = {"M", "V", "A"})
+    public ProgramRel relLocalObj;
+    @ConsumeRel(name = "global_reachable", doms = {"A"})
+    public ProgramRel relGlobalReach;
+    @ConsumeRel(name = "local_reachable", doms = {"M", "A"})
+    public ProgramRel relLocalReach;
     @ConsumeRel(name = "DUedge", doms = {"P", "P"})
     public ProgramRel relDUedge;
 
@@ -88,6 +91,9 @@ public class MemorySSA extends AbstractAnalysis {
     @ProduceRel(name = "initgen", doms = {"G"})
     public ProgramRel relInitGen;
 
+    @ProduceRel(name = "newgen", doms = {"G"})
+    public ProgramRel relNewGen;
+
     private final Map<String, List<BitSet>> methRegions = new HashMap<>();
     private final Map<String, Set<Integer>> entryRegions = new HashMap<>();
     private final Map<String, Map<Integer, Map<String, Integer>>> memuses = new HashMap<>();
@@ -96,17 +102,11 @@ public class MemorySSA extends AbstractAnalysis {
 
     @Override
     protected void domPhase() {
-        BitSet globalObj = new BitSet();
-        for (Object[] tuple : relGlobalObj.getValTuples()) {
-            String h = (String) tuple[0];
-            globalObj.set(domA.indexOf(h));
-        }
-        Map<String, Map<String, BitSet>> entryObjs = new LinkedHashMap<>();
+        Map<String, BitSet> entryObjs = new LinkedHashMap<>();
         for (Object[] tuple : relLiveOnEntry.getValTuples()) {
             String m = (String) tuple[0];
-            String i = (String) tuple[1];
-            String h = (String) tuple[2];
-            entryObjs.computeIfAbsent(m, k -> new LinkedHashMap<>()).computeIfAbsent(i, k -> new BitSet()).set(domA.indexOf(h));
+            String h = (String) tuple[1];
+            entryObjs.computeIfAbsent(m, k -> new BitSet()).set(domA.indexOf(h));
         }
         Map<String, BitSet> retObjs = new LinkedHashMap<>();
         for (Object[] tuple : relRetUse.getValTuples()) {
@@ -129,31 +129,17 @@ public class MemorySSA extends AbstractAnalysis {
             loadObjs.computeIfAbsent(p, k -> new BitSet()).set(domA.indexOf(h));
         }
 
-        Map<String, Map<String, BitSet>> iArgUseObjs = new HashMap<>();
-        for (Object[] tuple : relIArgUse.getValTuples()) {
-            String p = (String) tuple[0];
-            String i = (String) tuple[1];
-            String h = (String) tuple[2];
-            iArgUseObjs.computeIfAbsent(p, k -> new LinkedHashMap<>()).computeIfAbsent(i, k -> new BitSet()).set(domA.indexOf(h));
-        }
-        Map<String, Map<String, BitSet>> iArgDefObjs = new HashMap<>();
-        for (Object[] tuple : relIArgDef.getValTuples()) {
-            String p = (String) tuple[0];
-            String i = (String) tuple[1];
-            String h = (String) tuple[2];
-            iArgDefObjs.computeIfAbsent(p, k -> new LinkedHashMap<>()).computeIfAbsent(i, k -> new BitSet()).set(domA.indexOf(h));
-        }
-        Map<String, BitSet>  iRetUseObjs = new HashMap<>();
-        for (Object[] tuple : relIRetUse.getValTuples()) {
+        Map<String, BitSet> invkUseObjs = new HashMap<>();
+        for (Object[] tuple : relInvkUse.getValTuples()) {
             String p = (String) tuple[0];
             String h = (String) tuple[1];
-            iRetUseObjs.computeIfAbsent(p, k -> new BitSet()).set(domA.indexOf(h));
+            invkUseObjs.computeIfAbsent(p, k -> new BitSet()).set(domA.indexOf(h));
         }
-        Map<String, BitSet> iRetDefObjs = new HashMap<>();
-        for (Object[] tuple : relIRetDef.getValTuples()) {
+        Map<String, BitSet> invkDefObjs = new HashMap<>();
+        for (Object[] tuple : relInvkDef.getValTuples()) {
             String p = (String) tuple[0];
             String h = (String) tuple[1];
-            iRetDefObjs.computeIfAbsent(p, k -> new BitSet()).set(domA.indexOf(h));
+            invkDefObjs.computeIfAbsent(p, k -> new BitSet()).set(domA.indexOf(h));
         }
 
         Map<String, Set<String>> prevEdges = new LinkedHashMap<>();
@@ -198,6 +184,39 @@ public class MemorySSA extends AbstractAnalysis {
             BBpreds.computeIfAbsent(bb, k -> new LinkedHashSet<>()).add(pred);
         }
 
+        BitSet globalReach = new BitSet();
+        for (Object[] tuple : relGlobalReach.getValTuples()) {
+            String h = (String) tuple[0];
+            globalReach.set(domA.indexOf(h));
+        }
+        Map<String, BitSet> localReach = new HashMap<>();
+        for (Object[] tuple : relLocalReach.getValTuples()) {
+            String m = (String) tuple[0];
+            String h = (String) tuple[1];
+            localReach.computeIfAbsent(m, k -> new BitSet()).set(domA.indexOf(h));
+        }
+
+        // partition top-level regions
+        Map<String, BitSet> globalVarToObj = new LinkedHashMap<>();
+        for (Object[] tuple : relGlobalObj.getValTuples()) {
+            String v = (String) tuple[0];
+            String h = (String) tuple[1];
+            globalVarToObj.computeIfAbsent(v, k -> new BitSet()).set(domA.indexOf(h));
+        }
+        Set<BitSet> globalObjs = new LinkedHashSet<>(globalVarToObj.values());
+
+        Map<String, Map<String, BitSet>> localVarToObj = new HashMap<>();
+        for (Object[] tuple : relLocalObj.getValTuples()) {
+            String m = (String) tuple[0];
+            String v = (String) tuple[1];
+            String h = (String) tuple[2];
+            localVarToObj.computeIfAbsent(m, k -> new LinkedHashMap<>()).computeIfAbsent(v, k -> new BitSet()).set(domA.indexOf(h));
+        }
+        Map<String, Set<BitSet>> localObjs = new HashMap<>();
+        for (String m : localVarToObj.keySet()) {
+            localObjs.put(m, new LinkedHashSet<>(localVarToObj.get(m).values()));
+        }
+
         domG.add(INIT_GEN.toString());
         for (String m : mp.keySet()) {
             if (!mpEntry.containsKey(m)) {
@@ -212,15 +231,10 @@ public class MemorySSA extends AbstractAnalysis {
 //            Messages.debug("MemorySSA: global objects");
 //            Messages.debug("%s", globalObj.toString());
 
-            origPartition.add(globalObj);
-
-            for (String i : entryObjs.getOrDefault(m, Map.of()).keySet()) {
-                BitSet entryObj = entryObjs.getOrDefault(m, Map.of()).get(i);
-                origPartition.add(entryObj);
-
-//                Messages.debug("MemorySSA: entry object %s", i);
-//                Messages.debug("%s", entryObj.toString());
-            }
+            origPartition.add(globalReach);
+            origPartition.add(localReach.getOrDefault(m, new BitSet()));
+            origPartition.addAll(globalObjs);
+            origPartition.addAll(localObjs.getOrDefault(m, Set.of()));
 
             List<String> localPs = mp.get(m);
             // Sort program points for stable output
@@ -228,7 +242,6 @@ public class MemorySSA extends AbstractAnalysis {
             for (String p : localPs) {
                 if (storeObjs.containsKey(p)) {
                     BitSet storeObj = storeObjs.get(p);
-                    origPartition.add(storeObj);
                     defObjs.computeIfAbsent(p, k -> new BitSet()).or(storeObj);
 
 //                    Messages.debug("MemorySSA: store object %s", p);
@@ -236,43 +249,20 @@ public class MemorySSA extends AbstractAnalysis {
                 }
                 if (loadObjs.containsKey(p)) {
                     BitSet loadObj = loadObjs.get(p);
-                    origPartition.add(loadObj);
                     useObjs.computeIfAbsent(p, k -> new BitSet()).or(loadObj);
 
 //                    Messages.debug("MemorySSA: load object %s", p);
 //                    Messages.debug("%s", loadObj.toString());
                 }
-                if (iArgUseObjs.containsKey(p)) {
-                    BitSet useObj = useObjs.computeIfAbsent(p, k -> new BitSet());
-                    for (BitSet invkUse : iArgUseObjs.getOrDefault(p, Map.of()).values()) {
-                        origPartition.add(invkUse);
-                        useObj.or(invkUse);
-
-//                        Messages.debug("MemorySSA: invk use object %s", p);
-//                        Messages.debug("%s", invkUse.toString());
-                    }
-                }
-                if (iArgDefObjs.containsKey(p)) {
-                    BitSet defObj = defObjs.computeIfAbsent(p, k -> new BitSet());
-                    for (BitSet invkDef : iArgDefObjs.getOrDefault(p, Map.of()).values()) {
-                        origPartition.add(invkDef);
-                        defObj.or(invkDef);
-
-//                        Messages.debug("MemorySSA: invk def object %s", p);
-//                        Messages.debug("%s", invkDef.toString());
-                    }
-                }
-                if (iRetUseObjs.containsKey(p)) {
-                    BitSet useObj = iRetUseObjs.get(p);
-                    origPartition.add(useObj);
+                if (invkUseObjs.containsKey(p)) {
+                    BitSet useObj = invkUseObjs.get(p);
                     useObjs.computeIfAbsent(p, k -> new BitSet()).or(useObj);
 
-//                    Messages.debug("MemorySSA: ret use object %s", p);
+//                    Messages.debug("MemorySSA: ivnk use object %s", p);
 //                    Messages.debug("%s", useObj.toString());
                 }
-                if (iRetDefObjs.containsKey(p)) {
-                    BitSet defObj = iRetDefObjs.get(p);
-                    origPartition.add(defObj);
+                if (invkDefObjs.containsKey(p)) {
+                    BitSet defObj = invkDefObjs.get(p);
                     defObjs.computeIfAbsent(p, k -> new BitSet()).or(defObj);
 
 //                    Messages.debug("MemorySSA: ret def object %s", p);
@@ -280,7 +270,6 @@ public class MemorySSA extends AbstractAnalysis {
                 }
                 if (retObjs.containsKey(p)) {
                     BitSet retObj = retObjs.get(p);
-                    origPartition.add(retObj);
                     useObjs.computeIfAbsent(p, k -> new BitSet()).or(retObj);
 
 //                    Messages.debug("MemorySSA: returned object %s", p);
@@ -297,15 +286,12 @@ public class MemorySSA extends AbstractAnalysis {
             memdefs.put(m, localMemDefs);
             memphis.put(m, localMemPhis);
 
-            BitSet entryObj = new BitSet();
-            for (BitSet liveOnEntry : entryObjs.getOrDefault(m, Map.of()).values()) {
-                entryObj.or(liveOnEntry);
-            }
+            BitSet entryObj = entryObjs.getOrDefault(m, new BitSet());
             Set<Integer> localEntryRegions = new HashSet<>();
             entryRegions.put(m, localEntryRegions);
             for (int rid = 0; rid < localregions.size(); ++rid) {
                 if (localMemUses.containsKey(rid) || localMemDefs.containsKey(rid) || localMemPhis.containsKey(rid)) {
-                    if (localregions.get(rid).intersects(entryObj) || localregions.get(rid).intersects(globalObj)) {
+                    if (localregions.get(rid).intersects(entryObj) || localregions.get(rid).intersects(globalReach)) {
                         localEntryRegions.add(rid);
                     }
                     String regStr = m + "." + rid;
@@ -324,6 +310,11 @@ public class MemorySSA extends AbstractAnalysis {
     @Override
     protected void relPhase() {
         relInitGen.add(INIT_GEN.toString());
+        for (String g : domG) {
+            if (!g.equals(INIT_GEN.toString())) {
+                relNewGen.add(g);
+            }
+        }
         for (String m : domM) {
             List<BitSet> localRegions = methRegions.get(m);
             if (localRegions == null)

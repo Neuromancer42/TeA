@@ -1228,7 +1228,8 @@ entryM(m) :- main_function(m).
 MmethArg(m, i, v) :- function_param(m, i, v).
 ExtMeth(m) :- function_extern(m).
 MPentry(m, p) :- function_entry(m, bb), basicblock_entry(bb, p).
-MPexit(m, p), MmethRet(m, v) :- instruction_ret_var(p, v), instruction_basicblock(p, bb), basicblock_function(bb, m).
+MPexit(m, p) :- instruction_ret(p), instruction_basicblock(p, bb), basicblock_function(bb, m).
+MmethRet(m, v) :- MPexit(m, p), instruction_ret_var(p, v).
 PPdirect(p, q) :- instruction_next(p, q).
 PPdirect(p, q) :- basicblock_exit(_, p), instruction_br_uncond_goto(p, goto), basicblock_entry(goto, q).
 PPtrue(p, q, v) :- basicblock_exit(_, p), instruction_br_cond_var(p, v), instruction_br_cond_iftrue(p, bb), basicblock_entry(bb, q).

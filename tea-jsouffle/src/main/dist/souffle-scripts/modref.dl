@@ -12,6 +12,8 @@
 .input MP
 .decl PP(p:P, q:P)
 .input PP
+.decl MV(m:M, v:V)
+.input MV
 .decl refine_pt(i:V, h:A)
 .input refine_pt
 .decl refine_hpt(h:A, o:A)
@@ -54,34 +56,28 @@
 .input IinvkRet
 .decl MmethArg(m:M, i:Z, v:V)
 .input MmethArg
-.decl instruction_ret(p:P)
-.input instruction_ret
 .decl instruction_ret_var(p:P, v:V)
 .input instruction_ret_var
 
 .decl MPentry(m:M, p:P)
 .input MPentry
+.decl MPexit(m:M, p:P)
+.input MPexit
 
 .decl load_may_use(p:P, h:A)
 .output load_may_use
 .decl store_may_def(p:P, h:A)
 .output store_may_def
-.decl iarg_may_use(p:P, i:Z, h:A)
-.output iarg_may_use
-.decl iarg_may_def(p:P, i:Z, h:A)
-.output iarg_may_def
-.decl iret_may_use(p:P, h:A)
-.output iret_may_use
-.decl iret_may_def(p:P, h:A)
-.output iret_may_def
+.decl invk_may_use(p:P, h:A)
+.output invk_may_use
+.decl invk_may_def(p:P, h:A)
+.output invk_may_def
 
-.decl live_on_entry(m:M, i:Z, h:A)
-.output live_on_entry
 .decl ret_may_use(p:P, h:A)
 .output ret_may_use
 
-.decl global_obj(h:A)
-.output global_obj
+.decl var_reachable(v:V, h:A)
+.output var_reachable
 
 .decl M_may_def(m:M, h:A)
 .output M_may_def
@@ -99,66 +95,62 @@
 .decl Z0(i0:Z)
 .input Z0
 
-global_obj(h) :- variable_global(v), refine_pt(v, h).
-global_obj(o) :- global_obj(h), refine_hpt(h, o).
-global_obj(fld) :- global_obj(a), APfield(a, _, fld).
+var_reachable(v, h) :- refine_pt(v, h).
+var_reachable(v, o) :- var_reachable(v, h), refine_hpt(h, o).
+var_reachable(v, fld) :- var_reachable(v, a), APfield(a, _, fld).
 
-live_on_entry(m, i, h) :- MmethArg(m, i, v), refine_pt(v, h).
-live_on_entry(m, i, o) :- live_on_entry(m, i, h), refine_hpt(h, o).
-live_on_entry(m, i, fld) :- live_on_entry(m, i, a), APfield(a, _, fld).
+.decl global_reachable(h:A)
+.output global_reachable
+global_reachable(h) :- variable_global(v), var_reachable(v, h).
 
-M_may_def(m, h) :- store_may_def(p, h), MP(m, p).
+.decl local_reachable(m:M, h:A)
+.output local_reachable
+local_reachable(m, h) :- MV(m, v), var_reachable(v, h).
+
+.decl global_obj(v:V, h:A)
+.output global_obj
+global_obj(v, h) :- variable_global(v), refine_pt(v, h).
+
+.decl local_obj(m:M, v:V, h:A)
+.output local_obj
+local_obj(m, v, h) :- MV(m, v), refine_pt(v, h).
+
+M_may_def(m, h), M_may_use(m, h) :- store_may_def(p, h), MP(m, p).
 M_may_use(m, h) :- load_may_use(p, h), MP(m, p).
-M_may_def(m, h) :- iret_may_def(p, h), MP(m, p).
-M_may_use(m, h) :- iret_may_use(p, h), MP(m, p).
-M_may_def(m, h) :- iarg_may_use(p, _, h), MP(m, p).
-M_may_use(m, h) :- iarg_may_use(p, _, h), MP(m, p).
-
-M_may_use(m, h) :- live_on_entry(m, _, h).
-M_may_use(m, h) :- ret_may_use(p, h), MP(m, p).
+M_may_def(m, h), M_may_use(m, h) :- invk_may_def(p, h), MP(m, p).
+M_may_use(m, h) :- invk_may_use(p, h), MP(m, p).
 
 store_may_def(p, h) :- instruction_store_addr(p, v), refine_pt(v, h).
 load_may_use(p, h) :- instruction_load_ptr(p, v), refine_pt(v, h).
 
 .decl iret_access(p:P, h:A)
 .decl iarg_access(p:P, i:Z, h:A)
-iret_access(p, h) :- IinvkRet(p, v), refine_pt(v, h).
-iret_access(p, o) :- iret_access(p, h), refine_hpt(h, o).
-iret_access(p, fld) :- iret_access(p, a), APfield(a, _, fld).
-iarg_access(p, i, h) :- IinvkArg(p, i, v), refine_pt(v, h).
-iarg_access(p, i, o) :- iarg_access(p, i, h), refine_hpt(h, o).
-iarg_access(p, i, fld) :- iarg_access(p, i, a), APfield(a, _, fld).
-
+iret_access(p, h) :- IinvkRet(p, v), var_reachable(v, h).
+iarg_access(p, i, h) :- IinvkArg(p, i, v), var_reachable(v, h).
 // Note: global objects are implicitely returned
-iret_may_use(p, h) :- M_may_use(callee, h), ci_IM(p, callee), global_obj(h).
-iret_may_def(p, h) :- M_may_def(callee, h), ci_IM(p, callee), global_obj(h).
-iret_may_use(p, h) :- M_may_use(callee, h), ci_IM(p, callee), iret_access(p, h).
-iret_may_def(p, h) :- M_may_def(callee, h), ci_IM(p, callee), iret_access(p, h).
-iarg_may_use(p, i, h) :- M_may_use(callee, h), ci_IM(p, callee), iarg_access(p, i, h).
-iarg_may_def(p, i, h) :- M_may_def(callee, h), ci_IM(p, callee), iarg_access(p, i, h).
+invk_may_use(p, h) :- M_may_use(callee, h), ci_IM(p, callee), global_reachable(h).
+invk_may_def(p, h) :- M_may_def(callee, h), ci_IM(p, callee), global_reachable(h).
+invk_may_use(p, h) :- M_may_use(callee, h), ci_IM(p, callee), iret_access(p, h).
+invk_may_def(p, h) :- M_may_def(callee, h), ci_IM(p, callee), iret_access(p, h).
+invk_may_use(p, h) :- M_may_use(callee, h), ci_IM(p, callee), iarg_access(p, _, h).
+invk_may_def(p, h) :- M_may_def(callee, h), ci_IM(p, callee), iarg_access(p, _, h).
 
-iret_may_use(p,h) :- iret_access(p, h), ci_IM(p, callee), ExtMeth(callee).
-iret_may_def(p,h) :- iret_access(p, h), ci_IM(p, callee), retInput(callee).
-iarg_may_use(p, i, h) :- iarg_access(p, i, h), ci_IM(p, callee), ExtMeth(callee).
-iarg_may_def(p, i, h) :- iarg_access(p, i, h), ci_IM(p, callee), argInput(callee, i).
+invk_may_use(p,h) :- iret_access(p, h), ci_IM(p, callee), ExtMeth(callee).
+invk_may_def(p,h) :- iret_access(p, h), ci_IM(p, callee), retInput(callee).
+invk_may_use(p,h) :- iarg_access(p, _, h), ci_IM(p, callee), ExtMeth(callee).
+invk_may_def(p,h) :- iarg_access(p, i, h), ci_IM(p, callee), argInput(callee, i).
 
 .decl mem_modify(p:P, h:A) 
 mem_modify(p,h) :- ci_IM(p, callee), memsetFunc(callee), Z0(i), IinvkArg(p, i, v), refine_pt(v, h).
 mem_modify(p,h) :- ci_IM(p, callee), memcpyFunc(callee), Z0(i), IinvkArg(p, i, v), refine_pt(v, h).
 mem_modify(p,h) :- ci_IM(p, callee), memmoveFunc(callee), Z0(i), IinvkArg(p, i, v), refine_pt(v, h).
 mem_modify(p,fld) :- mem_modify(p,a), APfield(a, _, fld).
-iret_may_def(p, h) :- mem_modify(p, h).
+invk_may_def(p,h) :- mem_modify(p, h).
 
-
-ret_may_use(p,h) :- live_on_entry(m, _, h), MP(m, p), instruction_ret(p).
-// Note: global objects are added into returned objects as well
-ret_may_use(p,h) :- M_may_use(m, h), global_obj(h), MP(m, p), instruction_ret(p).
-ret_may_use(p,h) :- M_may_def(m, h), global_obj(h), MP(m, p), instruction_ret(p).
-.decl ret_access(p:P, h:A)
-ret_access(p, h) :- instruction_ret_var(p, v), refine_pt(v, h).
-ret_access(p, o) :- ret_access(p, h), refine_hpt(h, o).
-ret_access(p, fld) :- ret_access(p, a), APfield(a, _, fld).
-ret_may_use(p, h) :- ret_access(p, h).
+// Note: updated global objects / pass-by-pointer arguments may be used later in callers
+ret_may_use(p,h) :- M_may_def(m, h), global_reachable(h), MPexit(m, p).
+ret_may_use(p,h) :- M_may_def(m, h), MmethArg(m, _, v), var_reachable(v, h), MPexit(m, p).
+ret_may_use(p,h) :- M_may_def(m, h), MPexit(m, p), instruction_ret_var(p, v), var_reachable(v, h).
 
 // .decl def_track(def:P, to:P)
 // def_track(def, to) :- Pstore(def, _), PP(def, to).
@@ -193,4 +185,4 @@ DUedge(from, to) :- DUtrack(from, to), Pstore(to, _).
 DUedge(from, to) :- DUtrack(from, to), Pload(to, _).
 DUedge(from, to) :- DUtrack(from, to), Pinvk(to).
 
-DUedge(from, to) :- DUtrack(from, to), instruction_ret(to).
+DUedge(from, to) :- DUtrack(from, to), MPexit(_, to).
