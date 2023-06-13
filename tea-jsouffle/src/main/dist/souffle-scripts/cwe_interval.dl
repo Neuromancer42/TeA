@@ -240,7 +240,7 @@ interproc_mem_assign(r1, g1, r0, g0) :- ci_IM(i,m), memuse(i, r0, g0), mementry(
 interproc_mem_assign(r1, g1, r0, g0) :- ci_IM(i,m), memdef(i, r1, g1, _), MPexit(m, p), memuse(p, r0, g0), region_contain(r1, o), region_contain(r0, o).
 // special handling for memcpy / memmove
 .decl region_copy(r1:R, g1:G, r0:R, g0:G)
-region_copy(r1, g1, r0, g0) :- refine_copy(p, a1, a0), region_contain(r1, a1), region_contain(r0, a0), memdef(p, r1, g1, _), memuse(p, r0, g0).
+region_copy(r1, g1, r0, g0) :- refine_copy(p, a1, a0), memdef(p, r1, g1, _), region_contain(r1, a1), memuse(p, r0, g0), region_contain(r0, a0).
 // TODO: special handling for memset ?
 
 ci_Vval(v,u) :- variable_const_int(v, c), ConstU(c, u).
@@ -272,11 +272,11 @@ ci_Vval(u,c) :- instruction_load_res(p, u), variable_type(u, t), integer_type(t)
 
 ci_Vval(u,c) :- interproc_var_assign(u, v), ci_Vval(v,c).
 
-ci_Pval(r, g1, c) :- ci_Pval(r, g0, c), memassign(r, g1, g0).
-ci_Pval(r, g1, c) :- ci_Pval(r, g0, c), memdef(_, r, g1, g0).
-ci_Pval(r, g1, c) :- ci_Vval(v, c), instruction_store_var(p, v), memdef(p, r, g1, _).
+ci_Pval(r, g1, c) :- memassign(r, g1, g0), ci_Pval(r, g0, c).
+ci_Pval(r, g1, c) :- memdef(_, r, g1, g0), ci_Pval(r, g0, c).
+ci_Pval(r, g1, c) :- instruction_store_var(p, v), ci_Vval(v, c), memdef(p, r, g1, _).
 
-ci_Pval(r1, g1, c) :- ci_Pval(r0, g0, c), interproc_mem_assign(r1, g1, r0, g0).
+ci_Pval(r1, g1, c) :- interproc_mem_assign(r1, g1, r0, g0), ci_Pval(r0, g0, c).
 
 ci_Pval(r1,g1,c) :- region_copy(r1,g1,r0,g0), ci_Pval(r0,g0,c).
 
@@ -301,26 +301,29 @@ ci_Voffset(v,off0,bytes) :- ci_IM(p, m), reallocFunc(m), Z1(i1), IinvkArg(p, i1,
 ci_Voffset(v,off0,bytes) :- ci_IM(p, m), callocFunc(m), Z0(i0), Z1(i1), IinvkArg(p, i0, vnum), IinvkArg(p, i1, vw), ci_Vval(vnum, unum), ci_Vval(vw, uw), evalMulU(unum, uw, bytes), IinvkRet(p, v), Uzero(off0).
 
 .decl ci_gep_offset(v:V, i:Z, off:U, lim:U, ty:T)
-.output ci_gep_offset
-
-ci_gep_offset(v,i1,off1,lim,ty) :- ci_Voffset(base,off0,lim), operation_gep_base(v, base), Z0(i0), operation_gep_index_offset(v,i0,voff), ci_Vval(voff,uoff), operation_gep_type(v, ty), typeWidthU(ty, uw), evalMulU(uoff,uw,du), evalAddU(off0,du,off1),Z1(i1).
-// pointer to array element can step over the whole array
-ci_gep_offset(v,i1,off1,sublim,subty) :- ci_gep_offset(v,i0,_,_,ty), operation_gep_index_offset(v,i0,voff), ci_Vval(voff, uoff), array_type_component(ty,subty), typeWidthU(subty,uw), evalMulU(uoff,uw,off1), typeWidthU(ty, sublim), Znext(i0,i1).
-// pointer to struct filed can only go beyond the field
-ci_gep_offset(v,i1,off0,flim,fty) :- ci_gep_offset(v,i0,_,_,ty), operation_gep_index_field(v,i0,f), struct_type_field(ty,f,fty), typeWidthU(fty, flim), Uzero(off0),Znext(i0,i1).
-ci_Voffset(v,off,lim) :- ci_gep_offset(v,n,off,lim,_), operation_gep_nindices(v,n).
-
 //.output ci_gep_offset // for debug
+
+.decl ci_gep_offset_base(v:V, off0:U, lim:U)
+ci_gep_offset_base(v, off0, lim) :- operation_gep_base(v, base), ci_Voffset(base,off0,lim).
+.decl ci_gep_offset_delta(v:V, du:U, ty:T)
+ci_gep_offset_delta(v, du, ty) :- Z0(i0), operation_gep_index_offset(v,i0,voff), ci_Vval(voff,uoff), operation_gep_type(v, ty), typeWidthU(ty, uw), evalMulU(uoff,uw,du).
+
+ci_gep_offset(v,i1,off1,lim,ty) :- ci_gep_offset_delta(v, du, ty), ci_gep_offset_base(v, off0, lim), evalAddU(off0,du,off1),Z1(i1).
+// pointer to array element can step over the whole array
+ci_gep_offset(v,i1,off1,sublim,subty) :- operation_gep_index_offset(v,i0,voff), ci_gep_offset(v,i0,_,_,ty), ci_Vval(voff, uoff), array_type_component(ty,subty), typeWidthU(subty,uw), evalMulU(uoff,uw,off1), typeWidthU(ty, sublim), Znext(i0,i1).
+// pointer to struct filed can only go beyond the field
+ci_gep_offset(v,i1,off0,flim,fty) :- operation_gep_index_field(v,i0,f), ci_gep_offset(v,i0,_,_,ty), struct_type_field(ty,f,fty), typeWidthU(fty, flim), Uzero(off0),Znext(i0,i1).
+ci_Voffset(v,off,lim) :- operation_gep_nindices(v,n), ci_gep_offset(v,n,off,lim,_).
 
 ci_Voffset(u,off,lim) :- instruction_load_res(p, u), variable_type(u, t), pointer_type(t), memuse(p, r, g), ci_Poffset(r,g,off,lim).
 
 ci_Voffset(u,off,lim) :- interproc_var_assign(u, v), ci_Voffset(v,off,lim).
 
-ci_Poffset(r, g1, off, lim) :- ci_Poffset(r, g0, off, lim), memassign(r, g1, g0).
-ci_Poffset(r, g1, off, lim) :- ci_Poffset(r, g0, off, lim), memdef(_, r, g1, g0).
-ci_Poffset(r, g1, off, lim) :- ci_Voffset(v, off, lim), instruction_store_var(p, v), memdef(p, r, g1, _).
+ci_Poffset(r, g1, off, lim) :- memassign(r, g1, g0), ci_Poffset(r, g0, off, lim).
+ci_Poffset(r, g1, off, lim) :- memdef(_, r, g1, g0), ci_Poffset(r, g0, off, lim).
+ci_Poffset(r, g1, off, lim) :- instruction_store_var(p, v), ci_Voffset(v, off, lim), memdef(p, r, g1, _).
 
-ci_Poffset(r1, g1, off, lim) :- ci_Poffset(r0, g0, off, lim), interproc_mem_assign(r1, g1, r0, g0).
+ci_Poffset(r1, g1, off, lim) :- interproc_mem_assign(r1, g1, r0, g0), ci_Poffset(r0, g0, off, lim).
 
 ci_Poffset(r1, g1, off, lim) :- region_copy(r1,g1,r0,g0), ci_Poffset(r0,g0,off,lim).
 
