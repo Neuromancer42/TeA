@@ -115,6 +115,10 @@ global_obj(v, h) :- variable_global(v), refine_pt(v, h).
 .output local_obj
 local_obj(m, v, h) :- MV(m, v), refine_pt(v, h).
 
+.decl live_on_entry(m:M, h:A)
+.output live_on_entry
+live_on_entry(m, h) :- MmethArg(m, _, v), var_reachable(v, h).
+
 M_may_def(m, h), M_may_use(m, h) :- store_may_def(p, h), MP(m, p).
 M_may_use(m, h) :- load_may_use(p, h), MP(m, p).
 M_may_def(m, h), M_may_use(m, h) :- invk_may_def(p, h), MP(m, p).
