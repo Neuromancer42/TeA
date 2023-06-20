@@ -202,6 +202,8 @@
 .input memcpyFunc
 .decl memmoveFunc(m:M)
 .input memmoveFunc
+.decl memchrFunc(m:M)
+.input memchrFunc
 
 .decl Z0(i:Z)
 .input Z0
@@ -317,6 +319,8 @@ ci_Voffset(v,off,lim) :- operation_gep_nindices(v,n), ci_gep_offset(v,n,off,lim,
 
 ci_Voffset(u,off,lim) :- instruction_load_res(p, u), variable_type(u, t), pointer_type(t), memuse(p, r, g), ci_Poffset(r,g,off,lim).
 
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), memchrFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), Z2(i2), IinvkArg(p, i2, vcnt), ci_Vval(vcnt,cnt), IinvkRet(p,ret), Uzero(uzero), evalLEU(uzero,du), evalLTU(du,cnt), evalAddU(off0,du,off).
+
 ci_Voffset(u,off,lim) :- interproc_var_assign(u, v), ci_Voffset(v,off,lim).
 
 ci_Poffset(r, g1, off, lim) :- memassign(r, g1, g0), ci_Poffset(r, g0, off, lim).
@@ -336,13 +340,15 @@ read_bytes(p, l) :- instruction_load_res(p, u), variable_type(u, t), typeWidthU(
 write_bytes(p, l) :- instruction_store_var(p, u), variable_type(u, t), typeWidthU(t, l).
 
 write_bytes(p, l) :- ci_IM(p, m), memsetFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
-read_bytes(p, l), read_bytes(p, l) :- ci_IM(p, m), memcpyFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
-read_bytes(p, l), read_bytes(p, l) :- ci_IM(p, m), memmoveFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
+read_bytes(p, l) :- ci_IM(p, m), memchrFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
+read_bytes(p, l), write_bytes(p, l) :- ci_IM(p, m), memcpyFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
+read_bytes(p, l), write_bytes(p, l) :- ci_IM(p, m), memmoveFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
 
 inst_read(p, v) :- instruction_load_ptr(p, v).
 inst_write(p, v) :- instruction_store_addr(p, v).
 
 inst_write(p, v) :- ci_IM(p, m), memsetFunc(m), Z0(i0), IinvkArg(p, i0, v).
+inst_read(p, v) :- ci_IM(p, m), memchrFunc(m), Z0(i0), IinvkArg(p, i0, v).
 inst_write(p, v) :- ci_IM(p, m), memcpyFunc(m), Z0(i0), IinvkArg(p, i0, v).
 inst_read(p, v) :- ci_IM(p, m), memcpyFunc(m), Z1(i1), IinvkArg(p, i1, v).
 inst_write(p, v) :- ci_IM(p, m), memmoveFunc(m), Z0(i0), IinvkArg(p, i0, v).
