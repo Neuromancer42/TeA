@@ -57,11 +57,17 @@ public class Core {
                 String[] tokens = distLine.split("\t");
                 String relName = tokens[0];
                 double[] supports = new double[tokens.length-1];
+                double[] weights = new double[tokens.length-1];
                 // TODO: for now, we suppose all prior params has equal probability
                 for (int i = 0; i  < supports.length; ++i) {
-                    supports[i] = Double.parseDouble(tokens[i+1]);
+                    String[] token = tokens[i+1].split(":");
+                    supports[i] = Double.parseDouble(token[0]);
+                    if (token.length > 1)
+                        weights[i] = Double.parseDouble(token[1]);
+                    else
+                        weights[i] = 1;
                 }
-                Categorical01 dist = new Categorical01(supports);
+                Categorical01 dist = new Categorical01(supports, weights);
                 if (relName.equals("default")) {
                     defaultDist = dist;
                     Messages.log("Core: set default prior distribution for rels as: %s", dist.toString());

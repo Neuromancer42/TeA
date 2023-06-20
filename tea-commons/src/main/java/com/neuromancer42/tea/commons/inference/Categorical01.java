@@ -8,7 +8,8 @@ import java.util.*;
 
 public class Categorical01 {
     private static final double epsilon = 1.0/1024;
-    private static final double stride = 1.0/16;
+    private static final int num_slots = 64;
+    private static final double stride = 1.0/num_slots;
     protected final double[] supports;
     protected final double[] weights;
 
@@ -100,7 +101,8 @@ public class Categorical01 {
             return post;
         if (post == null)
             return prev;
-        Map<Double, Double> probMap = new HashMap<>();
+        double[] probSlots = new double[num_slots+1];
+        double[] weightSlots = new double[num_slots+1];
         for (int i = 0; i < prev.supports.length; ++i) {
             double p = prev.supports[i];
             double wp = prev.weights[i];
@@ -113,13 +115,23 @@ public class Categorical01 {
 //                else if (pq >= 1 - stride)
 //                    pq = 1 - stride;
 //                else
-                    pq = Math.round(pq / stride) * stride;
+//                    pq = Math.round(pq / stride) * stride;
                 if (pq > 1 || pq < 0)
                     Messages.error("Categorical01: computed support %f = 1-(1-%f)*(1-%f) out of range", pq, p, q);
                 if (pq > 1) pq = 1;
                 if (pq < 0) pq = 0;
                 double w = wp * wq;
-                probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
+                int s = (int) Math.ceil(pq / stride);
+                probSlots[s] += pq * w;
+                weightSlots[s] += w;
+            }
+        }
+        Map<Double, Double> probMap = new HashMap<>();
+        for (int s = 0; s < num_slots + 1; ++s) {
+            double weight = weightSlots[s];
+            if (weight != 0) {
+                double prob = probSlots[s] / weight;
+                probMap.put(prob, weight);
             }
         }
         double[] newSupports = new double[probMap.size()];
@@ -135,8 +147,6 @@ public class Categorical01 {
 //                newProb = 1 - stride;
 //            else
 //                newProb = Math.round(newProb / stride) * stride;
-            if (newProb < epsilon)
-                newProb = epsilon;
             newProbs[i] = newProb;
             i++;
         }
@@ -148,7 +158,8 @@ public class Categorical01 {
             return post;
         if (post == null)
             return prev;
-        Map<Double, Double> probMap = new HashMap<>();
+        double[] probSlots = new double[num_slots+1];
+        double[] weightSlots = new double[num_slots+1];
         for (int i = 0; i < prev.supports.length; ++i) {
             double p = prev.supports[i];
             double wp = prev.weights[i];
@@ -161,13 +172,23 @@ public class Categorical01 {
 //                else if (pq <= stride)
 //                    pq = stride;
 //                else
-                    pq = Math.round(pq / stride) * stride;
+//                    pq = Math.round(pq / stride) * stride;
                 if (pq > 1 || pq < 0)
                     Messages.error("Categorical01: computed support %f = %f*%f out of range", pq, p, q);
                 if (pq > 1) pq = 1;
                 if (pq < 0) pq = 0;
                 double w = wp * wq;
-                probMap.compute(pq, (k, v) -> (v == null ? w : v + w));
+                int s = (int) Math.ceil(pq / stride);
+                probSlots[s] += pq * w;
+                weightSlots[s] += w;
+            }
+        }
+        Map<Double, Double> probMap = new HashMap<>();
+        for (int s = 0; s < num_slots + 1; ++s) {
+            double weight = weightSlots[s];
+            if (weight != 0) {
+                double prob = probSlots[s] / weight;
+                probMap.put(prob, weight);
             }
         }
         double[] newSupports = new double[probMap.size()];
@@ -183,8 +204,6 @@ public class Categorical01 {
 //                newProb = 1 - stride;
 //            else
 //                newProb = Math.round(newProb / stride) * stride;
-            if (newProb < epsilon)
-                newProb = epsilon;
             newProbs[i] = newProb;
             i++;
         }
