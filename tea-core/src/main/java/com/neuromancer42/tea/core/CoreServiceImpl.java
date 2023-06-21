@@ -131,10 +131,11 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 {
                     CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
                     respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": compute prior ranking in %s", priorTimer));
-                    for (var alarmProb : priorRanking) {
+                    for (int i = 0; i < priorRanking.size(); ++i) {
+                        var alarmProb = priorRanking.get(i);
                         Trgt.Tuple alarm = alarmProb.getKey();
                         Double prob = alarmProb.getValue();
-                        respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
                     }
                     CoreUtil.ApplicationResponse response = respBuilder.build();
                     responseObserver.onNext(response);
