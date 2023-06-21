@@ -42,7 +42,9 @@ tasks.register("genSWIG", SourceTask) {
         mkdir ext.dstDir
         exec {
             workingDir ext.dstDir
-            commandLine "cmake", "-DWRAPPER_ONLY=TRUE",
+            commandLine "cmake",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DWRAPPER_ONLY=TRUE",
                     "-DJAVA_HOME=${System.getProperty("java.home")}",
                     "-DJAVA_PACKAGE=${swigJavaPackage}",
                     "-DCMAKE_SWIG_OUTDIR=${ext.generatedDir}/${swigJavaSubdir}",

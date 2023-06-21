@@ -164,6 +164,9 @@ ENV TEA_CLIENT=${TEA_HOME}/tea-clients/basic_client.py
 WORKDIR ..
 COPY scripts/ ./scripts
 
+RUN pip3 install wllvm
+ENV LLVM_COMPILER=clang
+
 WORKDIR ${TEA_HOME}
 RUN echo "built successfully"
 CMD ["bash"]
