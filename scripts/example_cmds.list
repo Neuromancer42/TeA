@@ -1,0 +1,1 @@
+../scripts/interval.sh -c ../example_configs/interval_rank_sqz_random.ini -f large_17.ll -a "" -o test-interval/large_17 -p large_17 -b souffle_itv_new -d ../example_configs/interval.dists > test-interval/large_17.log

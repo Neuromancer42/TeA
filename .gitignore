@@ -35,10 +35,13 @@
 **/*.dylib
 
 # vscode
-.vscode/
+**/.vscode/
 
 # pycache
 **/__pycache__/
+
+# generated python grpc files
+/tea-clients/application
 
 # testcases, ignore it for speed
 benchmarks/

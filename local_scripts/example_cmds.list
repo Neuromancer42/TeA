@@ -1,1 +1,0 @@
-../local_scripts/interval.sh -c ../example_configs/interval_rank_sqz_random.ini -f large_17.c -a "clang large_17.c /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport/io.c -I /Users/neuromancer/Workspace/TeA/benchmarks/juliet/C/testcasesupport -DINCLUDEMAIN" -o "test-large_17-interval_rank_sqz_full2" -p large_17

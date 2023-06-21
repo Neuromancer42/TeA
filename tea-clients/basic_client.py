@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import grpc
 import application.core_util_pb2_grpc as app_grpc
 import application.core_util_pb2 as app_msg
