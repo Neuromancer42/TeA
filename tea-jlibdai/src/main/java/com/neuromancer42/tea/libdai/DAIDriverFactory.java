@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.libdai;
 
+import com.neuromancer42.tea.commons.configs.Constants;
 import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.inference.ICausalDriverFactory;
@@ -8,6 +9,7 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public class DAIDriverFactory implements ICausalDriverFactory {
     private static final String name = "libdai";
@@ -15,8 +17,17 @@ public class DAIDriverFactory implements ICausalDriverFactory {
 
     private final Path workPath;
 
-    public DAIDriverFactory(Path path) {
+    public DAIDriverFactory(Path path, Map<String, String> opts) {
         workPath = path;
+        if (opts.containsKey(Constants.OPT_DAI_MAXITER)) {
+            DAIMetaNetwork.maxiter = Integer.parseInt(opts.get(Constants.OPT_DAI_MAXITER));
+        }
+        if (opts.containsKey(Constants.OPT_DAI_MAXTIME)) {
+            DAIMetaNetwork.maxtime = Integer.parseInt(opts.get(Constants.OPT_DAI_MAXTIME));
+        }
+        if (opts.containsKey(Constants.OPT_DAI_TOL)) {
+            DAIMetaNetwork.tol = Double.parseDouble(opts.get(Constants.OPT_DAI_TOL));
+        }
     }
 
     @Override

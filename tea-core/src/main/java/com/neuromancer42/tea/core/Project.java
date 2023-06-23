@@ -301,7 +301,7 @@ public class Project {
                 constr -> ruleDist.apply(constr.getRuleInfo()),
                 input -> inputRelDist.apply(input.getRelName())
         );
-        driver = new DAIDriverFactory(workDir).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
+        driver = new DAIDriverFactory(workDir, option).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
     }
 
     private void prepareRanking(Trgt.Provenance provenance, Function<String, Categorical01> ruleDist, Function<String, Categorical01> inputRelDist, Set<Trgt.Tuple> reservedTuples, String driverType) {
@@ -310,7 +310,7 @@ public class Project {
                 input -> inputRelDist.apply(input.getRelName()),
                 reservedTuples
         );
-        driver = new DAIDriverFactory(workDir).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
+        driver = new DAIDriverFactory(workDir, option).createCausalDriver(driverType, driverType+"-"+cg.getName(), cg);
     }
 
     public List<Map.Entry<Trgt.Tuple, Double>> priorRanking(Trgt.Provenance provenance,

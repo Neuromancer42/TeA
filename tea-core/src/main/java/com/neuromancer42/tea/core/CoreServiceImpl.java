@@ -164,10 +164,11 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
 
                     respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", postTimer));
 
-                    for (var alarmProb : postRanking) {
+                    for (int i = 0; i < postRanking.size(); ++i) {
+                        var alarmProb = postRanking.get(i);
                         Trgt.Tuple alarm = alarmProb.getKey();
                         Double prob = alarmProb.getValue();
-                        respBuilder.addAlarm(ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
                     }
                     CoreUtil.ApplicationResponse response = respBuilder.build();
                     responseObserver.onNext(response);

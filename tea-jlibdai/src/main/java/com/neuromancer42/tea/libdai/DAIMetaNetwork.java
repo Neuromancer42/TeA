@@ -24,6 +24,10 @@ public class DAIMetaNetwork {
     private final int numRepeats;
     private boolean activated;
 
+    static int maxiter = 10000000;
+    static int maxtime = 10800;
+    static double tol = 1e-6;
+
     public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats) {
         Path fgFilePath = dumpDir.resolve(name+".fg");
         int subSize = causalGraph.nodeSize();
@@ -42,7 +46,7 @@ public class DAIMetaNetwork {
 
     private DAIMetaNetwork(Path fgFilePath, CausalGraph causalGraph, int numRepeats, int subSize) {
         this.causalGraph = causalGraph;
-        this.swigFactorGraph = new LibDAISWIGFactorGraph(fgFilePath.toAbsolutePath().toString());
+        this.swigFactorGraph = new LibDAISWIGFactorGraph(fgFilePath.toAbsolutePath().toString(), maxiter, maxtime, tol);
         this.shift = subSize;
         this.offset = causalGraph.distSize();
         this.numRepeats = numRepeats;

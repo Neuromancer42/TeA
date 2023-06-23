@@ -12,6 +12,10 @@ public class Constants {
     public static final String OPT_SRC = "tea.source";
     public static final String OPT_SRC_CMD = "tea.source.cmd";
 
+    public static final String OPT_DAI_MAXITER = "tea.dai.maxiter";
+    public static final String OPT_DAI_MAXTIME = "tea.dai.maxtime";
+    public static final String OPT_DAI_TOL = "tea.dai.tol";
+
     public static final String OPT_DIST = "dist";
     public static final String OPT_SQZ = "squeeze";
     public static final String OPT_HELP = "help";
