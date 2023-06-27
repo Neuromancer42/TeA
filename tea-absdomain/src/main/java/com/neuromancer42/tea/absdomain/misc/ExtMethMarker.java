@@ -56,6 +56,35 @@ public class ExtMethMarker extends AbstractAnalysis {
     @ProduceRel(name = "allocaFunc", doms = {"M"})
     public ProgramRel relAllocaFunc;
 
+//    @ProduceRel(name = "strlenFunc", doms = {"M"})
+//    public ProgramRel relStrlenFunc;
+    @ProduceRel(name = "cmpFunc", doms = {"M"})
+    public ProgramRel relCmpFunc;
+//    @ProduceRel(name = "strncmpFunc", doms = {"M"})
+//    public ProgramRel relStrncmpFunc;
+    @ProduceRel(name = "strcpyFunc", doms = {"M"})
+    public ProgramRel relStrcpyFunc;
+    @ProduceRel(name = "strncpyFunc", doms = {"M"})
+    public ProgramRel relStrncpyFunc;
+    @ProduceRel(name = "strcatFunc", doms = {"M"})
+    public ProgramRel relStrcatFunc;
+    @ProduceRel(name = "strncatFunc", doms = {"M"})
+    public ProgramRel relStrncatFunc;
+    @ProduceRel(name = "strchrFunc", doms = {"M"})
+    public ProgramRel relStrchrFunc;
+    @ProduceRel(name = "strrchrFunc", doms = {"M"})
+    public ProgramRel relStrrchrFunc;
+    @ProduceRel(name = "strstrFunc", doms = {"M"})
+    public ProgramRel relStrstrFunc;
+    @ProduceRel(name = "strspnFunc", doms = {"M"})
+    public ProgramRel relStrspnFunc;
+    @ProduceRel(name = "strcspnFunc", doms = {"M"})
+    public ProgramRel relStrcspnFunc;
+    @ProduceRel(name = "strpbrkFunc", doms = {"M"})
+    public ProgramRel relStrpbrkFunc;
+    @ProduceRel(name = "strtokFunc", doms = {"M"})
+    public ProgramRel relStrtokFunc;
+
     public void run(Map<String, ProgramDom> inputDoms, Map<String, ProgramRel> inputRels) {
 
         ProgramDom domM = inputDoms.get("M");
@@ -92,9 +121,17 @@ public class ExtMethMarker extends AbstractAnalysis {
                 relMemmoveFunc.add(name);
             } else if (name.startsWith("llvm.memset")) {
                 relMemsetFunc.add(name);
+            } else if (name.contains("strcpy")) {
+                relStrcpyFunc.add(name);
+            } else if (name.contains("strncpy")) {
+                relStrncpyFunc.add(name);
+            } else if (name.contains("strcat")) {
+                relStrcatFunc.add(name);
+            } else if (name.contains("strncat")) {
+                relStrncatFunc.add(name);
             } else {
                 switch (name) {
-                    case "rand" -> relRetInput.add(name);
+                    case "rand", "atoi", "strlen" -> relRetInput.add(name);
                     case "scanf" -> {
                         for (String z : domZ) {
                             if (!z.equals("0")) {
@@ -102,7 +139,6 @@ public class ExtMethMarker extends AbstractAnalysis {
                             }
                         }
                     }
-                    case "strlen" -> relRetInput.add(name);
                     case "malloc" -> relMallocFunc.add(name);
                     case "calloc" -> relCallocFunc.add(name);
                     case "realloc" -> relReallocFunc.add(name);
@@ -112,6 +148,15 @@ public class ExtMethMarker extends AbstractAnalysis {
                     case "memset" -> relMemsetFunc.add(name);
                     case "memchr" -> relMemchrFunc.add(name);
                     case "alloca" -> relAllocaFunc.add(name);
+
+                    case "memcmp", "strcmp", "strncmp" -> relCmpFunc.add(name); // Note: skip locale settings
+                    case "strchr" -> relStrchrFunc.add(name);
+                    case "strrchr" -> relStrrchrFunc.add(name);
+                    case "strstr" -> relStrstrFunc.add(name);
+                    case "strspn" -> relStrspnFunc.add(name);
+                    case "strcspn" -> relStrcspnFunc.add(name);
+                    case "strpbrk" -> relStrpbrkFunc.add(name);
+                    case "strtok" -> relStrtokFunc.add(name);
                 }
             }
         }

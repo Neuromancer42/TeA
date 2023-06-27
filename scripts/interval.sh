@@ -1,6 +1,6 @@
 #!/bin/bash
 
-usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compile_cmd] [-o outdir] [-b souffle_libdir] [-d dist_file]" 1>&2; exit 1; }
+usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compile_cmd] [-o outdir] [-b souffle_libdir] [-d dist_file] [-t pre_test]" 1>&2; exit 1; }
 
 echo "Run in TEA_HOME: $TEA_HOME"
 pushd "$TEA_HOME" || exit 1
@@ -11,7 +11,7 @@ compile_cmd=""
 proj=`date +"p%b %d, %Y"`
 souffle_libdir="souffle_cache"
 
-while getopts p:c:f:a:o:b:d: flag
+while getopts p:c:f:a:o:b:d:t: flag
 do
   case "${flag}" in
     p) proj=${OPTARG};;
@@ -21,6 +21,7 @@ do
     b) souffle_libdir=${OPTARG};;
     d) dist_file=${OPTARG};;
     o) outdir=${OPTARG};;
+    t) pretest=${OPTARG};;
     *) usage;;
   esac
 done
@@ -84,6 +85,10 @@ if [[ -z ${TEA_CLIENT} ]]; then
 fi
 echo "Using tea_client: ${TEA_CLIENT}"
 
+if [[ ! -z ${pretest} ]]; then
+  echo "Prepare testing file: ${pretest}"
+  ${pretest}
+fi
 nohup_pids=()
 
 nohup ${TEA_ABSDOMAIN} -p 10004 -d ${outdir} > ${outdir}/tea-absdomain.log 2>&1 &

@@ -205,6 +205,30 @@
 .decl memchrFunc(m:M)
 .input memchrFunc
 
+.decl strcpyFunc(m:M)
+.input strcpyFunc
+.decl strncpyFunc(m:M)
+.input strncpyFunc
+.decl strcatFunc(m:M)
+.input strcatFunc
+.decl strncatFunc(m:M)
+.input strncatFunc
+
+.decl strchrFunc(m:M)
+.input strchrFunc
+.decl strrchrFunc(m:M)
+.input strrchrFunc
+.decl strstrFunc(m:M)
+.input strstrFunc
+.decl strspnFunc(m:M)
+.input strspnFunc
+.decl strcspnFunc(m:M)
+.input strcspnFunc
+.decl strpbrkFunc(m:M)
+.input strpbrkFunc
+.decl strtokFunc(m:M)
+.input strtokFunc
+
 .decl Z0(i:Z)
 .input Z0
 .decl Z1(i:Z)
@@ -320,6 +344,13 @@ ci_Voffset(v,off,lim) :- operation_gep_nindices(v,n), ci_gep_offset(v,n,off,lim,
 ci_Voffset(u,off,lim) :- instruction_load_res(p, u), variable_type(u, t), pointer_type(t), memuse(p, r, g), ci_Poffset(r,g,off,lim).
 
 ci_Voffset(ret,off,lim) :- ci_IM(p,m), memchrFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), Z2(i2), IinvkArg(p, i2, vcnt), ci_Vval(vcnt,cnt), IinvkRet(p,ret), Uzero(uzero), evalLEU(uzero,du), evalLTU(du,cnt), evalAddU(off0,du,off).
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), strchrFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), evalLEU(off0, off), evalLTU(off, lim).
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), strrchrFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), evalLEU(off0, off), evalLTU(off, lim).
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), strstrFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), evalLEU(off0, off), evalLTU(off, lim).
+ci_Vval(ret,unum) :- ci_IM(p,m), strspnFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), Uzero(uzero), evalSubU(lim,off0,ulen), evalLEU(uzero, unum), evalLEU(unum, ulen).
+ci_Vval(ret,unum) :- ci_IM(p,m), strcspnFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), Uzero(uzero), evalSubU(lim,off0,ulen), evalLEU(uzero, unum), evalLEU(unum, ulen).
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), strpbrkFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), evalLEU(off0, off), evalLTU(off, lim).
+ci_Voffset(ret,off,lim) :- ci_IM(p,m), strtokFunc(m), Z0(i0), IinvkArg(p, i0, vbase), ci_Voffset(vbase,off0,lim), IinvkRet(p, ret), evalLEU(off0, off), evalLTU(off, lim).
 
 ci_Voffset(u,off,lim) :- interproc_var_assign(u, v), ci_Voffset(v,off,lim).
 
@@ -343,6 +374,10 @@ write_bytes(p, l) :- ci_IM(p, m), memsetFunc(m), Z2(i2), IinvkArg(p, i2, vlen), 
 read_bytes(p, l) :- ci_IM(p, m), memchrFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
 read_bytes(p, l), write_bytes(p, l) :- ci_IM(p, m), memcpyFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
 read_bytes(p, l), write_bytes(p, l) :- ci_IM(p, m), memmoveFunc(m), Z2(i2), IinvkArg(p, i2, vlen), ci_Vval(vlen, l).
+write_bytes(p, l) :- ci_IM(p,m), strcpyFunc(m), Z1(i1), IinvkArg(p, i1, src), ci_Voffset(src, off, lim), evalSubU(lim, off, l).
+write_bytes(p, l) :- ci_IM(p,m), strncpyFunc(m), Z2(i2), IinvkArg(p, i2, len), ci_Vval(len, l).
+write_bytes(p, l) :- ci_IM(p,m), strcatFunc(m), Z1(i1), IinvkArg(p, i1, src), ci_Voffset(src, off, lim), evalSubU(lim, off, l).
+write_bytes(p, l) :- ci_IM(p,m), strncatFunc(m), Z2(i2), IinvkArg(p, i2, len), ci_Vval(len, l).
 
 inst_read(p, v) :- instruction_load_ptr(p, v).
 inst_write(p, v) :- instruction_store_addr(p, v).
@@ -353,6 +388,10 @@ inst_write(p, v) :- ci_IM(p, m), memcpyFunc(m), Z0(i0), IinvkArg(p, i0, v).
 inst_read(p, v) :- ci_IM(p, m), memcpyFunc(m), Z1(i1), IinvkArg(p, i1, v).
 inst_write(p, v) :- ci_IM(p, m), memmoveFunc(m), Z0(i0), IinvkArg(p, i0, v).
 inst_read(p, v) :- ci_IM(p, m), memmoveFunc(m), Z1(i1), IinvkArg(p, i1, v).
+inst_write(p, v) :- ci_IM(p, m), strcpyFunc(m), Z0(i0), IinvkArg(p, i0, v).
+inst_write(p, v) :- ci_IM(p, m), strncpyFunc(m), Z0(i0), IinvkArg(p, i0, v).
+inst_write(p, v) :- ci_IM(p, m), strcatFunc(m), Z0(i0), IinvkArg(p, i0, v).
+inst_write(p, v) :- ci_IM(p, m), strncatFunc(m), Z0(i0), IinvkArg(p, i0, v).
 
 CWE121_buffer_overflow(p, v) :- ci_Voffset(v, off, lim), inst_read(p, v), read_bytes(p, du), evalAddU(off, du, end), evalLTU(lim, end).
 CWE121_buffer_overflow(p, v) :- ci_Voffset(v, off, lim), inst_write(p, v), write_bytes(p, du), evalAddU(off, du, end), evalLTU(lim, end).
