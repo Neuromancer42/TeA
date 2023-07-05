@@ -7,10 +7,12 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.core.analysis.Trgt;
 import com.neuromancer42.tea.jsouffle.swig.SWIGSouffleProgram;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Stream;
 
 public final class SouffleAnalysis {
     private final String name;
@@ -178,7 +180,7 @@ public final class SouffleAnalysis {
                 } else {
                     Messages.debug("SouffleAnalysis %s: dumping facts to path %s from %s", name, factPath.toAbsolutePath(), rel.getLocation());
                     rel.load();
-                    List<String> lines = new ArrayList<>();
+                    BufferedWriter factWriter = Files.newBufferedWriter(factPath, StandardCharsets.UTF_8);
                     Iterable<int[]> tuples = rel.getIntTuples();
                     int domNum = rel.getDoms().length;
                     for (int[] tuple : tuples) {
@@ -191,9 +193,9 @@ public final class SouffleAnalysis {
                                 sb.append("\t");
                             }
                         }
-                        lines.add(sb.toString());
+                        factWriter.append(sb.toString());
+                        factWriter.newLine();
                     }
-                    Files.write(factPath, lines, StandardCharsets.UTF_8);
                     rel.close();
                 }
             } catch (IOException e) {
@@ -227,28 +229,19 @@ public final class SouffleAnalysis {
         public List<Trgt.Constraint> prove(Collection<Trgt.Tuple> targets) {
             // 0. filter targets and activate prover program
             List<Trgt.Tuple> outputs = new ArrayList<>();
-            {
-                List<String> lines = new ArrayList<>();
+            try (BufferedWriter targetsWriter = Files.newBufferedWriter(proofDir.resolve("targets.list"), StandardCharsets.UTF_8)) {
                 for (Trgt.Tuple target : targets) {
-                    String relName = target.getRelName();
-                    if (outputRelNames.contains(relName)) {
+                    if (outputRelNames.contains(target.getRelName())) {
                         outputs.add(target);
-                        StringBuilder lb = new StringBuilder();
-                        lb.append(relName);
-                        int[] intTuple = encodeIndices(relName, target.getAttributeList().toArray(new String[0]));
-                        assert intTuple != null;
-                        for (int idx : intTuple) {
-                            lb.append("\t").append(idx);
-                        }
-                        lines.add(lb.toString());
+                        String targetLine = tupleToLine(target);
+                        targetsWriter.append(targetLine);
+                        targetsWriter.newLine();
                     }
                 }
-                try {
-                    Files.write(proofDir.resolve("targets.list"), lines, StandardCharsets.UTF_8);
-                } catch (IOException ioException) {
-                    Messages.error("SouffleAnalysis %s: failed to dump target tuples: %s", name, ioException.getMessage());
-                }
+            } catch (IOException ioException) {
+                Messages.error("SouffleAnalysis %s: failed to dump target tuples: %s", name, ioException.getMessage());
             }
+
             Messages.log("SouffleAnalysis %s: activate provenance program to prove %d targets", name, outputs.size());
             activateProver(proofDir);
 
@@ -256,19 +249,18 @@ public final class SouffleAnalysis {
             List<String> ruleInfos = new ArrayList<>(proverProgram.getInfoRelNames());
 
             // 4. fetch constraintItems
+            Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
             Path consFilePath = proofDir.resolve("cons_all.txt");
-            List<String> consLines = null;
-            try {
-                consLines = Files.readAllLines(consFilePath, StandardCharsets.UTF_8);
+            try (Stream<String> consStream = Files.lines(consFilePath, StandardCharsets.UTF_8)) {
+                consStream.forEach(
+                        line -> {
+                            Trgt.Constraint constraint = lineToConstraint(line);
+                            clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
+                        }
+                );
             } catch (IOException e) {
                 Messages.error("SouffleAnalysis %s: failed to read constraint items from provenance file %s", name, consFilePath.toString());
                 Messages.fatal(e);
-            }
-            assert consLines != null;
-            Map<Trgt.Tuple, List<Trgt.Constraint>> clauseMap = new LinkedHashMap<>();
-            for (String line : consLines) {
-                Trgt.Constraint constraint = decodeConstraint(line);
-                clauseMap.computeIfAbsent(constraint.getHeadTuple(), k -> new ArrayList<>()).add(constraint);
             }
 
             ProvenanceBuilder provBuilder = new ProvenanceBuilder(clauseMap, ruleInfos);
@@ -326,7 +318,7 @@ public final class SouffleAnalysis {
             return domIndices;
         }
 
-        private Trgt.Constraint decodeConstraint(String line) {
+        private Trgt.Constraint lineToConstraint(String line) {
             Trgt.Constraint.Builder constrBuilder = Trgt.Constraint.newBuilder();
             String[] atoms = line.split("\t");
             String headAtom = atoms[0];
@@ -335,7 +327,7 @@ public final class SouffleAnalysis {
                 headAtom = headAtom.substring(1);
                 headSign = false;
             }
-            Trgt.Tuple headTuple = decodeTuple(headAtom);
+            Trgt.Tuple headTuple = lineToTuple(headAtom);
             constrBuilder.setHeadTuple(headTuple);
 
             for (int i = 1; i < atoms.length - 1; ++i) {
@@ -345,7 +337,7 @@ public final class SouffleAnalysis {
                     bodyAtom = bodyAtom.substring(1);
                     bodySign = false;
                 }
-                constrBuilder.addBodyTuple(decodeTuple(bodyAtom));
+                constrBuilder.addBodyTuple(lineToTuple(bodyAtom));
             }
 
             String ruleInfo = atoms[atoms.length - 1];
@@ -358,21 +350,26 @@ public final class SouffleAnalysis {
             return constrBuilder.build();
         }
 
-        private Trgt.Tuple decodeTuple(String s) {
+        private static Trgt.Tuple lineToTuple(String s) {
             String[] splits1 = s.split("\\(");
             String relName = splits1[0];
             String indexString = splits1[1].replace(")", "");
             String[] splits2 = indexString.split(",");
-            int[] domIndices = new int[splits2.length];
+            Integer[] domIndices = new Integer[splits2.length];
             for (int i = 0; i < splits2.length; i++) {
                 domIndices[i] = Integer.parseInt(splits2[i]);
             }
-            String[] attributes = decodeIndices(relName, domIndices);
-            if (attributes == null) {
-                Messages.fatal("SouffleAnalysis %s: tuple %s cannot be parsed", s);
-                assert false;
+            return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttrId(List.of(domIndices)).build();
+        }
+
+        private static String tupleToLine(Trgt.Tuple target) {
+            StringBuilder lb = new StringBuilder();
+            lb.append(target.getRelName());
+            Integer[] intTuple = target.getAttrIdList().toArray(new Integer[0]);
+            for (int idx : intTuple) {
+                lb.append("\t").append(idx);
             }
-            return Trgt.Tuple.newBuilder().setRelName(relName).addAllAttribute(List.of(attributes)).build();
+            return lb.toString();
         }
     }
 

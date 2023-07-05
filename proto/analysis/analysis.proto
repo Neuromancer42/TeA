@@ -52,6 +52,7 @@ message InstrumentRequest {
     string project_id = 1;
     Configs option = 2;
     repeated Tuple instr_tuple = 3;
+    repeated DomTrgt dom = 4;
 }
 
 message InstrumentResponse {

@@ -17,17 +17,17 @@ import java.util.List;
 import java.util.Map;
 
 public class ProvenanceTest {
-    private static final Trgt.Tuple i1 = Trgt.Tuple.newBuilder().setRelName("I").addAttribute("1").build();
-    private static final Trgt.Tuple i2 = Trgt.Tuple.newBuilder().setRelName("I").addAttribute("2").build();
-    private static final Trgt.Tuple h2 = Trgt.Tuple.newBuilder().setRelName("H").addAttribute("2").build();
-    private static final Trgt.Tuple o0 = Trgt.Tuple.newBuilder().setRelName("O").addAttribute("0").build();
-    private static final Trgt.Tuple o1 = Trgt.Tuple.newBuilder().setRelName("O").addAttribute("1").build();
-    private static final Trgt.Constraint cons1 = Trgt.Constraint.newBuilder().setHeadTuple(o0).addBodyTuple(i1).setRuleInfo("rule1").build();
+    private static final Trgt.Tuple i1 = Trgt.Tuple.newBuilder().setRelName("I").addAttrId(1).build();
+    private static final Trgt.Tuple i2 = Trgt.Tuple.newBuilder().setRelName("I").addAttrId(2).build();
+    private static final Trgt.Tuple h2 = Trgt.Tuple.newBuilder().setRelName("H").addAttrId(2).build();
+    private static final Trgt.Tuple o1 = Trgt.Tuple.newBuilder().setRelName("O").addAttrId(1).build();
+    private static final Trgt.Tuple o2 = Trgt.Tuple.newBuilder().setRelName("O").addAttrId(2).build();
+    private static final Trgt.Constraint cons1 = Trgt.Constraint.newBuilder().setHeadTuple(o1).addBodyTuple(i1).setRuleInfo("rule1").build();
     private static final Trgt.Constraint cons21 = Trgt.Constraint.newBuilder().setHeadTuple(h2).addBodyTuple(i2).setRuleInfo("rule2").build();
-    private static final Trgt.Constraint cons22 = Trgt.Constraint.newBuilder().setHeadTuple(o0).addBodyTuple(h2).setRuleInfo("rule3").build();
-    private static final Trgt.Constraint cons20 = Trgt.Constraint.newBuilder().setHeadTuple(o0).addBodyTuple(i2).setRuleInfo("rule4").build();
-    private static final Trgt.Constraint loop0 = Trgt.Constraint.newBuilder().setHeadTuple(o1).addBodyTuple(o0).setRuleInfo("rule5").build();
-    private static final Trgt.Constraint loop1 = Trgt.Constraint.newBuilder().setHeadTuple(o0).addBodyTuple(o1).setRuleInfo("rule5").build();
+    private static final Trgt.Constraint cons22 = Trgt.Constraint.newBuilder().setHeadTuple(o1).addBodyTuple(h2).setRuleInfo("rule3").build();
+    private static final Trgt.Constraint cons20 = Trgt.Constraint.newBuilder().setHeadTuple(o1).addBodyTuple(i2).setRuleInfo("rule4").build();
+    private static final Trgt.Constraint loop0 = Trgt.Constraint.newBuilder().setHeadTuple(o2).addBodyTuple(o1).setRuleInfo("rule5").build();
+    private static final Trgt.Constraint loop1 = Trgt.Constraint.newBuilder().setHeadTuple(o1).addBodyTuple(o2).setRuleInfo("rule5").build();
 
     @Order(0)
     @Test
@@ -36,7 +36,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("simple", new HashMap<>());
         provBuilder.addConstraints(List.of(cons1));
         provBuilder.addInputTuples(List.of(i1));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         Assertions.assertEquals(1, prov.getConstraintCount());
@@ -52,7 +52,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("simpleloop", new HashMap<>());
         provBuilder.addConstraints(List.of(cons1, loop0, loop1));
         provBuilder.addInputTuples(List.of(i1));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         Assertions.assertEquals(3, prov.getConstraintCount());
@@ -67,7 +67,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("dump", new HashMap<>());
         provBuilder.addConstraints(List.of(cons1));
         provBuilder.addInputTuples(List.of(i1));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Path workPath = Paths.get("test-out");
         boolean res = provBuilder.dumpProvenance(workPath);
@@ -87,7 +87,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("nolongpath", option);
         provBuilder.addConstraints(List.of(cons1, cons21, cons22));
         provBuilder.addInputTuples(List.of(i1, i2));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         for (Trgt.Constraint cons : prov.getConstraintList()) {
@@ -108,7 +108,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("longpath", option);
         provBuilder.addConstraints(List.of(cons1, cons21, cons22));
         provBuilder.addInputTuples(List.of(i1, i2));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         for (Trgt.Constraint cons : prov.getConstraintList()) {
@@ -129,7 +129,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("longpath", option);
         provBuilder.addConstraints(List.of(cons1, cons21, cons22, cons20));
         provBuilder.addInputTuples(List.of(i1, i2));
-        provBuilder.addOutputTuples(List.of(o0));
+        provBuilder.addOutputTuples(List.of(o1));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         for (Trgt.Constraint cons : prov.getConstraintList()) {
@@ -150,7 +150,7 @@ public class ProvenanceTest {
         ProvenanceBuilder provBuilder = new ProvenanceBuilder("loop", option);
         provBuilder.addConstraints(List.of(cons1, loop0, loop1));
         provBuilder.addInputTuples(List.of(i1));
-        provBuilder.addOutputTuples(List.of(o0, o1));
+        provBuilder.addOutputTuples(List.of(o1, o2));
         provBuilder.computeProvenance();
         Trgt.Provenance prov = provBuilder.getProvenance();
         for (Trgt.Constraint cons : prov.getConstraintList()) {

@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Objects;
 
 import com.neuromancer42.tea.commons.configs.Messages;
 
@@ -28,6 +29,11 @@ public class ProgramDom extends Dom<String> {
 
     public void load(String location) {
         try {
+            if (size() != 0 || cacheLocation != null) {
+                Messages.error("ProgramDom %s: override existing dom elements in: %s", Objects.toString(cacheLocation, "null"));
+            }
+            clear();
+            cacheLocation = location;
             List<String> vals = Files.readAllLines(Paths.get(location, name + ".map"));
             addAll(vals);
         } catch (IOException e) {

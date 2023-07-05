@@ -9,6 +9,7 @@ import com.neuromancer42.tea.core.analysis.ProviderGrpc;
 import com.neuromancer42.tea.core.analysis.Trgt;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -71,25 +72,24 @@ public class ProjectBuilder {
     }
 
     private void updateDependencyGraph() {
-        List<String> lines = new ArrayList<>();
-        lines.add("digraph G{");
-        for (String analysis : analyses.keySet()) {
-            Analysis.AnalysisInfo info = analyses.get(analysis);
-            for (Trgt.DomInfo inDom : info.getConsumingDomList()) {
-                lines.add("dom_" + inDom.getName() + " -> " + "a_" + analysis + ";");
+        try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(this.workPath.resolve("dependency.dot"), StandardCharsets.UTF_8))) {
+            pw.println("digraph G{");
+            for (String analysis : analyses.keySet()) {
+                Analysis.AnalysisInfo info = analyses.get(analysis);
+                for (Trgt.DomInfo inDom : info.getConsumingDomList()) {
+                    pw.println("dom_" + inDom.getName() + " -> " + "a_" + analysis + ";");
+                }
+                for (Trgt.RelInfo inRel : info.getConsumingRelList()) {
+                    pw.println("rel_" + inRel.getName() + " -> " + "a_" + analysis + ";");
+                }
+                for (Trgt.DomInfo outDom : info.getProducingDomList()) {
+                    pw.println("a_" + analysis + "->" + "dom_" + outDom.getName() + ";");
+                }
+                for (Trgt.RelInfo outRel : info.getProducingRelList()) {
+                    pw.println("a_" + analysis + " -> " + "rel_" + outRel.getName() + ";");
+                }
             }
-            for (Trgt.RelInfo inRel : info.getConsumingRelList()) {
-                lines.add("rel_" + inRel.getName() + " -> " + "a_" + analysis + ";");
-            }for (Trgt.DomInfo outDom : info.getProducingDomList()) {
-                lines.add("a_" + analysis + "->" + "dom_" + outDom.getName() + ";");
-            }
-            for (Trgt.RelInfo outRel : info.getProducingRelList()) {
-                lines.add("a_" + analysis + " -> " + "rel_" + outRel.getName() + ";");
-            }
-        }
-        lines.add("}");
-        try {
-            Files.write(this.workPath.resolve("dependency.dot"), lines, StandardCharsets.UTF_8);
+            pw.println("}");
         } catch (IOException e) {
             Messages.error("Core: failed to update dependency graph!");
         }

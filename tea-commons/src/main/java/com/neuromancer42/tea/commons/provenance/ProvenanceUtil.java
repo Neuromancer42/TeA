@@ -6,6 +6,7 @@ import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.util.IndexMap;
 import com.neuromancer42.tea.core.analysis.Trgt;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,82 +20,77 @@ public class ProvenanceUtil {
     public static boolean dumpProvenance(Trgt.Provenance prov, Path path) {
         IndexMap<String> rules = new IndexMap<>();
         // dump pruned provenance
-        try {
-            Path consPath = path.resolve("cons_pruned.txt");
-            List<String> consLines = new ArrayList<>();
+        Path consPath = path.resolve("cons_pruned.txt");
+        try (BufferedWriter consWriter = Files.newBufferedWriter(consPath, StandardCharsets.UTF_8)) {
             for (int clsId = 0; clsId < prov.getConstraintCount(); ++clsId) {
                 Trgt.Constraint cons = prov.getConstraint(clsId);
                 rules.add(cons.getRuleInfo());
                 int ruleId = rules.indexOf(cons.getRuleInfo());
-                StringBuilder sb = new StringBuilder();
-                sb.append("R").append(ruleId).append("-").append(clsId).append("\t");
-                Trgt.Tuple head = cons.getHeadTuple();
-////            Boolean headSign = cons.getHeadSign();
-//            if (!headSign)
-//                sb.append("NOT ");
-                sb.append(prettifyTuple(head));
-                for (int j = 0; j < cons.getBodyTupleCount(); j++) {
-                    sb.append("\t");
-                    Trgt.Tuple body = cons.getBodyTuple(j);
-//                Boolean sign = cons.getBodySign(j);
-//                if (!sign) {
-//                    sb.append("NOT ");
-//                }
-                    sb.append(prettifyTuple(body));
-                }
-                consLines.add(sb.toString());
+                String consLine = prettifyConstraint(cons, "R" + ruleId + "-" + clsId);
+                consWriter.append(consLine);
+                consWriter.newLine();
             }
-            Files.write(consPath, consLines, StandardCharsets.UTF_8);
-            // dump rule dictionary
-            Path ruleDictPath = path.resolve("rule_dict.txt");
-            List<String> dictLines = new ArrayList<>();
+        } catch (IOException e) {
+            Messages.error("ProvenanceUtil: failed to dump pruned constraint file, skip: %s", e.getMessage());
+            return false;
+        }
+        // dump rule dictionary
+        Path ruleDictPath = path.resolve("rule_dict.txt");
+        try (BufferedWriter dictWriter = Files.newBufferedWriter(ruleDictPath, StandardCharsets.UTF_8)) {
             for (int i = 0; i < rules.size(); ++i) {
                 String ruleId = "R" + i;
-                dictLines.add(ruleId + ":\t" + rules.get(i));
+                dictWriter.append(ruleId).append(":\t").append(rules.get(i));
+                dictWriter.newLine();
             }
-            Files.write(ruleDictPath, dictLines, StandardCharsets.UTF_8);
-            // dump output facts
-            Path baseQueryPath = path.resolve("base_queries.txt");
-            List<String> baseQueryLines = new ArrayList<>();
-            for (Trgt.Tuple q : prov.getOutputList())
-                baseQueryLines.add(prettifyTuple(q));
-            Files.write(baseQueryPath, baseQueryLines, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            Messages.error("ProvenanceUtil: failed to dump provenance file, skip: %s", e.getMessage());
+            Messages.error("ProvenanceUtil: failed to dump rule dict file, skip: %s", e.getMessage());
+            return false;
+        }
+        // dump output facts
+        Path baseQueryPath = path.resolve("base_queries.txt");
+        try (BufferedWriter baseQueryWriter = Files.newBufferedWriter(baseQueryPath, StandardCharsets.UTF_8)) {
+            for (Trgt.Tuple q : prov.getOutputList()) {
+                baseQueryWriter.append(prettifyTuple(q));
+                baseQueryWriter.newLine();
+            }
+        } catch (IOException e) {
+            Messages.error("ProvenanceUtil: failed to dump queries file, skip: %s", e.getMessage());
             return false;
         }
         return true;
     }
 
-    public static String prettifyTuple(Trgt.Tuple tuple) {
+    private static String prettifyTuple(Trgt.Tuple tuple) {
         StringBuilder sb = new StringBuilder();
         sb.append(tuple.getRelName()).append("(");
-        for (int i = 0; i < tuple.getAttributeCount(); ++i) {
+        for (int i = 0; i < tuple.getAttrIdCount(); ++i) {
             if (i > 0) {
                 sb.append(",");
             }
-            sb.append(tuple.getAttribute(i).replace("\t", "\\t"));
+            sb.append(tuple.getAttrId(i));
         }
         sb.append(")");
         return sb.toString();
     }
 
-    public static String prettifyConstraint(Trgt.Constraint constraint) {
+    private static String prettifyConstraint(Trgt.Constraint cons, String marker) {
         StringBuilder sb = new StringBuilder();
-        sb.append(prettifyTuple(constraint.getHeadTuple()));
-        sb.append(":-");
-        for (int i = 0; i < constraint.getBodyTupleCount(); ++i) {
-            if (i > 0) {
-                sb.append(",");
-            }
-            sb.append(constraint.getBodyTuple(i));
+        sb.append(marker).append("\t");
+        Trgt.Tuple head = cons.getHeadTuple();
+////            Boolean headSign = cons.getHeadSign();
+//            if (!headSign)
+//                sb.append("NOT ");
+        sb.append(prettifyTuple(head));
+        for (int j = 0; j < cons.getBodyTupleCount(); j++) {
+            sb.append("\t");
+            Trgt.Tuple body = cons.getBodyTuple(j);
+//                Boolean sign = cons.getBodySign(j);
+//                if (!sign) {
+//                    sb.append("NOT ");
+//                }
+            sb.append(prettifyTuple(body));
         }
-        sb.append(")");
         return sb.toString();
-    }
-
-    public static String prettifyProbability(Double prob) {
-        return String.format("%.6g%%", prob * 100);
     }
 
     public static CausalGraph buildCausalGraph(

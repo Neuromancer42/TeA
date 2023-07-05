@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 
 public class Project {
     private final String ID;
-    private final Map<String, String> producedDoms = new HashMap<>();
-    private final Map<String, String> producedRels = new HashMap<>();
+    private final Map<String, ProgramDom> producedDoms = new HashMap<>();
+    private final Map<String, ProgramRel> producedRels = new HashMap<>();
 
     private final Map<String, String> option;
     private final Path workDir;
@@ -82,22 +82,22 @@ public class Project {
         List<String> lost_rels = new ArrayList<>();
         for (Trgt.DomInfo domInfo : info.getConsumingDomList()) {
             String domName = domInfo.getName();
-            String domLoc = producedDoms.get(domName);
-            if (domLoc == null) {
+            ProgramDom dom = producedDoms.get(domName);
+            if (dom == null) {
                 lost_doms.add(domName);
             } else {
-                Trgt.DomTrgt dom = Trgt.DomTrgt.newBuilder().setInfo(domInfo).setLocation(domLoc).build();
-                inputBuilder.addDomInput(dom);
+                Trgt.DomTrgt domTrgt = Trgt.DomTrgt.newBuilder().setInfo(domInfo).setLocation(dom.getLocation()).build();
+                inputBuilder.addDomInput(domTrgt);
             }
         }
         for (Trgt.RelInfo relInfo : info.getConsumingRelList()) {
             String relName = relInfo.getName();
-            String relLoc = producedRels.get(relName);
-            if (relLoc == null) {
+            ProgramRel rel = producedRels.get(relName);
+            if (rel == null) {
                 lost_rels.add(relName);
             } else {
-                Trgt.RelTrgt rel = Trgt.RelTrgt.newBuilder().setInfo(relInfo).setLocation(relLoc).build();
-                inputBuilder.addRelInput(rel);
+                Trgt.RelTrgt relTrgt = Trgt.RelTrgt.newBuilder().setInfo(relInfo).setLocation(rel.getLocation()).build();
+                inputBuilder.addRelInput(relTrgt);
             }
         }
         if (!lost_doms.isEmpty() || !lost_rels.isEmpty()) {
@@ -111,15 +111,38 @@ public class Project {
         Analysis.RunResults output = analysisProvider.get(analysis).runAnalysis(input);
 
         // 3. handle results
-        for (Trgt.DomTrgt dom : output.getDomOutputList()) {
-            String domName = dom.getInfo().getName();
-            String domLoc = dom.getLocation();
-            producedDoms.put(domName, domLoc);
+        for (Trgt.DomTrgt domTrgt : output.getDomOutputList()) {
+            String domName = domTrgt.getInfo().getName();
+            String domLoc = domTrgt.getLocation();
+            ProgramDom dom = new ProgramDom(domName);
+            dom.load(domLoc);
+            producedDoms.put(domName, dom);
         }
-        for (Trgt.RelTrgt rel : output.getRelOutputList()) {
-            String relName = rel.getInfo().getName();
-            String relLoc = rel.getLocation();
-            producedRels.put(relName, relLoc);
+        for (Trgt.RelTrgt relTrgt : output.getRelOutputList()) {
+            String relName = relTrgt.getInfo().getName();
+            String relLoc = relTrgt.getLocation();
+            String[] domKinds = relSign.get(relName);
+            if (domKinds == null) {
+                Messages.error("Project %s: relation %s is not recorded", ID, relName);
+                return null;
+            }
+            ProgramDom[] doms = new ProgramDom[domKinds.length];
+            Map<String, ProgramDom> domMap = new HashMap<>();
+            for (int i = 0; i < domKinds.length; ++i) {
+                String domKind = domKinds[i];
+                if (!domMap.containsKey(domKind)) {
+                    ProgramDom dom = producedDoms.get(domKind);
+                    if (dom == null) {
+                        Messages.error("Project %s: dom '%s' is not produced", ID, domKind);
+                        return null;
+                    }
+                    domMap.put(domKind, dom);
+                }
+                doms[i] = domMap.get(domKind);
+            }
+            ProgramRel rel = new ProgramRel(relName, doms);
+            rel.attach(relLoc);
+            producedRels.put(relName, rel);
             relProducer.put(relName, analysis);
         }
         for (Trgt.DomInfo domInfo : info.getProducingDomList()) {
@@ -144,76 +167,44 @@ public class Project {
     }
 
     public Integer summaryRel(String relName) {
-        ProgramRel rel = loadRel(relName);
-        if (rel == null) return 0;
-        return rel.size();
+        ProgramRel rel = producedRels.get(relName);
+        if (rel == null) {
+            return 0;
+        } else {
+            rel.load();
+            int size = rel.size();
+            rel.close();
+            return size;
+        }
     }
 
     public List<Trgt.Tuple> printRels(List<String> relNames) {
         List<Trgt.Tuple> alarms = new ArrayList<>();
         for (String relName : relNames) {
-            printRel(relName, alarms);
+            fetchRelTuplesToList(relName, alarms);
         }
         return alarms;
     }
 
-    private void printRel(String relName, List<Trgt.Tuple> alarmList) {
-        ProgramRel rel = loadRel(relName);
-        if (rel == null) return;
-        for (Object[] tuple : rel.getValTuples()) {
-            Trgt.Tuple.Builder tupleBuilder = Trgt.Tuple.newBuilder();
-            tupleBuilder.setRelName(rel.getName());
-            for (Object attr : tuple)
-                tupleBuilder.addAttribute((String) attr);
-            alarmList.add(tupleBuilder.build());
-//            StringBuilder sb = new StringBuilder();
-//            sb.append(relName);
-//            sb.append("(");
-//            for (int i = 0; i < tuple.length; ++i) {
-//                if (i != 0)
-//                    sb.append(",");
-//                sb.append((String) tuple[i]);
-//            }
-//            sb.append(")");
-//            alarmList.add(sb.toString());
-        }
-        rel.close();
-    }
-
-    private ProgramRel loadRel(String relName) {
-        String[] domKinds = relSign.get(relName);
-        if (domKinds == null) {
-            Messages.error("Project %s: relation %s is not recorded", ID, relName);
-            return null;
-        }
-        ProgramDom[] doms = new ProgramDom[domKinds.length];
-        Map<String, ProgramDom> domMap = new HashMap<>();
-        for (int i = 0; i < domKinds.length; ++i) {
-            String domKind = domKinds[i];
-            if (domMap.containsKey(domKind)) {
-                doms[i] = domMap.get(domKind);
-            } else {
-                ProgramDom dom = new ProgramDom(domKind);
-                String domLoc = producedDoms.get(domKind);
-                if (domLoc == null) {
-                    Messages.error("Project %s: dom '%s' is not produced", ID, domKind);
-                    return null;
-                }
-                dom.load(domLoc);
-                domMap.put(domKind, dom);
-                doms[i] = domMap.get(domKind);
-            }
-        }
-        ProgramRel rel = new ProgramRel(relName, doms);
-        String relLoc = producedRels.get(relName);
-        if (relLoc == null) {
+    private int fetchRelTuplesToList(String relName, Collection<Trgt.Tuple> alarmList) {
+        ProgramRel rel = producedRels.get(relName);
+        if (rel == null) {
             Messages.error("Project %s: rel '%s' is not produced", ID, relName);
-            return null;
+            return 0;
+        } else {
+            rel.load();
+            Messages.debug("Project %s: rel %s loaded from %s, size: %d", ID, relName, rel.getLocation(), rel.size());
+            int size = rel.size();
+            for (int[] intTuple : rel.getIntTuples()) {
+                Trgt.Tuple.Builder tupleBuilder = Trgt.Tuple.newBuilder();
+                tupleBuilder.setRelName(rel.getName());
+                for (int attr : intTuple)
+                    tupleBuilder.addAttrId(attr + 1); // Note: attr id start from 1 for displaying
+                alarmList.add(tupleBuilder.build());
+            }
+            rel.close();
+            return size;
         }
-        rel.attach(relLoc);
-        rel.load();
-        Messages.debug("Project %s: rel %s loaded from %s, size: %d", ID, relName, relLoc, rel.size());
-        return rel;
     }
 
     public Trgt.Provenance proveRels(Collection<String> relNames) {
@@ -229,16 +220,8 @@ public class Project {
                 continue;
             }
             Messages.debug("Project %s: rel '%s' is produced by analysis %s", ID, relName, analysis);
-            ProgramRel rel = loadRel(relName);
-            assert rel != null;
-            for (Object[] tuple : rel.getValTuples()) {
-                Trgt.Tuple.Builder tupleBuilder = Trgt.Tuple.newBuilder();
-                tupleBuilder.setRelName(rel.getName());
-                for (Object attr : tuple)
-                    tupleBuilder.addAttribute((String) attr);
-                analysisToTuples.computeIfAbsent(analysis, k -> new LinkedHashSet<>()).add(tupleBuilder.build());
-            }
-            Messages.debug("Project %s: attribute %d alarm tuples to analysis %s", ID, rel.size(), analysis);
+            int tupleNum = fetchRelTuplesToList(relName, analysisToTuples.computeIfAbsent(analysis, k -> new LinkedHashSet<>()));
+            Messages.debug("Project %s: attribute %d alarm tuples to analysis %s", ID, tupleNum, analysis);
         }
         for (Set<Trgt.Tuple> outputTuples : analysisToTuples.values()) {
             provBuilder.addOutputTuples(outputTuples);
@@ -358,7 +341,7 @@ public class Project {
 
         List<String> logLines = new ArrayList<>();
         for (var entry : sortedAlarmProb) {
-            logLines.add(entry.getValue() + "\t" + ProvenanceUtil.prettifyTuple(entry.getKey()) + "\t" + entry.getKey().hashCode());
+            logLines.add(entry.getValue() + "\t" + decodeTuple(entry.getKey(),",") + "\t" + entry.getKey().hashCode());
         }
         Path logPath = workDir.resolve(String.format("rank_%03d.list", rank_time));
         try {
@@ -371,16 +354,50 @@ public class Project {
         return sortedAlarmProb;
     }
 
+    public String decodeTuple(Trgt.Tuple tuple, String sep) {
+        String relName = tuple.getRelName();
+        String[] doms = relSign.get(relName);
+        assert doms != null && doms.length == tuple.getAttrIdCount();
+        StringBuilder sb = new StringBuilder();
+        sb.append(relName).append('(');
+        for (int i = 0; i < doms.length; ++i) {
+            if (i > 0) sb.append(sep);
+            String domName = doms[i];
+            ProgramDom dom = producedDoms.get(domName);
+            int attrId = tuple.getAttrId(i);
+            // Note: IndexMap's id start from 0 while attrId start from 1;
+            String attr = dom.get(attrId - 1);
+            sb.append(attr.replace("\t", "\\t").replace("\n", "\\n"));
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
     private final Set<ProviderGrpc.ProviderBlockingStub> observers = new LinkedHashSet<>();
 
     public Set<Trgt.Tuple> setObservation(Trgt.Provenance provenance, Map<String, String> options) {
         Set<Trgt.Tuple> observableTuples = new LinkedHashSet<>();
         for (ProviderGrpc.ProviderBlockingStub observer : observableRels.keySet()) {
             Set<Trgt.Tuple> obsTuples = ProvenanceUtil.filterTuple(provenance, observableRels.get(observer));
+            Map<String, Trgt.DomTrgt> refDoms = new LinkedHashMap<>();
+            for (String relName : observableRels.get(observer)) {
+                if (producedRels.containsKey(relName)) {
+                    for (String domName : relSign.get(relName)) {
+                        if (!refDoms.containsKey(domName)) {
+                            Trgt.DomTrgt domTrgt = Trgt.DomTrgt.newBuilder()
+                                    .setInfo(Trgt.DomInfo.newBuilder().setName(domName))
+                                    .setLocation(producedDoms.get(domName).getLocation())
+                                    .build();
+                            refDoms.put(domName, domTrgt);
+                        }
+                    }
+                }
+            }
             Analysis.InstrumentRequest instrReq = Analysis.InstrumentRequest.newBuilder()
                     .setProjectId(ID)
                     .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
                     .addAllInstrTuple(obsTuples)
+                    .addAllDom(refDoms.values())
                     .build();
             Analysis.InstrumentResponse resp = observer.instrument(instrReq);
             if (resp.getSuccTupleCount() > 0) {

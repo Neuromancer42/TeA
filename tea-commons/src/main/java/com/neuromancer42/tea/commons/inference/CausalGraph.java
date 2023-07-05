@@ -186,9 +186,8 @@ public class CausalGraph {
     }
 
     public void dump(Path workdir) {
-        try {
-            Path netFilePath = workdir.resolve(name + ".causal.graph");
-            List<String> netLines = new ArrayList<>();
+        Path netFilePath = workdir.resolve(name + ".causal.graph");
+        try (BufferedWriter netWriter = Files.newBufferedWriter(netFilePath, StandardCharsets.UTF_8)) {
             for (int nodeId = 0; nodeId < nodes.size(); nodeId++) {
                 // 1. head id
                 StringBuilder lb = new StringBuilder();
@@ -226,12 +225,16 @@ public class CausalGraph {
                 } else {
                     lb.append(0);
                 }
-                netLines.add(lb.toString());
+                netWriter.append(lb.toString());
+                netWriter.newLine();
             }
-            Files.write(netFilePath, netLines, StandardCharsets.UTF_8);
-
-            Path distFilePath = workdir.resolve(name + ".priors.list");
-            List<String> distLines = new ArrayList<>(distNodes.size());
+            Messages.debug("CausalGraph: dumping causal graph to path " + netFilePath);
+        } catch (IOException e) {
+            Messages.error("CausalGraph: failed to dump causal graph, skip");
+            e.printStackTrace();
+        }
+        Path distFilePath = workdir.resolve(name + ".priors.list");
+        try (BufferedWriter distWriter = Files.newBufferedWriter(distFilePath, StandardCharsets.UTF_8)) {
             for (int i = 0; i < distNodes.size(); i++) {
                 StringBuilder lb = new StringBuilder();
                 lb.append(i);
@@ -246,20 +249,19 @@ public class CausalGraph {
                     lb.append("\t");
                     lb.append(dist.probability(val));
                 }
-                distLines.add(lb.toString());
+                distWriter.append(lb.toString());
+                distWriter.newLine();
             }
-            Files.write(distFilePath, distLines, StandardCharsets.UTF_8);
-            Messages.debug("CausalGraph: dumping causal graph to path " + netFilePath);
         } catch (IOException e) {
-            Messages.error("CausalGraph: failed to dump causal graph, skip");
+            Messages.error("CausalGraph: failed to dump priors list, skip");
             e.printStackTrace();
         }
     }
 
-    private void dumpDotSubgraph(List<String> lines, Function<Object, String> nodeRepr, Integer trace) {
+    private void dumpDotSubgraph(PrintWriter printer, Function<Object, String> nodeRepr, Integer trace) {
         String suffix = trace==null ? "_x" : ("_"+trace);
-        lines.add("\tsubgraph cluster"+suffix+" {");
-        lines.add("\t\tlabel=\"trace"+suffix+"\";");
+        printer.println("\tsubgraph cluster"+suffix+" {");
+        printer.println("\t\tlabel=\"trace"+suffix+"\";");
         for (int nodeId = 0; nodeId < nodes.size(); nodeId++) {
             StringBuilder lb = new StringBuilder();
             lb.append("\t\t");
@@ -285,7 +287,7 @@ public class CausalGraph {
             if (!style.equals(""))
                 lb.append(",style=").append(style);
             lb.append("];");
-            lines.add(lb.toString());
+            printer.println(lb.toString());
         }
         for (Map.Entry<Integer, List<Integer>> sum : sums.entrySet()) {
             Integer headId = sum.getKey();
@@ -295,7 +297,7 @@ public class CausalGraph {
                         " -> " +
                         "n" + headId + suffix +
                         " [style=dotted];";
-                lines.add(line);
+                printer.println(line);
             }
         }
         for (Map.Entry<Integer, List<Integer>> prod : prods.entrySet()) {
@@ -306,7 +308,7 @@ public class CausalGraph {
                         " -> " +
                         "n" + headId + suffix +
                         ";";
-                lines.add(line);
+                printer.println(line);
             }
         }
         for (Map.Entry<Integer, Integer> distEntry : stochMap.entrySet()) {
@@ -317,9 +319,9 @@ public class CausalGraph {
                     " -> " +
                     "n" + nodeId + suffix +
                     " [style=bold];";
-            lines.add(line);
+            printer.println(line);
         }
-        lines.add("\t}");
+        printer.println("\t}");
     }
 
     public void dumpDot(Path dotFilePath, Function<Object, String> nodeRepr, Function<Categorical01, String> distRepr) {
@@ -327,33 +329,31 @@ public class CausalGraph {
     }
 
     public void dumpDot(Path dotFilePath, Function<Object, String> nodeRepr, Function<Categorical01, String> distRepr, int numRepeats) {
-        List<String> lines = new ArrayList<>();
-        lines.add("digraph G{");
+        try (PrintWriter dotWriter = new PrintWriter(Files.newBufferedWriter(dotFilePath, StandardCharsets.UTF_8))) {
+            dotWriter.println("digraph G{");
 
-        lines.add("subgraph cluster_prior {");
-        lines.add("label=params;");
-        for (int distId = 0; distId < distNodes.size(); distId++) {
-            Categorical01 distNode = distNodes.get(distId);
-            String label = distRepr.apply(distNode);
-            String line = "\t" +
-                    "p" + distId +
-                    " [" +
-                    "label=\""+distId+"\n"+label+"\"" +
-                    ",shape=box,style=filled" +
-                    "];";
-            lines.add(line);
-        }
-        lines.add("}");
+            dotWriter.println("subgraph cluster_prior {");
+            dotWriter.println("label=params;");
+            for (int distId = 0; distId < distNodes.size(); distId++) {
+                Categorical01 distNode = distNodes.get(distId);
+                String label = distRepr.apply(distNode);
+                String line = "\t" +
+                        "p" + distId +
+                        " [" +
+                        "label=\"" + distId + "\n" + label + "\"" +
+                        ",shape=box,style=filled" +
+                        "];";
+                dotWriter.println(line);
+            }
+            dotWriter.println("}");
 
-        dumpDotSubgraph(lines, nodeRepr, null);
+            dumpDotSubgraph(dotWriter, nodeRepr, null);
 
-        for (int i = 0; i < numRepeats; i++) {
-            dumpDotSubgraph(lines, nodeRepr, i);
-        }
+            for (int i = 0; i < numRepeats; i++) {
+                dumpDotSubgraph(dotWriter, nodeRepr, i);
+            }
 
-        lines.add("}");
-        try {
-            Files.write(dotFilePath, lines, StandardCharsets.UTF_8);
+            dotWriter.println("}");
         } catch (IOException e) {
             Messages.error("CausalGraph: failed to dump .dot file of causal graph, skip");
             e.printStackTrace();

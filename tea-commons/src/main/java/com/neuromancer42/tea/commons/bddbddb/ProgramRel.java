@@ -4,8 +4,10 @@ import com.neuromancer42.tea.commons.configs.Messages;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 
 
 /**
@@ -221,17 +223,18 @@ public class ProgramRel {
             init();
             Messages.debug("ProgramRel: loading facts from path %s", cacheLocation);
             Path outPath = cacheFile.toPath();
-            try {
-                List<String> lines = java.nio.file.Files.readAllLines(outPath);
-                for (String line : lines) {
-                    String[] tuple = line.split("\t");
-                    int width = tuple.length;
-                    int[] indexes = new int[width];
-                    for (int i = 0; i < width; ++i) {
-                        indexes[i] = Integer.parseInt(tuple[i]) - 1; // Note: id's in CSV starts from 1
-                    }
-                    rel.add(indexes);
-                }
+            try (Stream<String> csvStream = Files.lines(outPath)) {
+                csvStream.forEach(
+                        line -> {
+                            String[] tuple = line.split("\t");
+                            int width = tuple.length;
+                            int[] indexes = new int[width];
+                            for (int i = 0; i < width; ++i) {
+                                indexes[i] = Integer.parseInt(tuple[i]) - 1; // Note: id's in CSV starts from 1
+                            }
+                            rel.add(indexes);
+                        }
+                );
             } catch (IOException e) {
                 Messages.error("ProgramRel: failed to read table from %s", outPath.toString());
                 Messages.fatal(e);
@@ -244,7 +247,6 @@ public class ProgramRel {
         if (status != Status.UnInit) {
             Messages.fatal("ProgramRel %s: resetting in-memory relation from disk", getName());
         }
-        rel.zero();
         this.cacheLocation = location;
         status = Status.Detach;
     }

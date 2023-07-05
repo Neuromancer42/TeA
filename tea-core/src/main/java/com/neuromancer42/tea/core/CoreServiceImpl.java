@@ -14,6 +14,11 @@ import java.util.*;
 
 public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
     protected final Set<String> projects = new HashSet<>();
+
+    public static String prettifyProbability(Double prob) {
+        return String.format("%.6g%%", prob * 100);
+    }
+
     /**
      * @param request
      * @param responseObserver
@@ -90,7 +95,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 }
             } else {
                 for (Trgt.Tuple alarm : proj.printRels(alarm_rels)) {
-                    respBuilder.addAlarm(ProvenanceUtil.prettifyTuple(alarm));
+                    respBuilder.addAlarm(proj.decodeTuple(alarm, ","));
                 }
             }
             respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", allTimer));
@@ -135,7 +140,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                         var alarmProb = priorRanking.get(i);
                         Trgt.Tuple alarm = alarmProb.getKey();
                         Double prob = alarmProb.getValue();
-                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + prettifyProbability(prob) + ":" + proj.decodeTuple(alarm, ","));
                     }
                     CoreUtil.ApplicationResponse response = respBuilder.build();
                     responseObserver.onNext(response);
@@ -168,7 +173,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                         var alarmProb = postRanking.get(i);
                         Trgt.Tuple alarm = alarmProb.getKey();
                         Double prob = alarmProb.getValue();
-                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + ProvenanceUtil.prettifyProbability(prob) + ":" + ProvenanceUtil.prettifyTuple(alarm));
+                        respBuilder.addAlarm(String.format("%04d", i+1) + ":" + prettifyProbability(prob) + ":" + proj.decodeTuple(alarm, ","));
                     }
                     CoreUtil.ApplicationResponse response = respBuilder.build();
                     responseObserver.onNext(response);
