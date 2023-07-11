@@ -31,10 +31,7 @@ public class DAIMetaNetwork {
     public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats) {
         Path fgFilePath = dumpDir.resolve(name+".fg");
         int subSize = causalGraph.nodeSize();
-        try {
-            Files.deleteIfExists(fgFilePath);
-            BufferedWriter bw = Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8);
-            PrintWriter pw = new PrintWriter(bw);
+        try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8))){
             subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats);
             Messages.debug("DAIFactorGraph: dumping factor graph to path " + fgFilePath);
         } catch (IOException e) {

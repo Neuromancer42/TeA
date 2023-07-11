@@ -196,6 +196,7 @@ public final class SouffleAnalysis {
                         factWriter.append(sb.toString());
                         factWriter.newLine();
                     }
+                    factWriter.close();
                     rel.close();
                 }
             } catch (IOException e) {
