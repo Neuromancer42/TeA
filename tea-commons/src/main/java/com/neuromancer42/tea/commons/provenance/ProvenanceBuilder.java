@@ -151,8 +151,6 @@ public class ProvenanceBuilder {
 
     private class DOBSolver {
         private final Map<Trgt.Tuple, Integer> tupleDOB;
-        private final int maxDOB;
-        private int numChanged;
         private final Map<Trgt.Tuple, Set<Trgt.Constraint>> tuple2ConsequentClauses;
         private final Map<Trgt.Tuple, Set<Trgt.Constraint>> tuple2AntecedentClauses;
         private final Set<Trgt.Constraint> allClauses;
@@ -173,9 +171,8 @@ public class ProvenanceBuilder {
             for (Trgt.Tuple tuple : allTuples) {
                 if (inputTuples.contains(tuple)) {
                     tupleDOB.put(tuple, 0);
-                    numChanged++;
                 } else {
-                    allClauses.addAll(tuple2ConsequentClauses.get(tuple));
+                    allClauses.addAll(tuple2AntecedentClauses.get(tuple));
                     tupleDOB.put(tuple, maxDOB);
                 }
             }
@@ -190,35 +187,31 @@ public class ProvenanceBuilder {
             return dob;
         }
 
-        private void solve() {
-            while(numChanged > 0) {
-                //Messages.log("DOBSolver updated " + numChanged + " tuples' date-of-birth");
-                numChanged = 0;
-                for (Trgt.Tuple head : tuple2ConsequentClauses.keySet()) {
-                    for (Trgt.Constraint clause : tuple2ConsequentClauses.get(head)) {
-                        assert head == clause.getHeadTuple();
-                        Integer newDOB = maxAntecedentDob(clause);
-                        if (newDOB < maxDOB) newDOB++;
-                        Integer headDOB = tupleDOB.get(head);
-                        if (newDOB < headDOB) {
-                            numChanged++;
-                            tupleDOB.put(head, newDOB);
+        private void computeFwdClauses() {
+            fwdClauses = new HashSet<>();
+            Queue<Trgt.Tuple> queue = new LinkedList<>();
+            for(Map.Entry<Trgt.Tuple, Integer> entry : tupleDOB.entrySet()){
+                if(entry.getValue() == 0){
+                    queue.add(entry.getKey());
+                }
+            }
+            Map<Trgt.Constraint, Integer> cnt = new HashMap<>();
+            while(!queue.isEmpty()){
+                Trgt.Tuple tuple = queue.poll();
+                for(Trgt.Constraint clause : tuple2ConsequentClauses.get(tuple)){
+                    cnt.put(clause, cnt.getOrDefault(clause, 0) + 1);
+                    if(cnt.get(clause) == clause.getBodyTupleList().size()){
+                        Trgt.Tuple head = clause.getHeadTuple();
+                        if(tupleDOB.get(head) > tupleDOB.get(tuple) + 1){
+                            tupleDOB.put(head, tupleDOB.get(tuple) + 1);
+                            queue.add(head);
                         }
                     }
                 }
             }
-        }
-
-        private void computeFwdClauses() {
-            if (numChanged > 0) solve();
-            fwdClauses = new HashSet<>();
-            for (Trgt.Tuple head : tuple2ConsequentClauses.keySet()) {
-                for (Trgt.Constraint clause : tuple2ConsequentClauses.get(head)) {
-                    assert head == clause.getHeadTuple();
-                    // erroneous de-cycle, reserves only earliest clauses
-                    if (tupleDOB.get(head) > maxAntecedentDob(clause)) {
-                        fwdClauses.add(clause);
-                    }
+            for (Trgt.Constraint clause : allClauses) {
+                if (tupleDOB.get(clause.getHeadTuple()) > maxAntecedentDob(clause)) {
+                    fwdClauses.add(clause);
                 }
             }
         }
