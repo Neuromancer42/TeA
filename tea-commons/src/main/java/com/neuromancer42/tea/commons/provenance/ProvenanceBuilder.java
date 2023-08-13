@@ -195,11 +195,15 @@ public class ProvenanceBuilder {
                 }
             }
             Map<Trgt.Constraint, Integer> cnt = new HashMap<>();
+            Map<Trgt.Constraint, Integer> siz = new HashMap<>();
+            for (Trgt.Constraint clause : allClauses) {
+                siz.put(clause, new HashSet<>(clause.getBodyTupleList()).size());
+            }
             while(!queue.isEmpty()){
                 Trgt.Tuple tuple = queue.poll();
                 for(Trgt.Constraint clause : tuple2ConsequentClauses.get(tuple)) {
                     int clsAntecedants = cnt.compute(clause, (cls, c) -> (c == null) ? 1 : (c + 1));
-                    if(clsAntecedants == new HashSet<>(clause.getBodyTupleList()).size()) {
+                    if(clsAntecedants == siz.get(clause)) {
                         Trgt.Tuple head = clause.getHeadTuple();
                         if(tupleDOB.get(head) > tupleDOB.get(tuple) + 1){
                             tupleDOB.put(head, tupleDOB.get(tuple) + 1);
