@@ -3,7 +3,6 @@ package com.neuromancer42.tea.commons.provenance;
 import com.google.protobuf.TextFormat;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.util.IndexMap;
-import com.neuromancer42.tea.commons.util.Utils;
 import com.neuromancer42.tea.core.analysis.Trgt;
 
 import java.nio.file.Path;
@@ -88,10 +87,10 @@ public class ProvenanceBuilder {
 
         for (Trgt.Constraint cons : constraints) {
             for (Trgt.Tuple sub : cons.getBodyTupleList()) {
-                tuple2AntecedentClauses.get(sub).add(cons);
+                tuple2ConsequentClauses.get(sub).add(cons);
             }
             Trgt.Tuple head = cons.getHeadTuple();
-            tuple2ConsequentClauses.get(head).add(cons);
+            tuple2AntecedentClauses.get(head).add(cons);
         }
 
         // de-cycle and prune unused clauses
@@ -104,7 +103,7 @@ public class ProvenanceBuilder {
             Queue<Trgt.Tuple> workSet = new LinkedList<>(observeTuples);
             while (!workSet.isEmpty()) {
                 Trgt.Tuple t = workSet.poll();
-                for (Trgt.Constraint cons : tuple2ConsequentClauses.getOrDefault(t, new HashSet<>())) {
+                for (Trgt.Constraint cons : tuple2AntecedentClauses.getOrDefault(t, new HashSet<>())) {
                     if (activeClauses.add(cons)) {
                         workSet.addAll(cons.getBodyTupleList());
                     }
@@ -151,8 +150,6 @@ public class ProvenanceBuilder {
 
     private class DOBSolver {
         private final Map<Trgt.Tuple, Integer> tupleDOB;
-        private final int maxDOB;
-        private int numChanged;
         private final Map<Trgt.Tuple, Set<Trgt.Constraint>> tuple2ConsequentClauses;
         private final Map<Trgt.Tuple, Set<Trgt.Constraint>> tuple2AntecedentClauses;
         private final Set<Trgt.Constraint> allClauses;
@@ -167,16 +164,20 @@ public class ProvenanceBuilder {
         ) {
             this.tuple2ConsequentClauses = tuple2ConsequentClauses;
             this.tuple2AntecedentClauses = tuple2AntecedentClauses;
-            maxDOB = allTuples.size();
+            int maxDOB = allTuples.size();
             tupleDOB = new HashMap<>();
             allClauses = new HashSet<>();
             for (Trgt.Tuple tuple : allTuples) {
                 if (inputTuples.contains(tuple)) {
                     tupleDOB.put(tuple, 0);
-                    numChanged++;
                 } else {
-                    allClauses.addAll(tuple2ConsequentClauses.get(tuple));
                     tupleDOB.put(tuple, maxDOB);
+                }
+                allClauses.addAll(tuple2AntecedentClauses.get(tuple));
+            }
+            for (var cls : allClauses) {
+                if (cls.getBodyTupleCount() == 0) {
+                    tupleDOB.put(cls.getHeadTuple(), 0);
                 }
             }
         }
@@ -190,35 +191,34 @@ public class ProvenanceBuilder {
             return dob;
         }
 
-        private void solve() {
-            while(numChanged > 0) {
-                //Messages.log("DOBSolver updated " + numChanged + " tuples' date-of-birth");
-                numChanged = 0;
-                for (Trgt.Tuple head : tuple2ConsequentClauses.keySet()) {
-                    for (Trgt.Constraint clause : tuple2ConsequentClauses.get(head)) {
-                        assert head == clause.getHeadTuple();
-                        Integer newDOB = maxAntecedentDob(clause);
-                        if (newDOB < maxDOB) newDOB++;
-                        Integer headDOB = tupleDOB.get(head);
-                        if (newDOB < headDOB) {
-                            numChanged++;
-                            tupleDOB.put(head, newDOB);
+        private void computeFwdClauses() {
+            fwdClauses = new HashSet<>();
+            Queue<Trgt.Tuple> queue = new LinkedList<>();
+            for(Map.Entry<Trgt.Tuple, Integer> entry : tupleDOB.entrySet()){
+                if(entry.getValue() == 0){
+                    queue.add(entry.getKey());
+                }
+            }
+            Map<Trgt.Constraint, Integer> numAntecedants = new HashMap<>();
+            for (Trgt.Constraint clause : allClauses) {
+                numAntecedants.put(clause, new HashSet<>(clause.getBodyTupleList()).size());
+            }
+            while(!queue.isEmpty()){
+                Trgt.Tuple tuple = queue.poll();
+                for(Trgt.Constraint clause : tuple2ConsequentClauses.get(tuple)) {
+                    int remainAntecedants = numAntecedants.compute(clause, (cls, c) -> (c == null ? 0 : c - 1));
+                    if(remainAntecedants == 0) {
+                        Trgt.Tuple head = clause.getHeadTuple();
+                        if(tupleDOB.get(head) > tupleDOB.get(tuple) + 1){
+                            tupleDOB.put(head, tupleDOB.get(tuple) + 1);
+                            queue.add(head);
                         }
                     }
                 }
             }
-        }
-
-        private void computeFwdClauses() {
-            if (numChanged > 0) solve();
-            fwdClauses = new HashSet<>();
-            for (Trgt.Tuple head : tuple2ConsequentClauses.keySet()) {
-                for (Trgt.Constraint clause : tuple2ConsequentClauses.get(head)) {
-                    assert head == clause.getHeadTuple();
-                    // erroneous de-cycle, reserves only earliest clauses
-                    if (tupleDOB.get(head) > maxAntecedentDob(clause)) {
-                        fwdClauses.add(clause);
-                    }
+            for (Trgt.Constraint clause : allClauses) {
+                if (tupleDOB.get(clause.getHeadTuple()) > maxAntecedentDob(clause)) {
+                    fwdClauses.add(clause);
                 }
             }
         }
@@ -261,7 +261,7 @@ public class ProvenanceBuilder {
                         || (!newAncestors.isEmpty() && ancestors.size() < descendants.size())
                 ) {
                     Trgt.Tuple newAncestor = newAncestors.poll();
-                    for (Trgt.Constraint cons : tuple2ConsequentClauses.get(newAncestor)) {
+                    for (Trgt.Constraint cons : tuple2AntecedentClauses.get(newAncestor)) {
                         if (augClauses.contains(cons)) {
                             for (Trgt.Tuple sub : cons.getBodyTupleList()) {
                                 if (descendants.contains(sub))
@@ -273,7 +273,7 @@ public class ProvenanceBuilder {
                     }
                 } else {
                     Trgt.Tuple newDescendant = newDescendants.poll();
-                    for (Trgt.Constraint ante : tuple2AntecedentClauses.get(newDescendant)) {
+                    for (Trgt.Constraint ante : tuple2ConsequentClauses.get(newDescendant)) {
                         if (augClauses.contains(ante)) {
                             Trgt.Tuple head = ante.getHeadTuple();
                             if (ancestors.contains(head))
@@ -307,8 +307,8 @@ public class ProvenanceBuilder {
             Queue<Trgt.Tuple> worklist = new LinkedList<>(outputTuples);
             while (!worklist.isEmpty()) {
                 Trgt.Tuple head = worklist.poll();
-                if (tuple2ConsequentClauses.containsKey(head)) {
-                    for (Trgt.Constraint clause : tuple2ConsequentClauses.get(head)) {
+                if (tuple2AntecedentClauses.containsKey(head)) {
+                    for (Trgt.Constraint clause : tuple2AntecedentClauses.get(head)) {
                         if (augFwdClauses.contains(clause)) {
                             for (Trgt.Tuple sub : clause.getBodyTupleList()) {
                                 if (coreachableTuples.add(sub))
