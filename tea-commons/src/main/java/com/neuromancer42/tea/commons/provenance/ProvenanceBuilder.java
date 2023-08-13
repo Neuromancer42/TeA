@@ -175,6 +175,11 @@ public class ProvenanceBuilder {
                 }
                 allClauses.addAll(tuple2AntecedentClauses.get(tuple));
             }
+            for (var cls : allClauses) {
+                if (cls.getBodyTupleCount() == 0) {
+                    tupleDOB.put(cls.getHeadTuple(), 0);
+                }
+            }
         }
 
         private Integer maxAntecedentDob(Trgt.Constraint clause) {
@@ -194,16 +199,15 @@ public class ProvenanceBuilder {
                     queue.add(entry.getKey());
                 }
             }
-            Map<Trgt.Constraint, Integer> cnt = new HashMap<>();
-            Map<Trgt.Constraint, Integer> siz = new HashMap<>();
+            Map<Trgt.Constraint, Integer> numAntecedants = new HashMap<>();
             for (Trgt.Constraint clause : allClauses) {
-                siz.put(clause, new HashSet<>(clause.getBodyTupleList()).size());
+                numAntecedants.put(clause, new HashSet<>(clause.getBodyTupleList()).size());
             }
             while(!queue.isEmpty()){
                 Trgt.Tuple tuple = queue.poll();
                 for(Trgt.Constraint clause : tuple2ConsequentClauses.get(tuple)) {
-                    int clsAntecedants = cnt.compute(clause, (cls, c) -> (c == null) ? 1 : (c + 1));
-                    if(clsAntecedants == siz.get(clause)) {
+                    int remainAntecedants = numAntecedants.compute(clause, (cls, c) -> (c == null ? 0 : c - 1));
+                    if(remainAntecedants == 0) {
                         Trgt.Tuple head = clause.getHeadTuple();
                         if(tupleDOB.get(head) > tupleDOB.get(tuple) + 1){
                             tupleDOB.put(head, tupleDOB.get(tuple) + 1);
