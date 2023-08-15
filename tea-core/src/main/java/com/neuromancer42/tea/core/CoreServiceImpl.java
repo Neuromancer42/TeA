@@ -6,7 +6,6 @@ import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.commons.inference.Categorical01;
 import com.neuromancer42.tea.commons.provenance.ProvenanceUtil;
 import com.neuromancer42.tea.core.analysis.Trgt;
-import com.neuromancer42.tea.libdai.IteratingCausalDriver;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.lang3.StringUtils;
 

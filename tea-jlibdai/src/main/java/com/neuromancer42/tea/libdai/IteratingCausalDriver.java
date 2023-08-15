@@ -84,7 +84,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
             Messages.log("IteratingDriver: dumping updated factor graph of previous observations");
             if (metaNetwork != null)
                 metaNetwork.release();
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d", updateCnt)+".post", causalGraph, 0);
+            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d", updateCnt)+".post", causalGraph, 0, true);
             updated = true;
         }
     }

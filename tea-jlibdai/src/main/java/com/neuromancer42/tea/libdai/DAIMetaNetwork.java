@@ -1,5 +1,6 @@
 package com.neuromancer42.tea.libdai;
 
+
 import com.neuromancer42.tea.commons.inference.CausalGraph;
 import com.neuromancer42.tea.commons.configs.Messages;
 import com.neuromancer42.tea.libdai.swig.DoubleVector;
@@ -9,6 +10,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 
 public class DAIMetaNetwork {
     // A MetaNetwork associate a causal-graph to a concrete (LibDAI) factor graph
@@ -28,11 +30,11 @@ public class DAIMetaNetwork {
     static int maxtime = 10800;
     static double tol = 1e-6;
 
-    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats) {
+    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats, boolean bayes) {
         Path fgFilePath = dumpDir.resolve(name+".fg");
         int subSize = causalGraph.nodeSize();
         try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8))){
-            subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats);
+            subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats, bayes);
             Messages.debug("DAIFactorGraph: dumping factor graph to path " + fgFilePath);
         } catch (IOException e) {
             Messages.error("DAIFacetorGraph: failed to dump factor graph.");
@@ -99,5 +101,80 @@ public class DAIMetaNetwork {
 
     public void release() {
         swigFactorGraph.delete();
+    }
+
+    public void runEM(Path dumpDir, String name, List<Map<Object, Boolean>> obsHistory) {
+        if (activated) {
+            Messages.warn("DAIFactorGraph: learning has been activated before, are you sure to run it again?");
+        }
+        // 1. dump evidence file
+        Path tabFilePath = dumpDir.resolve(name + ".tab");
+        Messages.log("DAIFactorGraph: dumping evidence to %s", tabFilePath.toAbsolutePath().toString());
+        Set<Integer> obsNodeIds = new LinkedHashSet<>();
+        for (Map<Object, Boolean> obs : obsHistory) {
+            for (Object obsNode : obs.keySet()) {
+                obsNodeIds.add(causalGraph.getNodeId(obsNode));
+            }
+        }
+        try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(tabFilePath, StandardCharsets.UTF_8))) {
+            // The header line consists of the variable labels, followed by an empty line
+            boolean firstItem = true;
+            for (var nodeId : obsNodeIds) {
+                if (firstItem) {
+                    firstItem = false;
+                } else {
+                    pw.print("\t");
+                }
+                pw.print(nodeId + offset);
+            }
+            pw.println();
+            // The other lines are observed joint states of the variables
+            for (var obs : obsHistory) {
+                pw.println();
+                firstItem = true;
+                for (var nodeId : obsNodeIds) {
+                    if (firstItem) {
+                        firstItem = false;
+                    } else {
+                        pw.print("\t");
+                    }
+                    Object obsNode = causalGraph.getNode(nodeId);
+                    if (obs.containsKey(obsNode)) {
+                        pw.print(obs.get(obsNode) ? 1 : 0);
+                    }
+                    // Missing data is handled simply by having two consecutive tab characters
+                }
+            }
+        } catch (IOException e) {
+            Messages.error("DAIFacetorGraph: failed to dump evidence.");
+            Messages.fatal(e);
+        }
+
+        // 2. dump em specification, see libdai/examples
+        Path emFilePath = dumpDir.resolve(name + ".em");
+        Messages.log("DAIFactorGraph: dumping em spec to %s", emFilePath.toAbsolutePath().toString());
+
+        Map<Integer, Integer> paramFactors = new LinkedHashMap<>();
+        for (int distId = 0; distId < causalGraph.distSize(); ++distId) {
+            paramFactors.put(distId, distId);
+        }
+        try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(emFilePath, StandardCharsets.UTF_8))) {
+            pw.println(1);
+            pw.println();
+            pw.println(paramFactors.size());
+            for (var entry : paramFactors.entrySet()) {
+                int bernoulli_dim = 2;
+                pw.println(String.format("CondProbEstimation [target_dim=%d,total_dim=%d]", bernoulli_dim, bernoulli_dim));
+                pw.println(1); // causal beliefs are separated with each other
+                pw.println(String.format("%d\t%d", entry.getKey(), entry.getValue()));
+            }
+        } catch (IOException e) {
+            Messages.error("DAIFacetorGraph: failed to dump EM spec.");
+            Messages.fatal(e);
+        }
+
+        // 3. run EM algorithm
+        swigFactorGraph.runEM(tabFilePath.toAbsolutePath().toString(), emFilePath.toAbsolutePath().toString(), DAIRuntime.g().getNumThreads());
+        activated = true;
     }
 }

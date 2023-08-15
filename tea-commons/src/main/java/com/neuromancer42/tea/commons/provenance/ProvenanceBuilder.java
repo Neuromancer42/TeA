@@ -69,7 +69,7 @@ public class ProvenanceBuilder {
 //        timer.init();
 
         // fetch results and generate dicts
-        Set<Trgt.Tuple> tuples = new HashSet<>();
+        Set<Trgt.Tuple> tuples = new LinkedHashSet<>();
         for (Trgt.Constraint cons : constraints) {
             tuples.add(cons.getHeadTuple());
             tuples.addAll(cons.getBodyTupleList());
@@ -81,8 +81,8 @@ public class ProvenanceBuilder {
         Map<Trgt.Tuple, Set<Trgt.Constraint>> tuple2ConsequentClauses = new HashMap<>();
 
         for (Trgt.Tuple tuple : tuples) {
-            tuple2AntecedentClauses.put(tuple, new HashSet<>());
-            tuple2ConsequentClauses.put(tuple, new HashSet<>());
+            tuple2AntecedentClauses.put(tuple, new LinkedHashSet<>());
+            tuple2ConsequentClauses.put(tuple, new LinkedHashSet<>());
         }
 
         for (Trgt.Constraint cons : constraints) {
@@ -99,11 +99,11 @@ public class ProvenanceBuilder {
             DOBSolver dobSolver = new DOBSolver(tuples, inputTuples, tuple2ConsequentClauses, tuple2AntecedentClauses);
             activeClauses = dobSolver.getActiveClauses(observeTuples);
         } else {
-            activeClauses = new HashSet<>();
+            activeClauses = new LinkedHashSet<>();
             Queue<Trgt.Tuple> workSet = new LinkedList<>(observeTuples);
             while (!workSet.isEmpty()) {
                 Trgt.Tuple t = workSet.poll();
-                for (Trgt.Constraint cons : tuple2AntecedentClauses.getOrDefault(t, new HashSet<>())) {
+                for (Trgt.Constraint cons : tuple2AntecedentClauses.getOrDefault(t, Set.of())) {
                     if (activeClauses.add(cons)) {
                         workSet.addAll(cons.getBodyTupleList());
                     }
@@ -112,7 +112,7 @@ public class ProvenanceBuilder {
         }
 
         // filter out unused tuples again
-        Set<Trgt.Tuple> activeTuples = new HashSet<>();
+        Set<Trgt.Tuple> activeTuples = new LinkedHashSet<>();
         for (Trgt.Constraint clause : activeClauses) {
             activeTuples.add(clause.getHeadTuple());
             activeTuples.addAll(clause.getBodyTupleList());
@@ -166,7 +166,7 @@ public class ProvenanceBuilder {
             this.tuple2AntecedentClauses = tuple2AntecedentClauses;
             int maxDOB = allTuples.size();
             tupleDOB = new HashMap<>();
-            allClauses = new HashSet<>();
+            allClauses = new LinkedHashSet<>();
             for (Trgt.Tuple tuple : allTuples) {
                 if (inputTuples.contains(tuple)) {
                     tupleDOB.put(tuple, 0);
@@ -192,7 +192,7 @@ public class ProvenanceBuilder {
         }
 
         private void computeFwdClauses() {
-            fwdClauses = new HashSet<>();
+            fwdClauses = new LinkedHashSet<>();
             Queue<Trgt.Tuple> queue = new LinkedList<>();
             for(Map.Entry<Trgt.Tuple, Integer> entry : tupleDOB.entrySet()){
                 if(entry.getValue() == 0){
@@ -289,7 +289,7 @@ public class ProvenanceBuilder {
 
         private Set<Trgt.Constraint> getAugmentedClauses() {
             if (augClauses == null) {
-                augClauses = new HashSet<>(getForwardClauses());
+                augClauses = new LinkedHashSet<>(getForwardClauses());
                 List<Trgt.Constraint> cands = new ArrayList<>();
                 for (Trgt.Constraint cons : allClauses) {
                     if (!augClauses.contains(cons))
@@ -303,7 +303,7 @@ public class ProvenanceBuilder {
         }
 
         public Set<Trgt.Tuple> getCoreachableTuples(Collection<Trgt.Tuple> outputTuples, Collection<Trgt.Constraint> augFwdClauses) {
-            Set<Trgt.Tuple> coreachableTuples = new HashSet<>(outputTuples);
+            Set<Trgt.Tuple> coreachableTuples = new LinkedHashSet<>(outputTuples);
             Queue<Trgt.Tuple> worklist = new LinkedList<>(outputTuples);
             while (!worklist.isEmpty()) {
                 Trgt.Tuple head = worklist.poll();
@@ -324,7 +324,7 @@ public class ProvenanceBuilder {
         public Set<Trgt.Constraint> getActiveClauses(Collection<Trgt.Tuple> observeTuples) {
             Messages.debug("Computing active clauses for " + observeTuples.size() + " tuples.");
 
-            Set<Trgt.Constraint> activeClauses = new HashSet<>();
+            Set<Trgt.Constraint> activeClauses = new LinkedHashSet<>();
             Set<Trgt.Constraint> augFwdClauses;
             if (doAugment)
                 augFwdClauses = getAugmentedClauses();

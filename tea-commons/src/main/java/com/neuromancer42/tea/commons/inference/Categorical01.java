@@ -95,6 +95,11 @@ public class Categorical01 {
         return dist.probability(x);
     }
 
+    public double estimation() {
+        EnumeratedRealDistribution dist = new EnumeratedRealDistribution(supports, weights);
+        return dist.getNumericalMean();
+    }
+
 
     public static Categorical01 revMultiply(Categorical01 prev, Categorical01 post) {
         if (prev == null)

@@ -125,7 +125,7 @@ public class DynaboostCausalDriver extends AbstractCausalDriver {
         // create meta network
         if (metaNetwork != null)
             metaNetwork.release();
-        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "_" + obsRuns, differentiated, 0);
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name + "_" + obsRuns, differentiated, 0, false);
         // apply observations
         for (Object node : obsCount.keySet()) {
             String oNode = "_DynaO_" + node;

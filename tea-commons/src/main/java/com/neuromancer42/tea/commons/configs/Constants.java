@@ -4,7 +4,6 @@ import java.util.List;
 
 public class Constants {
     public static final int BDD_VERBOSE = 1;
-
     private Constants() {}
 
     public static final String ENV_DEBUG = "TEA_DEBUG";
@@ -21,12 +20,15 @@ public class Constants {
     public static final String OPT_HELP = "help";
     public static final String OPT_HOST = "host";
     public static final String OPT_PORT = "port";
+    public static final String OPT_JOBS = "jobs";
+
     public static final String OPT_WORK_DIR = "workdir";
     public static final String OPT_BUILD_DIR = "builddir";
     public static final String OPT_DRIVER = "inferer";
     public static final String DEFAULT_ROOT_DIR = "test-out";
     public static final String DEFAULT_PORT = "10001";
     public static final String DEFAULT_DRIVER = "iterating";
+    public static final String DEFAULT_JOBS = "8";
 
     public static final String NAME_CORE = "core";
     public static final String NAME_PROJ = "project";

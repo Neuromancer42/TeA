@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class DAIDriverFactory implements ICausalDriverFactory {
     private static final String name = "libdai";
-    private static final String[] algorithms = {"iterating", "oneshot"};
+    private static final String[] algorithms = {IteratingCausalDriver.type, OneShotCausalDriver.type, EMCausalDriver.type};
 
     private final Path workPath;
 
@@ -47,6 +47,8 @@ public class DAIDriverFactory implements ICausalDriverFactory {
                 return new IteratingCausalDriver(driverName, driverPath, causalGraph);
             case OneShotCausalDriver.type:
                 return new OneShotCausalDriver(driverName, driverPath, causalGraph);
+            case EMCausalDriver.type:
+                return new EMCausalDriver(driverName, driverPath, causalGraph);
             default:
                 Messages.error("DAIDriverFactory: unknown driver type, use iterating driver by default");
                 return new IteratingCausalDriver(driverName, driverPath, causalGraph);

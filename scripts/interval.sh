@@ -1,6 +1,6 @@
 #!/bin/bash
 
-usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compile_cmd] [-o outdir] [-b souffle_libdir] [-d dist_file] [-t pre_test]" 1>&2; exit 1; }
+usage() { echo "Usage: $0 [-c configfile] [-f sourcefile] [-a compile_cmd] [-o outdir] [-b souffle_libdir] [-d dist_file] [-t pre_test] [-j jobs]" 1>&2; exit 1; }
 
 echo "Run in TEA_HOME: $TEA_HOME"
 pushd "$TEA_HOME" || exit 1
@@ -10,8 +10,9 @@ outdir="test-llvm"
 compile_cmd=""
 proj=`date +"p%b %d, %Y"`
 souffle_libdir="souffle_cache"
+jobs=8
 
-while getopts p:c:f:a:o:b:d:t: flag
+while getopts p:c:f:a:o:b:d:t:j: flag
 do
   case "${flag}" in
     p) proj=${OPTARG};;
@@ -22,6 +23,7 @@ do
     d) dist_file=${OPTARG};;
     o) outdir=${OPTARG};;
     t) pretest=${OPTARG};;
+    j) jobs=${OPTARG};;
     *) usage;;
   esac
 done
@@ -111,7 +113,7 @@ nohup ${TEA_JSOUFFLE} -p 10002 -d ${outdir} -b ${souffle_libdir} \
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-jsouffle, pid: ${nohup_pids[0]}"
 
-nohup ${TEA_CORE} -p 10001 -d ${outdir} \
+nohup ${TEA_CORE} -p 10001 -d ${outdir} -j ${jobs} \
   -Q souffle=localhost:10002 \
   -Q llvm=localhost:10003 \
   -Q absdomain=localhost:10004 \

@@ -27,7 +27,7 @@ public class FactorGraphTest {
     @BeforeAll
     public static void setup() throws IOException {
         Files.createDirectories(workPath);
-        DAIRuntime.init(Paths.get(workdir, "build"));
+        DAIRuntime.init(Paths.get(workdir, "build"), 1);
         List<Object> nodes = new ArrayList<>();
         nodes.add("Coin1");  nodes.add("Coin2");
         nodes.add("Or"); nodes.add("And");
@@ -55,7 +55,7 @@ public class FactorGraphTest {
             causalGraph.setStochNode("And", new Categorical01(confidence));
             causalGraph.dumpDot(Paths.get(workdir, "cg1_2.dot"), Object::toString, Categorical01::toString);
             PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln1_2.fg")));
-            DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
+            DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1, true);
         } catch (IOException e) {
             Assertions.fail(e);
         }
@@ -73,7 +73,7 @@ public class FactorGraphTest {
             causalGraph.setStochNode("And", new Categorical01(confidence));
             causalGraph.dumpDot(Paths.get(workdir, "cg2_1.dot"), Object::toString, Categorical01::toString);
             PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get(workdir, "pln2_1.fg")));
-            DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1);
+            DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, 1, true);
         } catch (IOException e) {
             Assertions.fail(e);
         }

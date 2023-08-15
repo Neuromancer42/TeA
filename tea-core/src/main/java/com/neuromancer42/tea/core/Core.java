@@ -27,6 +27,7 @@ public class Core {
         options.addOption("p", Constants.OPT_PORT, true, "listening to port");
         options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
         options.addOption("t", Constants.OPT_DIST, true, "[optional] path to list of derivation prior params");
+        options.addOption("j", Constants.OPT_JOBS, true, "[optional] maximum threads for parallel computing");
         options.addOption(Option.builder("Q")
                 .longOpt(OPT_PROVIDERS)
                 .hasArgs()
@@ -76,8 +77,10 @@ public class Core {
             }
         }
 
+        long num_jobs = Long.parseLong(cmd.getOptionValue(Constants.OPT_JOBS, Constants.DEFAULT_JOBS));
+        Messages.log("Core: set maximum number of parallel jobs as %d", num_jobs);
         // TODO: make inference engine running separately
-        DAIRuntime.init(workPath);
+        DAIRuntime.init(workPath, num_jobs);
         Messages.log("Core: initialized LibDAI at %s", allTimer);
 
         Map<String, ProviderGrpc.ProviderBlockingStub> providerMap = new LinkedHashMap<>();

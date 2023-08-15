@@ -13,10 +13,7 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class DAIRuntime {
     private static final int clauseLimit = Integer.getInteger("tea.dai.clause.limit", 4);
@@ -29,7 +26,7 @@ public class DAIRuntime {
         return runtime;
     }
 
-    public static void init(Path baseWorkDirPath) {
+    public static void init(Path baseWorkDirPath, long num_jobs) {
         Timer timer = new Timer("libdai");
         Messages.log("ENTER: LibDAI Runtime Initialization started at " + (new Date()));
         timer.init();
@@ -45,7 +42,7 @@ public class DAIRuntime {
             Messages.error("DAIRuntime: failed to create working directory");
             Messages.fatal(e);
         }
-        runtime = new DAIRuntime(tmpWorkDir);
+        runtime = new DAIRuntime(tmpWorkDir, num_jobs);
 
         try {
             String libraryFileName = null;
@@ -80,12 +77,14 @@ public class DAIRuntime {
     }
 
     private final Path workDir;
+    private final long num_jobs;
 
-    public DAIRuntime(Path workDir) {
+    public DAIRuntime(Path workDir, long num_jobs) {
         this.workDir = workDir;
+        this.num_jobs = num_jobs > 0 ? num_jobs : 1;
     }
 
-    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats) throws IOException {
+    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats, boolean bayes) throws IOException {
         assert (clauseLimit > 1);
         Messages.debug("DAIRuntime: current clause limit %d", clauseLimit);
 
@@ -103,7 +102,7 @@ public class DAIRuntime {
         for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext();) {
             Map.Entry<Integer, List<Integer>> sub = sumIter.next();
             int headId = sub.getKey();
-            int subNum = sub.getValue().size();
+            int subNum = new HashSet<>(sub.getValue()).size();
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
@@ -116,7 +115,7 @@ public class DAIRuntime {
         for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext(); ) {
             Map.Entry<Integer, List<Integer>> sub = prodIter.next();
             int headId = sub.getKey();
-            int subNum = sub.getValue().size();
+            int subNum = new HashSet<>(sub.getValue()).size();
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
@@ -127,56 +126,65 @@ public class DAIRuntime {
             }
         }
 
-        final int subSize = latentMap.size() + causalGraph.nodeSize() + numPhony;
+        final int subSize = (bayes ? latentMap.size() : 0) + causalGraph.nodeSize() + numPhony;
         int numFactors = causalGraph.distSize() + subSize * (numRepeats + 1);
         pw.println(numFactors);
         pw.flush();
         // each distnode has a factor block
         for (int distId = 0; distId < causalGraph.getAllDistNodes().size(); distId++) {
             Categorical01 distNode = causalGraph.getAllDistNodes().get(distId);
-            double[] probs = distNode.getProbabilitis();
 //            fw.println("# DistNode " + i + " " + distNode.toString())
             pw.println();
-            dumpCategoricalFactor(pw, distId, probs);
+            if (bayes) {
+                double[] probs = distNode.getProbabilitis();
+                dumpCategoricalFactor(pw, distId, probs);
+            } else {
+                // if using EM, only a (0,1)-factor is needed
+                double e = distNode.estimation();
+                dumpCategoricalFactor(pw, distId, new double[]{1-e, e});
+            }
         }
 
         int offset = causalGraph.distSize();
 
-        offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset);
+        offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes);
 
         for (int r = 0; r < numRepeats; r++) {
-            offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset);
+            offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes);
         }
         assert offset == numFactors;
 
         pw.flush();
         pw.close();
-        Messages.debug("DAIRuntime: FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + latentMap.size() + " latent nodes, " + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
+        Messages.debug("DAIRuntime: FactorGraph consisting of "+ causalGraph.distSize() + " dist nodes, (1+" + numRepeats + ")x(" + (bayes ? (latentMap.size() + " latent nodes, ") : "") + causalGraph.nodeSize() + " nodes and " + numPhony + " phony nodes)." );
         return subSize;
     }
 
-    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph causalGraph, IndexMap<Integer> latentMap, int offset) {
+    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph causalGraph, IndexMap<Integer> latentMap, int offset, boolean bayes) {
         int offsetNodes = offset;
-        int offsetLatent = offsetNodes + causalGraph.nodeSize();
-        int offsetPhony = offsetLatent + latentMap.size();
-        for (int i = 0; i < latentMap.size(); i++) {
-            int latentId = i + offsetLatent;
-            Integer nodeId = latentMap.get(i);
-            Integer distId = causalGraph.getNodesDistId(nodeId);
-            assert (distId != null);
-            Categorical01 dist = causalGraph.getAllDistNodes().get(distId);
-            pw.println();
-            dumpBernoulliFactor(pw, latentId, distId, dist.getSupports());
+        // if using bayesian learning, a latent variable is needed to bridge between parameters and clauses
+        // if using em-learning or inference-only, clauses are directly connected to parameters;
+        int offsetLatent = bayes ? (offsetNodes + causalGraph.nodeSize()) : 0;
+        if (bayes) {
+            for (int i = 0; i < latentMap.size(); i++) {
+                int latentId = i + offsetLatent;
+                Integer nodeId = latentMap.get(i);
+                Integer distId = causalGraph.getNodesDistId(nodeId);
+                assert (distId != null);
+                Categorical01 dist = causalGraph.getAllDistNodes().get(distId);
+                pw.println();
+                dumpBernoulliFactor(pw, latentId, distId, dist.getSupports());
+            }
         }
+
+        int offsetPhony = offsetNodes + causalGraph.nodeSize() + (bayes ? latentMap.size() : 0);
         int phonyId = offsetPhony;
         for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext();) {
             var sumEntry = sumIter.next();
             Integer headId = sumEntry.getKey();
             int sumHead = offsetNodes + headId;
-            List<Integer> sumBody = new ArrayList<>();
-            for (Integer subId : sumEntry.getValue()) {
-                sumBody.add(offsetNodes + subId);
-            }
+            Set<Integer> subIds = new LinkedHashSet<>(sumEntry.getValue());
+            List<Integer> sumBody = subIds.stream().map(subId -> offsetNodes + subId).toList();
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
@@ -203,17 +211,15 @@ public class DAIRuntime {
                 dumpSumFactor(pw, sumHead, sumBody);
             } else {
                 pw.println();
-                dumpSumFactor(pw, sumHead, sumBody, offsetLatent + latentId);
+                dumpSumFactor(pw, sumHead, sumBody, bayes ? (offsetLatent + latentId) : headId);
             }
         }
         for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext();) {
             var prodEntry = prodIter.next();
             Integer headId = prodEntry.getKey();
             int prodHead = offsetNodes + headId;
-            List<Integer> prodBody = new ArrayList<>();
-            for (Integer subId : prodEntry.getValue()) {
-                prodBody.add(offsetNodes + subId);
-            }
+            Set<Integer> subIds = new LinkedHashSet<>(prodEntry.getValue());
+            List<Integer> prodBody = subIds.stream().map(subId -> offsetNodes + subId).toList();
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
@@ -240,7 +246,7 @@ public class DAIRuntime {
                 dumpProdFactor(pw, prodHead, prodBody);
             } else {
                 pw.println();
-                dumpProdFactor(pw, prodHead, prodBody, offsetLatent + latentId);
+                dumpProdFactor(pw, prodHead, prodBody, bayes ? (offsetLatent + latentId) : headId);
             }
         }
         // singleton nodes are directly linked to distNodes
@@ -249,9 +255,14 @@ public class DAIRuntime {
             int singletonId = offsetNodes + nodeId;
             Integer distId = causalGraph.getNodesDistId(nodeId);
             if (distId != null) {
-                Categorical01 dist = causalGraph.getAllDistNodes().get(distId);
                 pw.println();
-                dumpBernoulliFactor(pw, singletonId, distId, dist.getSupports());
+                if (bayes) {
+                    Categorical01 dist = causalGraph.getAllDistNodes().get(distId);
+                    dumpBernoulliFactor(pw, singletonId, distId, dist.getSupports());
+                } else {
+                    // if no bayesian is needed, singleton node is directly connected to parameter
+                    dumpBernoulliFactor(pw, singletonId, distId, new double[]{0.0, 1.0});
+                }
             } else {
                 pw.println();
                 dumpConstantFactor(pw, singletonId, 2, 1);
@@ -401,5 +412,9 @@ public class DAIRuntime {
         long passRep = blockRep + 2 + result;
         pw.println(Long.toUnsignedString(blockRep) + " " + 1);
         pw.println(Long.toUnsignedString(passRep) + " " + 1);
+    }
+
+    public long getNumThreads() {
+        return num_jobs;
     }
 }

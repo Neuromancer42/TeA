@@ -2,22 +2,22 @@ package com.neuromancer42.tea.libdai;
 
 import com.neuromancer42.tea.commons.inference.AbstractCausalDriver;
 import com.neuromancer42.tea.commons.inference.CausalGraph;
-import com.neuromancer42.tea.commons.configs.Messages;
 
 import java.nio.file.Path;
 import java.util.*;
 
-public class OneShotCausalDriver extends AbstractCausalDriver {
-    public static final String type = "oneshot";
+public class EMCausalDriver extends AbstractCausalDriver {
+
+    public static final String type = "em";
     private final List<Map<Object, Boolean>> obsHistory = new ArrayList<>();
+
     private boolean updated;
     private DAIMetaNetwork metaNetwork;
 
-    public OneShotCausalDriver(String name, Path path, CausalGraph causalGraph) {
+    protected EMCausalDriver(String name, Path path, CausalGraph causalGraph) {
         super(name, path, causalGraph);
         updated = false;
     }
-
 
     @Override
     protected void appendObservation(Map<Object, Boolean> obs) {
@@ -30,7 +30,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
     @Override
     protected Double queryPossibilityById(int nodeId) {
         if (!updated) {
-            invokeUpdater();
+            invokeLearner();
             updated = true;
         }
         return metaNetwork.predictNode(nodeId);
@@ -39,27 +39,20 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
     @Override
     protected double[] queryFactorById(int distId) {
         if (!updated) {
-            invokeUpdater();
+            invokeLearner();
             updated = true;
         }
         return metaNetwork.queryParamPosterior(distId);
     }
 
-
-    private void invokeUpdater() {
-        // 1. dump full N-factor-graph for each time of inference
+    private void invokeLearner() {
+        // release old causal graph for memory performance
         if (metaNetwork != null)
-            metaNetwork.release();
-        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size(), true);
-        // 2. dump observation
-        for (int timeId = 1; timeId <= obsHistory.size(); timeId++) {
-            Map<Object, Boolean> obs = obsHistory.get(timeId - 1);
-            for (var obsEntry : obs.entrySet()) {
-                Integer nodeId = causalGraph.getNodeId(obsEntry.getKey());
-                metaNetwork.observeNode(nodeId, timeId, obsEntry.getValue());
-            }
+            metaNetwork = null;
+        String fileName = String.format("em_%03d", obsHistory.size());
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, fileName, causalGraph, 0, false);
+        if (obsHistory.size() > 0) {
+            metaNetwork.runEM(workDir, fileName, obsHistory);
         }
-        // Note: invoking inference engine is done when querying
     }
-
 }

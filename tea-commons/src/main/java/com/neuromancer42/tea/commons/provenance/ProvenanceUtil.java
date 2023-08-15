@@ -111,7 +111,7 @@ public class ProvenanceUtil {
             constrToBodies.put(constr, bodyList);
         }
 
-        Map<Object, Categorical01> stochMapping = new HashMap<>();
+        Map<Object, Categorical01> stochMapping = new LinkedHashMap<>();
 
         for (Trgt.Constraint constr : provenance.getConstraintList()) {
             Categorical01 dist = deriveDist.apply(constr);
@@ -142,10 +142,10 @@ public class ProvenanceUtil {
         Set<Trgt.Tuple> reserved = new HashSet<>(reservedTuples);
         Messages.debug("ProvenanceUtil: %d reserved tuples", reserved.size());
 
-        Map<Object, Categorical01> stochMapping = new HashMap<>();
+        Map<Object, Categorical01> stochMapping = new LinkedHashMap<>();
         List<Trgt.Tuple> singletons = new ArrayList<>(provenance.getInputList());
         Map<Trgt.Tuple, Set<Trgt.Constraint>> headToConstrs = new LinkedHashMap<>();
-        Map<Trgt.Constraint, Set<Trgt.Tuple>> constrToBodies = new HashMap<>();
+        Map<Trgt.Constraint, Set<Trgt.Tuple>> constrToBodies = new LinkedHashMap<>();
 
         Map<Trgt.Tuple, Integer> bodyToConstrCnt = new HashMap<>();
         Map<Trgt.Tuple, Integer> headToNonEmptyConstrCnt = new HashMap<>();
@@ -236,7 +236,7 @@ public class ProvenanceUtil {
             }
 
             Set<Trgt.Tuple> newEliminatables = new LinkedHashSet<>();
-            for (Trgt.Tuple head : headToNonEmptyConstrCnt.keySet()) {
+            for (Trgt.Tuple head : headToConstrs.keySet()) {
                 if (headToNonEmptyConstrCnt.getOrDefault(head, 0) == 0) {
                     newEliminatables.add(head);
                 }
