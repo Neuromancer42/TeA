@@ -15,8 +15,6 @@ import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.cli.*;
-import org.apache.commons.configuration2.INIConfiguration;
-import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.*;
@@ -40,6 +38,7 @@ public final class SouffleRuntime {
         options.addOption("p", Constants.OPT_PORT, true, "listening to port");
         options.addOption("d", Constants.OPT_WORK_DIR, true, "working directory");
         options.addOption("b", Constants.OPT_BUILD_DIR, true, "directory for (reusable) building souffle and datalogs");
+        options.addOption("j", Constants.OPT_JOBS, true, "[optional] maximal jobs for parallelism");
         options.addOption(Option.builder("A")
                 .longOpt(OPT_ANALYSES)
                 .hasArgs()
@@ -59,8 +58,11 @@ public final class SouffleRuntime {
 
         String buildDir = cmd.getOptionValue(Constants.OPT_BUILD_DIR, rootWorkPath.resolve("build").toString());
         Path buildPath = Paths.get(buildDir);
+
+        long num_jobs = Long.parseLong(cmd.getOptionValue(Constants.OPT_JOBS, Constants.DEFAULT_JOBS));
+
         System.err.println("*** jsouffle server works in " + rootWorkPath.toAbsolutePath() + " with libraries in directory " + rootWorkPath.toAbsolutePath());
-        SouffleRuntime.init(buildPath, rootWorkPath);
+        SouffleRuntime.init(buildPath, rootWorkPath, num_jobs);
 
         for (var entry : cmd.getOptionProperties(OPT_ANALYSES).entrySet()) {
             String analysisName = (String) entry.getKey();
@@ -101,7 +103,7 @@ public final class SouffleRuntime {
         return runtime;
     }
 
-    public static void init(Path buildPath, Path cachePath) {
+    public static void init(Path buildPath, Path cachePath, long num_jobs) {
         Timer timer = new Timer(NAME_SOUFFLE);
         Messages.log("ENTER: Souffle Runtime Initialization started at " + (new Date()));
         timer.init();
@@ -117,7 +119,10 @@ public final class SouffleRuntime {
             Messages.error("SouffleRuntime: failed to create working directory");
             Messages.fatal(e);
         }
-        runtime = new SouffleRuntime(buildPath, cachePath);
+
+        if (num_jobs < 1) num_jobs = 1;
+        Messages.log("SouffleRuntime: set maximum parallelism as %d", num_jobs);
+        runtime = new SouffleRuntime(buildPath, cachePath, num_jobs);
         try {
             // 0. copy files from bundles
             {
@@ -160,6 +165,8 @@ public final class SouffleRuntime {
             {
                 List<String> makeCmd = new ArrayList<>();
                 makeCmd.add("make");
+                makeCmd.add("-j");
+                makeCmd.add(String.valueOf(num_jobs));
                 executeExternal(makeCmd, cmakeDir);
             }
             {
@@ -189,6 +196,8 @@ public final class SouffleRuntime {
     private static void executeExternal(List<String> cmd, Path path) throws IOException, InterruptedException {
         ProcessBuilder cmakeBuilder = new ProcessBuilder(cmd);
         cmakeBuilder.directory(path.toFile());
+        Messages.log("SouffleRuntime: %s", path.toAbsolutePath().toString());
+        Messages.log("\t %s", String.join(" ", cmakeBuilder.command()));
         Process cmakeProcess = cmakeBuilder.start();
         int cmakeRetVal = cmakeProcess.waitFor();
         if (cmakeRetVal != 0) {
@@ -219,11 +228,14 @@ public final class SouffleRuntime {
     private final Set<String> loadedLibraries;
     private final Map<String, String> loadedProvenances;
 
-    public SouffleRuntime(Path buildPath, Path cachePath) {
+    private final long num_jobs;
+
+    public SouffleRuntime(Path buildPath, Path cachePath, long num_jobs) {
         this.buildPath = buildPath;
         this.cachePath = cachePath;
         loadedLibraries = new HashSet<>();
         loadedProvenances = new HashMap<>();
+        this.num_jobs = num_jobs;
     }
 
     private synchronized void loadDlog(String analysis, InputStream dlogStream, boolean withProvenance, boolean withDebug) {
@@ -269,6 +281,9 @@ public final class SouffleRuntime {
                 } else {
                     cmakeCmd.add("-DENABLE_PROVENANCE=Off");
                 }
+                if (num_jobs > 1) {
+                    cmakeCmd.add(String.format("-DSOUFFLE_JOBS=%d", num_jobs));
+                }
                 if (System.getProperty("java.home") != null)
                     cmakeCmd.add("-DJAVA_HOME=" + System.getProperty("java.home"));
                 cmakeCmd.add("..");
@@ -277,6 +292,8 @@ public final class SouffleRuntime {
             {
                 List<String> makeCmd = new ArrayList<>();
                 makeCmd.add("make");
+                makeCmd.add("-j");
+                makeCmd.add(String.valueOf(num_jobs));
                 executeExternal(makeCmd, cmakeDir);
             }
             {
@@ -340,11 +357,15 @@ public final class SouffleRuntime {
         SWIGSouffleProgram program = SwigInterface.newInstance(analysis);
         if (program == null) {
             Messages.fatal("SouffleRuntime: failed to create instance of analysis %s", analysis);
+            assert false;
         }
+        program.setMaxJobs(num_jobs);
         SWIGSouffleProgram provProgram = null;
         String provName = hasLoadedProvenance(analysis);
         if (provName != null) {
             provProgram = SwigInterface.newInstance(provName);
+            assert provProgram != null;
+            provProgram.setMaxJobs(num_jobs);
         }
         return new SouffleAnalysis(name, analysis, program, provProgram);
     }

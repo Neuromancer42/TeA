@@ -25,7 +25,7 @@ public class SouffleSingleRunTest {
 
     @BeforeAll
     public static void setup() throws IOException {
-        SouffleRuntime.init(buildPath, workDirPath.resolve("test-cache"));
+        SouffleRuntime.init(buildPath, workDirPath.resolve("test-cache"), 8);
 
         InputStream dlogIn = SouffleSingleRunTest.class.getClassLoader().getResourceAsStream(dlogName);
         System.err.println("Writing " + dlogName);

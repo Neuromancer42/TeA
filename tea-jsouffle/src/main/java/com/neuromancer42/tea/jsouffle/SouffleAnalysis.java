@@ -150,6 +150,7 @@ public final class SouffleAnalysis {
 //                Messages.fatal("SouffleAnalysis %s: souffle analysis has been closed", name);
 //            }
             synchronized (souffleProgram) {
+                Messages.log("SouffleAnalysis %s: run in %d jobs", name, souffleProgram.getMaxJobs());
                 souffleProgram.loadAll(factDir.toString());
                 souffleProgram.run();
                 souffleProgram.printAll(outDir.toString());
@@ -280,6 +281,7 @@ public final class SouffleAnalysis {
                 assert false;
             }
             synchronized (proverProgram) {
+                Messages.log("SouffleAnalysis %s: provenance run in %d jobs", name, proverProgram.getMaxJobs());
                 proverProgram.loadAll(factDir.toString());
                 proverProgram.run();
                 proverProgram.printProvenance(proofPath.toString());

@@ -383,6 +383,18 @@ public:
         }
     }
 
+    void setMaxJobs(std::size_t num) {
+        program->setNumThreads(num);
+    }
+
+    std::size_t getMaxJobs() {
+#if defined(_OPENMP)
+        return program->getNumThreads();
+#else
+        return 0;
+#endif
+    }
+
 private:
     std::vector<std::string> constraintList = {
         "=", "!=", "<", "<=", ">=", ">", "match", "contains", "not_match", "not_contains"

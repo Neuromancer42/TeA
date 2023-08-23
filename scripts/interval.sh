@@ -101,7 +101,7 @@ nohup ${TEA_LLVM} -p 10003 -d ${outdir} > ${outdir}/tea-llvm-codemanager.log 2>&
 nohup_pids=($! "${nohup_pids[@]}")
 echo "start tea-llvm-codemanager, pid: ${nohup_pids[0]}"
 
-nohup ${TEA_JSOUFFLE} -p 10002 -d ${outdir} -b ${souffle_libdir} \
+nohup ${TEA_JSOUFFLE} -p 10002 -d ${outdir} -b ${souffle_libdir} -j ${jobs} \
   -A prept=${TEA_RULES}/flow_insensitive.dl \
   -A cg=${TEA_RULES}/cipa_cg.dl \
   -A fieldpt=${TEA_RULES}/field_pt.dl \
