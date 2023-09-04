@@ -140,6 +140,11 @@ public class DAIRuntime {
                 dumpCategoricalFactor(pw, distId, probs);
             } else {
                 // if using EM, only a (0,1)-factor is needed
+//                double e = distNode.estimation();
+//                if (e < Categorical01.epsilon)
+//                    e = Categorical01.epsilon;
+//                if (e > 1 - Categorical01.epsilon)
+//                    e = 1 - Categorical01.epsilon;
                 double e = distNode.estimation();
                 dumpCategoricalFactor(pw, distId, new double[]{1-e, e});
             }
@@ -211,7 +216,7 @@ public class DAIRuntime {
                 dumpSumFactor(pw, sumHead, sumBody);
             } else {
                 pw.println();
-                dumpSumFactor(pw, sumHead, sumBody, bayes ? (offsetLatent + latentId) : headId);
+                dumpSumFactor(pw, sumHead, sumBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId));
             }
         }
         for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext();) {
@@ -246,7 +251,7 @@ public class DAIRuntime {
                 dumpProdFactor(pw, prodHead, prodBody);
             } else {
                 pw.println();
-                dumpProdFactor(pw, prodHead, prodBody, bayes ? (offsetLatent + latentId) : headId);
+                dumpProdFactor(pw, prodHead, prodBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId));
             }
         }
         // singleton nodes are directly linked to distNodes

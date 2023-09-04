@@ -45,7 +45,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
         }
         List<Map.Entry<Integer, Double>> sortedDebugQueryProbs = debugQueryProbs.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
-                .collect(Collectors.toList());
+                .toList();
         List<String> debugLines = new ArrayList<>();
         for (var debugQueryProb : sortedDebugQueryProbs) {
             Integer nodeId = debugQueryProb.getKey();
@@ -82,9 +82,12 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
     private void dumpNetwork() {
         if (!updated) {
             Messages.log("IteratingDriver: dumping updated factor graph of previous observations");
-            if (metaNetwork != null)
+            if (metaNetwork != null) {
+                metaNetwork.dumpQueries(workDir.resolve(String.format("%03d.query", updateCnt)));
                 metaNetwork.release();
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d", updateCnt)+".post", causalGraph, 0, true);
+                metaNetwork = null;
+            }
+            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d.post", updateCnt), causalGraph, 0, true);
             updated = true;
         }
     }

@@ -24,7 +24,6 @@ public class EMCausalDriver extends AbstractCausalDriver {
         obsHistory.add(obs);
         // drop previous results
         updated = false;
-        metaNetwork = null;
     }
 
     @Override
@@ -47,8 +46,11 @@ public class EMCausalDriver extends AbstractCausalDriver {
 
     private void invokeLearner() {
         // release old causal graph for memory performance
-        if (metaNetwork != null)
+        if (metaNetwork != null) {
+            metaNetwork.dumpQueries(workDir.resolve("em.query"));
+            metaNetwork.release();
             metaNetwork = null;
+        }
         String fileName = String.format("em_%03d", obsHistory.size());
         metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, fileName, causalGraph, 0, false);
         if (obsHistory.size() > 0) {

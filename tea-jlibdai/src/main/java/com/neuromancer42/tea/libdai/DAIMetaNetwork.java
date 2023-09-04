@@ -26,6 +26,8 @@ public class DAIMetaNetwork {
     private final int numRepeats;
     private boolean activated;
 
+    private final Set<Integer> queried = new LinkedHashSet<>();
+
     static int maxiter = 10000000;
     static int maxtime = 10800;
     static double tol = 1e-6;
@@ -45,7 +47,7 @@ public class DAIMetaNetwork {
 
     private DAIMetaNetwork(Path fgFilePath, CausalGraph causalGraph, int numRepeats, int subSize) {
         this.causalGraph = causalGraph;
-        this.swigFactorGraph = new LibDAISWIGFactorGraph(fgFilePath.toAbsolutePath().toString(), maxiter, maxtime, tol);
+        this.swigFactorGraph = new LibDAISWIGFactorGraph(fgFilePath.toAbsolutePath().toString(), maxiter, maxtime, tol, "BP");
         this.shift = subSize;
         this.offset = causalGraph.distSize();
         this.numRepeats = numRepeats;
@@ -55,7 +57,7 @@ public class DAIMetaNetwork {
     public void observeNode(int nodeId, int time, boolean value) {
         if (activated) {
             Messages.log("DAIMetaNetwork: inference has been activated, reset algorithm.");
-            swigFactorGraph.resetBP();
+            swigFactorGraph.reset();
             activated = false;
         }
         if (nodeId >= causalGraph.nodeSize() || nodeId < 0) {
@@ -71,32 +73,44 @@ public class DAIMetaNetwork {
 
     public double predictNode(int nodeId) {
         if (!activated) {
-            swigFactorGraph.runBP();
+            swigFactorGraph.infer();
             activated = true;
         }
         if (nodeId >= causalGraph.nodeSize() || nodeId < 0) {
             Messages.fatal("DAIMetaNetwork: querying node " + nodeId + " is not a causal node.");
         }
         int fgVarId = offset + nodeId;
+
         Messages.debug("DAIMetaNetwork: quering node %d, fgVarId %d", nodeId, fgVarId);
-        return swigFactorGraph.queryBernoulliParam(fgVarId);
+        queried.add(fgVarId);
+
+        return swigFactorGraph.queryPostBernoulliParam(fgVarId);
     }
 
     public double[] queryParamPosterior(int distId) {
         if (!activated) {
-            swigFactorGraph.runBP();
+            swigFactorGraph.infer();
             activated = true;
         }
         if (distId >= offset || distId < 0) {
             Messages.fatal("DAIMetaNetwork: querying node " + distId + " is not a distribution node.");
         }
         Messages.debug("DAIMetaNetwork: quering factor %d", distId);
-        DoubleVector factor = swigFactorGraph.queryParamFactor(distId);
+        DoubleVector factor = swigFactorGraph.queryPostParamFactor(distId);
         double[] weights = new double[factor.size()];
         for (int i = 0; i < factor.size(); ++i) {
             weights[i] = factor.get(i);
         }
         return weights;
+    }
+
+    public void dumpQueries(Path queryPath) {
+        Messages.error("DAIMetaNetwork: Dumping to queried ids to %s", queryPath.toAbsolutePath().toString());
+        try {
+            Files.write(queryPath, queried.stream().map((id) -> id.toString()).toList(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Messages.error("DAIMetaNetwork: failed to dump queried ids: %s", e.getMessage());
+        }
     }
 
     public void release() {
@@ -174,7 +188,35 @@ public class DAIMetaNetwork {
         }
 
         // 3. run EM algorithm
-        swigFactorGraph.runEM(tabFilePath.toAbsolutePath().toString(), emFilePath.toAbsolutePath().toString(), DAIRuntime.g().getNumThreads());
+        // Debug mode, run EM step by step to dump intermediate results
+        Path logFilePath = dumpDir.resolve(name + ".paramlog");
+        Messages.log("DAIFactorGraph: dumping param log to %s", logFilePath.toAbsolutePath().toString());
+        try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(logFilePath, StandardCharsets.UTF_8))) {
+            for (int distId = 0; distId < causalGraph.distSize(); ++distId) {
+                pw.print(swigFactorGraph.getPriorBernoulliParam(distId));
+                if (distId == causalGraph.distSize() - 1)
+                    pw.println();
+                else
+                    pw.print("\t");
+            }
+
+            swigFactorGraph.initEM(tabFilePath.toAbsolutePath().toString(), emFilePath.toAbsolutePath().toString());
+            while (!swigFactorGraph.isEMconverged()) {
+                swigFactorGraph.iterateEM(DAIRuntime.g().getNumThreads());
+
+                for (int distId = 0; distId < causalGraph.distSize(); ++distId) {
+                    pw.print(swigFactorGraph.getPriorBernoulliParam(distId));
+                    if (distId == causalGraph.distSize() - 1)
+                        pw.println();
+                    else
+                        pw.print("\t");
+                }
+            }
+
+        } catch (IOException e) {
+            Messages.error("DAIFactorGraph: failed to dump param log");
+            swigFactorGraph.runEM(tabFilePath.toAbsolutePath().toString(), emFilePath.toAbsolutePath().toString(), DAIRuntime.g().getNumThreads());
+        }
         activated = true;
     }
 }
