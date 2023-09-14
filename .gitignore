@@ -43,5 +43,5 @@
 /tea-clients/application
 
 # testcases, ignore it for speed
-benchmarks/
-tests/
+/benchmarks/
+/tests/

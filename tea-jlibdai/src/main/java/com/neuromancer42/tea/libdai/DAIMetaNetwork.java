@@ -105,7 +105,7 @@ public class DAIMetaNetwork {
     }
 
     public void dumpQueries(Path queryPath) {
-        Messages.error("DAIMetaNetwork: Dumping to queried ids to %s", queryPath.toAbsolutePath().toString());
+        Messages.log("DAIMetaNetwork: Dumping to queried ids to %s", queryPath.toAbsolutePath().toString());
         try {
             Files.write(queryPath, queried.stream().map((id) -> id.toString()).toList(), StandardCharsets.UTF_8);
         } catch (IOException e) {
