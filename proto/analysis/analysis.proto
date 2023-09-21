@@ -10,7 +10,7 @@ service Provider {
     rpc RunAnalysis (RunRequest) returns (RunResults) {}
     rpc Prove (ProveRequest) returns (stream ProveResponse) {}
     rpc Instrument (InstrumentRequest) returns (InstrumentResponse) {}
-    rpc Test (TestRequest) returns (TestResponse) {}
+    rpc Test (TestRequest) returns (stream TestResponse) {}
     rpc Shutdown (ShutdownRequest) returns (ShutdownResponse) {}
 }
 
@@ -62,12 +62,14 @@ message InstrumentResponse {
 message TestRequest {
     string project_id = 1;
     Configs option = 2;
-    repeated string arg = 3;
+    string test_dir = 3;
+    repeated string test_id = 4;
 }
 
 message TestResponse {
-    repeated Tuple triggered_tuple = 1;
-    repeated Tuple negated_tuple = 2;
+    string test_id = 1;
+    repeated Tuple triggered_tuple = 2;
+    repeated Tuple negated_tuple = 3;
 }
 
 message ProveRequest {

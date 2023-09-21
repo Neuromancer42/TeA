@@ -13,8 +13,8 @@ message Compilation {
 }
 
 message Test {
-    repeated string arg = 1;
-    optional string test_id = 2;
+    string directory = 1;
+    repeated string test_id = 2;
 }
 
 message ApplicationRequest {
@@ -24,7 +24,7 @@ message ApplicationRequest {
     repeated string analysis = 4;
     repeated string alarm_rel = 5;
     optional bool need_rank = 6;
-    repeated Test test_suite = 7;
+    optional Test test_suite = 7;
 }
 
 message ApplicationResponse {

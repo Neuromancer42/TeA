@@ -409,27 +409,34 @@ public class Project {
         return observableTuples;
     }
 
-    public Map<Trgt.Tuple, Boolean> testAndObserve(CoreUtil.Test testCase, Map<String, String> options) {
-        Messages.log("Project %s: started to running test %s", ID, TextFormat.shortDebugString(testCase));
+    public Collection<Map<Trgt.Tuple, Boolean>> testAndObserve(String testDir, Collection<String> testIds, Map<String, String> options) {
+        Messages.log("Project %s: started to running %d tests from %s : %s", ID, testIds.size(), testDir, StringUtil.join(testIds, "; "));
         Analysis.TestRequest testReq = Analysis.TestRequest.newBuilder()
                 .setProjectId(ID)
                 .setOption(Analysis.Configs.newBuilder().putAllProperty(options))
-                .addAllArg(testCase.getArgList())
+                .setTestDir(testDir)
+                .addAllTestId(testIds)
                 .build();
-        Map<Trgt.Tuple, Boolean> obs = new LinkedHashMap<>();
+        Map<String, Map<Trgt.Tuple, Boolean>> traceMap = new LinkedHashMap<>();
         for (ProviderGrpc.ProviderBlockingStub observer : observers) {
-            Analysis.TestResponse testResp = observer.test(testReq);
-            for (Trgt.Tuple tuple : testResp.getTriggeredTupleList()) {
-                obs.put(tuple, true);
-                Messages.log("Project %s: observed true  tuple %s", ID, TextFormat.shortDebugString(tuple));
-            }
-            for (Trgt.Tuple tuple : testResp.getNegatedTupleList()) {
-                obs.put(tuple, false);
-                Messages.log("Project %s: observed false tuple %s", ID, TextFormat.shortDebugString(tuple));
+            var testRespIt = observer.test(testReq);
+            while (testRespIt.hasNext()) {
+                Analysis.TestResponse testResp = testRespIt.next();
+                String testId = testResp.getTestId();
+                Map<Trgt.Tuple, Boolean> obs = new LinkedHashMap<>();
+                for (Trgt.Tuple tuple : testResp.getTriggeredTupleList()) {
+                    obs.put(tuple, true);
+                    Messages.debug("Project %s: observed true  tuple %s", ID, TextFormat.shortDebugString(tuple));
+                }
+                for (Trgt.Tuple tuple : testResp.getNegatedTupleList()) {
+                    obs.put(tuple, false);
+                    Messages.debug("Project %s: observed false tuple %s", ID, TextFormat.shortDebugString(tuple));
+                }
+                Messages.log("Project %s: %s observed %d (+%d;-%d) tuples", ID, testId, obs.size(), testResp.getTriggeredTupleCount(), testResp.getNegatedTupleCount());
+                traceMap.put(testId, obs);
             }
         }
-        Messages.log("Project %s: observed %d tuples", ID, obs.size());
-        return obs;
+        return traceMap.values();
     }
 
     public void shutdown() {

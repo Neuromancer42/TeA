@@ -3,8 +3,7 @@ import grpc
 import application.core_util_pb2_grpc as app_grpc
 import application.core_util_pb2 as app_msg
 
-def run_analysis(proj_name, filename, compile_cmd, analyses, alarm_rels, need_rank, tests, core_addr, options):
-    print("Querying core server [%s] for file \"%s\" with command \"%s\", requiring analyses \"%s\", for %s alarms \"%s\", providing %d test cases, other options %s"%(core_addr, filename, compile_cmd, ",".join(analyses), "ranked" if need_rank else "unordered", ",".join(alarm_rels), len(tests), str(options)))
+def run_analysis(proj_name, filename, compile_cmd, analyses, alarm_rels, need_rank, test_dir, test_ids, core_addr, options):
     req = app_msg.ApplicationRequest()
     req.project_id = proj_name
     for key in options:
@@ -17,9 +16,10 @@ def run_analysis(proj_name, filename, compile_cmd, analyses, alarm_rels, need_ra
         req.alarm_rel.append(alarm)
     if need_rank:
         req.need_rank = True
-        for i in range(len(tests)):
-            test = app_msg.Test(arg=tests[i], test_id=str(i))
-            req.test_suite.append(test)
+        req.test_suite.MergeFrom(app_msg.Test(directory=test_dir, test_id=test_ids))
+
+    print("Querying core server: ")
+    print(req)
     channel = grpc.insecure_channel(core_addr)
     core_stub = app_grpc.CoreServiceStub(channel)
     for resp in core_stub.RunAnalyses(req, wait_for_ready=True):
@@ -52,12 +52,13 @@ else:
 
 tests = []
 if "tests" in config["project"]:
-    input_file = config["project"]["tests"].strip('\"')
-    with open(input_file) as f:
-        for line in f:
-            tests.append(line.split())
+    test_line = config["project"]["tests"].strip('\"').split(":")
+    if (len(test_line) != 2):
+        print("Wrong format of tests: use <dir>:<test_id1>;<test_id2>;...")
+    test_dir = test_line[0]
+    test_ids = test_line[1].split(";")
 
 reserved_keys = ["analyses", "alarms", "rank", "tests"]
 options = {key: config["project"][key] for key in config["project"] if not key in reserved_keys}
 
-run_analysis(proj_name, filename, compile_command, analyses, alarms, need_rank, tests, addr, options)
+run_analysis(proj_name, filename, compile_command, analyses, alarms, need_rank, test_dir, test_ids, addr, options)

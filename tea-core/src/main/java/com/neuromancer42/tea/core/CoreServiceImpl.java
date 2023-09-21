@@ -147,14 +147,15 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
             }
             Stopwatch testTimer = Stopwatch.createStarted();
             List<Map<Trgt.Tuple, Boolean>> trace = new ArrayList<>();
-            for (CoreUtil.Test testCase : request.getTestSuiteList()) {
-                Map<Trgt.Tuple, Boolean> obs = proj.testAndObserve(testCase, appOption);
-                trace.add(obs);
+            if (request.hasTestSuite()) {
+                trace.addAll(proj.testAndObserve(request.getTestSuite().getDirectory(), request.getTestSuite().getTestIdList(), appOption));
+            } else {
+                Messages.error("Core: No test suite assigned!");
             }
             testTimer.stop();
             {
                 CoreUtil.ApplicationResponse response = CoreUtil.ApplicationResponse.newBuilder()
-                        .setMsg(String.format(Constants.MSG_SUCC + ": testing %d testcases in %s",request.getTestSuiteCount(), testTimer))
+                        .setMsg(String.format(Constants.MSG_SUCC + ": testing %d testcases in %s",request.getTestSuite().getTestIdCount(), testTimer))
                         .build();
                 responseObserver.onNext(response);
             }

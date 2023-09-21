@@ -27,8 +27,8 @@ class ApplicationRequest(_message.Message):
     option: _containers.ScalarMap[str, str]
     project_id: str
     source: Compilation
-    test_suite: _containers.RepeatedCompositeFieldContainer[Test]
-    def __init__(self, project_id: _Optional[str] = ..., option: _Optional[_Mapping[str, str]] = ..., source: _Optional[_Union[Compilation, _Mapping]] = ..., analysis: _Optional[_Iterable[str]] = ..., alarm_rel: _Optional[_Iterable[str]] = ..., need_rank: bool = ..., test_suite: _Optional[_Iterable[_Union[Test, _Mapping]]] = ...) -> None: ...
+    test_suite: Test
+    def __init__(self, project_id: _Optional[str] = ..., option: _Optional[_Mapping[str, str]] = ..., source: _Optional[_Union[Compilation, _Mapping]] = ..., analysis: _Optional[_Iterable[str]] = ..., alarm_rel: _Optional[_Iterable[str]] = ..., need_rank: bool = ..., test_suite: _Optional[_Union[Test, _Mapping]] = ...) -> None: ...
 
 class ApplicationResponse(_message.Message):
     __slots__ = ["alarm", "msg"]
@@ -47,9 +47,9 @@ class Compilation(_message.Message):
     def __init__(self, source: _Optional[str] = ..., command: _Optional[str] = ...) -> None: ...
 
 class Test(_message.Message):
-    __slots__ = ["arg", "test_id"]
-    ARG_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["directory", "test_id"]
+    DIRECTORY_FIELD_NUMBER: _ClassVar[int]
     TEST_ID_FIELD_NUMBER: _ClassVar[int]
-    arg: _containers.RepeatedScalarFieldContainer[str]
-    test_id: str
-    def __init__(self, arg: _Optional[_Iterable[str]] = ..., test_id: _Optional[str] = ...) -> None: ...
+    directory: str
+    test_id: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, directory: _Optional[str] = ..., test_id: _Optional[_Iterable[str]] = ...) -> None: ...
