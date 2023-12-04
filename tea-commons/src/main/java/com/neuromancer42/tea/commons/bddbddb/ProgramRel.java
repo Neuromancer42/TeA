@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 
@@ -36,7 +37,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: iterating uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: iterating detached rel", getName());
+            Messages.debug("ProgramRel %s: iterating detached rel", getName());
+            load();
         }
         return rel.getAryNValTuples();
     }
@@ -46,7 +48,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: iterating uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: iterating detached rel", getName());
+            Messages.debug("ProgramRel %s: iterating detached rel", getName());
+            load();
         }
         return rel.getAryNIntTuples();
     }
@@ -203,7 +206,7 @@ public class ProgramRel {
                 status = Status.Detach;
                 break;
             case Detach:
-                Messages.warn("ProgramRel %s: already detached", getName());
+                Messages.debug("ProgramRel %s: already detached", getName());
         }
     }
 
@@ -256,7 +259,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: printing uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: printing detached rel", getName());
+            Messages.debug("ProgramRel %s: printing detached rel", getName());
+            load();
         }
         rel.print(location);
     }
@@ -270,7 +274,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+            Messages.debug("ProgramRel %s: querying detached rel", getName());
+            load();
         }
         return rel.size();
     }
@@ -280,7 +285,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+            Messages.warn("ProgramRel %s: modifying detached rel", getName());
+            load();
         }
         rel.add(vals);
         status = Status.UnSync;
@@ -291,7 +297,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+            Messages.warn("ProgramRel %s: modifying detached rel", getName());
+            load();
         }
         rel.remove(vals);
         status = Status.UnSync;
@@ -302,7 +309,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+            Messages.debug("ProgramRel %s: querying detached rel", getName());
+            load();
         }
         return rel.contains(vals);
     }
@@ -312,7 +320,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+            Messages.warn("ProgramRel %s: modifying detached rel", getName());
+            load();
         }
         rel.add(idxs);
         status = Status.UnSync;
@@ -323,7 +332,8 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: modifying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: modifying detached rel", getName());
+            Messages.warn("ProgramRel %s: modifying detached rel", getName());
+            load();
         }
         rel.remove(idxs);
         status = Status.UnSync;
@@ -334,9 +344,23 @@ public class ProgramRel {
             Messages.fatal("ProgramRel %s: querying uninitialized rel", getName());
         }
         if (status == Status.Detach) {
-            Messages.fatal("ProgramRel %s: querying detached rel", getName());
+            Messages.debug("ProgramRel %s: querying detached rel", getName());
+            load();
         }
         return rel.contains(idxs);
+    }
+
+    public void collect(Consumer<Object[]> collector) {
+        for (Object[] tuple : getValTuples()) {
+            collector.accept(tuple);
+        }
+    }
+
+    public void collectAndClose(Consumer<Object[]> collector) {
+        for (Object[] tuple : getValTuples()) {
+            collector.accept(tuple);
+        }
+        close();
     }
 
     public String getLocation() {

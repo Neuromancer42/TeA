@@ -376,7 +376,7 @@ public class AnalysisUtil {
 
             Map<String, ProgramRel> outputRelMap = newRels(analysis, domMap);
 
-            loadRels(analysis);
+//            loadRels(analysis);
             openDoms(analysis);
             analysis.domPhase();
             saveDoms(analysis, analysis.getOutDir());
