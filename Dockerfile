@@ -145,7 +145,7 @@ FROM tea-devenv AS tea-build
 
 ENV TEA_HOME=/tea
 WORKDIR /tea/
-RUN ./gradlew installDist
+RUN gradle installDist
 ENV TEA_CORE=${TEA_HOME}/tea-core/build/install/tea-core/bin/tea-core
 ENV TEA_ABSDOMAIN=${TEA_HOME}/tea-absdomain/build/install/tea-absdomain/bin/tea-absdomain
 ENV TEA_JSOUFFLE=${TEA_HOME}/tea-jsouffle/build/install/tea-jsouffle/bin/tea-jsouffle

@@ -84,7 +84,7 @@ public class DAIRuntime {
         this.num_jobs = num_jobs > 0 ? num_jobs : 1;
     }
 
-    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats, boolean bayes) throws IOException {
+    public static int dumpRepeatedFactorGraph(PrintWriter pw, CausalGraph causalGraph, int numRepeats, boolean bayes, boolean causal) throws IOException {
         assert (clauseLimit > 1);
         Messages.debug("DAIRuntime: current clause limit %d", clauseLimit);
 
@@ -98,33 +98,39 @@ public class DAIRuntime {
         }
 
         int numPhony = 0;
-        // each phony reduces subnums by (clauseLimit-1)
-        for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext();) {
-            Map.Entry<Integer, List<Integer>> sub = sumIter.next();
-            int headId = sub.getKey();
-            int subNum = new HashSet<>(sub.getValue()).size();
-            int limit = clauseLimit;
-            if (latentMap.contains(headId))
-                limit -= 1;
-            while (subNum > limit) {
+        {
+            // each phony reduces subnums by (clauseLimit-1)
+            for (var sumIter = causalGraph.getSumIter(); sumIter.hasNext(); ) {
+                Map.Entry<Integer, List<Integer>> sub = sumIter.next();
+                int headId = sub.getKey();
+                int subNum = new HashSet<>(sub.getValue()).size();
+                int limit = clauseLimit;
+                if (latentMap.contains(headId))
+                    limit -= 1;
+                while (subNum > limit) {
 //                Messages.debug("DAIRuntime: replace %d/%d nodes with phony node %d", clauseLimit, subNum, numPhony);
-                numPhony++;
-                subNum -= clauseLimit - 1;
+                    numPhony++;
+                    subNum -= clauseLimit - 1;
+                }
+            }
+            for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext(); ) {
+                Map.Entry<Integer, List<Integer>> sub = prodIter.next();
+                int headId = sub.getKey();
+                int subNum = new HashSet<>(sub.getValue()).size();
+                int limit = clauseLimit;
+                if (latentMap.contains(headId))
+                    limit -= 1;
+                while (subNum > limit) {
+//                Messages.debug("DAIRuntime: replace %d/%d nodes with phony node %d", clauseLimit, subNum, numPhony);
+                    numPhony++;
+                    subNum -= clauseLimit - 1;
+                }
             }
         }
-        for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext(); ) {
-            Map.Entry<Integer, List<Integer>> sub = prodIter.next();
-            int headId = sub.getKey();
-            int subNum = new HashSet<>(sub.getValue()).size();
-            int limit = clauseLimit;
-            if (latentMap.contains(headId))
-                limit -= 1;
-            while (subNum > limit) {
-//                Messages.debug("DAIRuntime: replace %d/%d nodes with phony node %d", clauseLimit, subNum, numPhony);
-                numPhony++;
-                subNum -= clauseLimit - 1;
-            }
-        }
+
+        // Note: for causal fg, no split is needed
+        if (causal)
+            numPhony = 0;
 
         final int subSize = (bayes ? latentMap.size() : 0) + causalGraph.nodeSize() + numPhony;
         int numFactors = causalGraph.distSize() + subSize * (numRepeats + 1);
@@ -146,16 +152,16 @@ public class DAIRuntime {
 //                if (e > 1 - Categorical01.epsilon)
 //                    e = 1 - Categorical01.epsilon;
                 double e = distNode.estimation();
-                dumpCategoricalFactor(pw, distId, new double[]{1-e, e});
+                dumpSingletonFactor(pw, distId, e, causal);
             }
         }
 
         int offset = causalGraph.distSize();
 
-        offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes);
+        offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes, causal);
 
         for (int r = 0; r < numRepeats; r++) {
-            offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes);
+            offset = dumpSubFactorGraph(pw, causalGraph, latentMap, offset, bayes, causal);
         }
         assert offset == numFactors;
 
@@ -165,7 +171,7 @@ public class DAIRuntime {
         return subSize;
     }
 
-    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph causalGraph, IndexMap<Integer> latentMap, int offset, boolean bayes) {
+    private static int dumpSubFactorGraph(PrintWriter pw, CausalGraph causalGraph, IndexMap<Integer> latentMap, int offset, boolean bayes, boolean causal) {
         int offsetNodes = offset;
         // if using bayesian learning, a latent variable is needed to bridge between parameters and clauses
         // if using em-learning or inference-only, clauses are directly connected to parameters;
@@ -193,6 +199,8 @@ public class DAIRuntime {
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
+            // Note: for causal fg, no split is needed
+            if (causal) limit = Integer.MAX_VALUE;
             while (sumBody.size() > limit) {
                 List<Integer> phonyHeads = new ArrayList<>();
                 for (int phonyBodyStart = 0; phonyBodyStart < sumBody.size(); phonyBodyStart += clauseLimit) {
@@ -204,7 +212,7 @@ public class DAIRuntime {
                         List<Integer> phonyBody = sumBody.subList(phonyBodyStart, phonyBodyEnd);
                         Messages.debug("CausalGraph: Create sum phony node " + phonyHead);
                         pw.println();
-                        dumpSumFactor(pw, phonyHead, phonyBody);
+                        dumpSumFactor(pw, phonyHead, phonyBody, causal);
                         phonyHeads.add(phonyHead);
                     }
                 }
@@ -213,10 +221,10 @@ public class DAIRuntime {
             int latentId = latentMap.indexOf(headId);
             if (latentId < 0) {
                 pw.println();
-                dumpSumFactor(pw, sumHead, sumBody);
+                dumpSumFactor(pw, sumHead, sumBody, causal);
             } else {
                 pw.println();
-                dumpSumFactor(pw, sumHead, sumBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId));
+                dumpSumFactor(pw, sumHead, sumBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId), causal);
             }
         }
         for (var prodIter = causalGraph.getProdIter(); prodIter.hasNext();) {
@@ -228,6 +236,8 @@ public class DAIRuntime {
             int limit = clauseLimit;
             if (latentMap.contains(headId))
                 limit -= 1;
+            // Note: for causal fg, no split is needed
+            if (causal) limit = Integer.MAX_VALUE;
             while (prodBody.size() > limit) {
                 List<Integer> phonyHeads = new ArrayList<>();
                 for (int phonyBodyStart = 0; phonyBodyStart < prodBody.size(); phonyBodyStart += clauseLimit) {
@@ -239,7 +249,7 @@ public class DAIRuntime {
                         List<Integer> phonyBody = prodBody.subList(phonyBodyStart, phonyBodyEnd);
                         Messages.debug("CausalGraph: Create prod phony node " + phonyHead);
                         pw.println();
-                        dumpProdFactor(pw, phonyHead, phonyBody);
+                        dumpProdFactor(pw, phonyHead, phonyBody, causal);
                         phonyHeads.add(phonyHead);
                     }
                 }
@@ -248,10 +258,10 @@ public class DAIRuntime {
             int latentId = latentMap.indexOf(headId);
             if (latentId < 0) {
                 pw.println();
-                dumpProdFactor(pw, prodHead, prodBody);
+                dumpProdFactor(pw, prodHead, prodBody, causal);
             } else {
                 pw.println();
-                dumpProdFactor(pw, prodHead, prodBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId));
+                dumpProdFactor(pw, prodHead, prodBody, bayes ? (offsetLatent + latentId) : causalGraph.getNodesDistId(headId), causal);
             }
         }
         // singleton nodes are directly linked to distNodes
@@ -266,23 +276,46 @@ public class DAIRuntime {
                     dumpBernoulliFactor(pw, singletonId, distId, dist.getSupports());
                 } else {
                     // if no bayesian is needed, singleton node is directly connected to parameter
-                    dumpBernoulliFactor(pw, singletonId, distId, new double[]{0.0, 1.0});
+                    dumpProdFactor(pw, singletonId, List.of(), distId, causal);
                 }
             } else {
                 pw.println();
-                dumpConstantFactor(pw, singletonId, 2, 1);
+                dumpConstantFactor(pw, singletonId, 2, 1, causal);
             }
         }
 
         return phonyId;
     }
 
-    private static void dumpConstantFactor(PrintWriter pw, int singletonId, long dim, long value) {
-        pw.println(1);
-        pw.println(singletonId);
-        pw.println(dim);
-        pw.println(1);
-        pw.println(value + " " + 1);
+    private static void dumpConstantFactor(PrintWriter pw, int singletonId, long dim, long value, boolean causal) {
+        if (causal) {
+            pw.println(singletonId);
+            pw.println('I');
+            pw.println(1);
+        } else {
+            pw.println(1);
+            pw.println(singletonId);
+            pw.println(dim);
+            pw.println(1);
+            pw.println(value + " " + 1);
+        }
+        pw.flush();
+    }
+
+    private static void dumpSingletonFactor(PrintWriter pw, int distId, double prob, boolean causal) {
+        if (causal) {
+            pw.println(distId);
+            pw.println('I');
+            pw.println(prob);
+        } else {
+            pw.println(1);// variable numbers
+            pw.println(distId); // variable IDs
+            int cardinality = 2;
+            pw.println(cardinality); // cardinalities
+            pw.println(cardinality); // number of non-zero entries
+            pw.print(0); pw.print(" "); pw.println(1-prob);
+            pw.print(1); pw.print(" "); pw.println(prob);
+        }
         pw.flush();
     }
 
@@ -321,7 +354,21 @@ public class DAIRuntime {
         pw.flush();
     }
 
-    private static void dumpSumFactor(PrintWriter pw, Integer head, List<Integer> body) {
+    private static void dumpSumFactor(PrintWriter pw, Integer head, List<Integer> body, boolean causal) {
+        if (causal) {
+            pw.println(head);
+            pw.println('+');
+            pw.println(body.size());
+            boolean first = true;
+            for (Integer b : body) {
+                if (first) first = false;
+                else pw.print(' ');
+                pw.print(b);
+            }
+            pw.println();
+            pw.flush();
+            return;
+        }
         dumpClauseVariables(pw, head, body);
         long allRep = (1L << body.size()) - 1;
         pw.println(allRep + 1);
@@ -333,8 +380,24 @@ public class DAIRuntime {
         pw.flush();
     }
 
-    private static void dumpSumFactor(PrintWriter pw, Integer head, List<Integer> body, Integer control) {
-        if (control == null) dumpSumFactor(pw, head, body);
+    private static void dumpSumFactor(PrintWriter pw, Integer head, List<Integer> body, Integer control, boolean causal) {
+        if (control == null) {
+            dumpSumFactor(pw, head, body, causal);
+            return;
+        }
+        if (causal) {
+            pw.println(head);
+            pw.println('+');
+            pw.println(1+body.size());
+            pw.print(control);
+            for (Integer b : body) {
+                pw.print(' ');
+                pw.print(b);
+            }
+            pw.println();
+            pw.flush();
+            return;
+        }
         dumpClauseVariables(pw, head, body, control);
         long allRep = (1L << body.size()) - 1;
         pw.println((allRep + 1) * 2);
@@ -346,7 +409,21 @@ public class DAIRuntime {
         pw.flush();
     }
 
-    private static void dumpProdFactor(PrintWriter pw, Integer head, List<Integer> body) {
+    private static void dumpProdFactor(PrintWriter pw, Integer head, List<Integer> body, boolean causal) {
+        if (causal) {
+            pw.println(head);
+            pw.println('*');
+            pw.println(body.size());
+            boolean first = true;
+            for (Integer b : body) {
+                if (first) first = false;
+                else pw.print(' ');
+                pw.print(b);
+            }
+            pw.println();
+            pw.flush();
+            return;
+        }
         dumpClauseVariables(pw, head, body);
         long allRep = (1L << body.size()) - 1;
         pw.println(allRep + 1);
@@ -358,8 +435,24 @@ public class DAIRuntime {
         pw.flush();
     }
 
-    private static void dumpProdFactor(PrintWriter pw, Integer head, List<Integer> body, Integer control) {
-        if (control == null) dumpProdFactor(pw, head, body);
+    private static void dumpProdFactor(PrintWriter pw, Integer head, List<Integer> body, Integer control, boolean causal) {
+        if (control == null) {
+            dumpProdFactor(pw, head, body, causal);
+            return;
+        }
+        if (causal) {
+            pw.println(head);
+            pw.println('*');
+            pw.println(1+body.size());
+            pw.print(control);
+            for (Integer b : body) {
+                pw.print(' ');
+                pw.print(b);
+            }
+            pw.println();
+            pw.flush();
+            return;
+        }
         dumpClauseVariables(pw, head, body, control);
         long allRep = (1L << body.size()) - 1;
         pw.println((allRep + 1) * 2);

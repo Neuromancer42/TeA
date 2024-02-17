@@ -87,7 +87,7 @@ public class IteratingCausalDriver extends AbstractCausalDriver {
                 metaNetwork.release();
                 metaNetwork = null;
             }
-            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d.post", updateCnt), causalGraph, 0, true);
+            metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, String.format("%03d.post", updateCnt), causalGraph, 0, true, false);
             updated = true;
         }
     }

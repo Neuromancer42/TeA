@@ -28,15 +28,15 @@ public class DAIMetaNetwork {
 
     private final Set<Integer> queried = new LinkedHashSet<>();
 
-    static int maxiter = 10000000;
-    static int maxtime = 10800;
-    static double tol = 1e-6;
+    public static int maxiter = 10000;
+    public static int maxtime = 3600;
+    public static double tol = 1e-6;
 
-    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats, boolean bayes) {
-        Path fgFilePath = dumpDir.resolve(name+".fg");
+    public static DAIMetaNetwork createDAIMetaNetwork(Path dumpDir, String name, CausalGraph causalGraph, int numRepeats, boolean bayes, boolean causal) {
+        Path fgFilePath = dumpDir.resolve(name+ (causal ? ".causal_fg" : ".fg"));
         int subSize = causalGraph.nodeSize();
         try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(fgFilePath, StandardCharsets.UTF_8))){
-            subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats, bayes);
+            subSize = DAIRuntime.dumpRepeatedFactorGraph(pw, causalGraph, numRepeats, bayes, causal);
             Messages.debug("DAIFactorGraph: dumping factor graph to path " + fgFilePath);
         } catch (IOException e) {
             Messages.error("DAIFacetorGraph: failed to dump factor graph.");

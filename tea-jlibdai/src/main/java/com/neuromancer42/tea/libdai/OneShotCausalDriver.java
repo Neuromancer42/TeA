@@ -52,7 +52,7 @@ public class OneShotCausalDriver extends AbstractCausalDriver {
             metaNetwork.release();
             metaNetwork = null;
         }
-        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size(), true);
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, name+"_"+obsHistory.size(), causalGraph, obsHistory.size(), true, false);
         // 2. dump observation
         for (int timeId = 1; timeId <= obsHistory.size(); timeId++) {
             Map<Object, Boolean> obs = obsHistory.get(timeId - 1);

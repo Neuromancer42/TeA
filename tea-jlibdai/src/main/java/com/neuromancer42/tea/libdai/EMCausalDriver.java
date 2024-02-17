@@ -119,7 +119,7 @@ public class EMCausalDriver extends AbstractCausalDriver {
             metaNetwork = null;
         }
         String fileName = String.format("em_%03d", obsHistory.size());
-        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, fileName, causalGraph, 0, false);
+        metaNetwork = DAIMetaNetwork.createDAIMetaNetwork(workDir, fileName, causalGraph, 0, false, true);
         if (obsHistory.size() > 0) {
             metaNetwork.runEM(workDir, fileName, obsHistory);
         }

@@ -11,8 +11,8 @@ compile_cmd=""
 proj=`date +"p%b %d, %Y"`
 souffle_libdir="souffle_cache"
 jobs=8
-
-while getopts p:c:f:a:o:b:d:t:j: flag
+debug=0
+while getopts p:c:f:a:o:b:d:t:j:g flag
 do
   case "${flag}" in
     p) proj=${OPTARG};;
@@ -24,6 +24,7 @@ do
     o) outdir=${OPTARG};;
     t) pretest=${OPTARG};;
     j) jobs=${OPTARG};;
+    g) debug=1;;
     *) usage;;
   esac
 done
@@ -128,13 +129,17 @@ finish_all () {
     echo "killing pid: $pid"
     kill -9 $pid
   done
-  popd || exit 1
-  exit 0
 }
 
 trap finish_all SIGINT
 ${TEA_CLIENT} localhost:10001 ${proj} ${config_file} ${source_file} "${compile_cmd}"
 
+if [[ $debug -gt 0 ]]; then
+  echo "DEBUG: wait for inspection..."
+  sleep infinity
+fi
+
 finish_all
 
-
+popd || exit 1
+exit 0
