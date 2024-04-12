@@ -167,7 +167,7 @@ public class CoreServiceImpl extends CoreServiceGrpc.CoreServiceImplBase {
                 {
                     CoreUtil.ApplicationResponse.Builder respBuilder = CoreUtil.ApplicationResponse.newBuilder();
 
-                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": all analyses completed in %s", postTimer));
+                    respBuilder.setMsg(String.format(Constants.MSG_SUCC + ": posterior ranking completed in %s", postTimer));
 
                     for (int i = 0; i < postRanking.size(); ++i) {
                         var alarmProb = postRanking.get(i);
